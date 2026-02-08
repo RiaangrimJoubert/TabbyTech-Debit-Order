@@ -63,6 +63,15 @@ body {
 }
 
 .tt-login-card {
+  width: 100%;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  padding: 28px;
+}
+
   background: var(--glass);
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
