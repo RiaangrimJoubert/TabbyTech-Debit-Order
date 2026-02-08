@@ -6,6 +6,7 @@ import Clients from "../screens/Clients";
 import DebitOrders from "../screens/DebitOrders";
 import Batches from "../screens/Batches";
 import Reports from "./Reports";
+import Settings from "../screens/Settings";
 
 const TITLES = {
   dashboard: "Dashboard",
@@ -13,6 +14,7 @@ const TITLES = {
   debitorders: "Debit Orders",
   batches: "Batches",
   reports: "Reports",
+  settings: "Settings",
 };
 
 export default function AppShell({ onLogout }) {
@@ -25,6 +27,7 @@ export default function AppShell({ onLogout }) {
     if (activeKey === "debitorders") return <DebitOrders />;
     if (activeKey === "batches") return <Batches />;
     if (activeKey === "reports") return <Reports />;
+    if (activeKey === "settings") return <Settings />;
     return <Dashboard />;
   }, [activeKey]);
 
