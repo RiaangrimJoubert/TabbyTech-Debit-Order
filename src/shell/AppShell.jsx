@@ -1,16 +1,46 @@
+import { useMemo, useState } from "react";
 import Sidebar from "./Sidebar";
-import Dashboard from "./Dashboard";
 
-export default function AppShell() {
+import Dashboard from "./Dashboard";
+import Clients from "./Clients";
+import DebitOrders from "./DebitOrders";
+import Batches from "./Batches";
+import Reports from "./Reports";
+
+const TITLES = {
+  dashboard: "Dashboard",
+  clients: "Clients",
+  debitorders: "Debit Orders",
+  batches: "Batches",
+  reports: "Reports",
+};
+
+export default function AppShell({ onLogout }) {
+  const [activeKey, setActiveKey] = useState("dashboard");
+
+  const pageTitle = useMemo(() => TITLES[activeKey] || "Dashboard", [activeKey]);
+
+  const content = useMemo(() => {
+    if (activeKey === "clients") return <Clients />;
+    if (activeKey === "debitorders") return <DebitOrders />;
+    if (activeKey === "batches") return <Batches />;
+    if (activeKey === "reports") return <Reports />;
+    return <Dashboard />;
+  }, [activeKey]);
+
   return (
     <div className="tt-appshell">
-      <Sidebar />
+      <Sidebar
+        activeKey={activeKey}
+        onNavigate={(key) => setActiveKey(key)}
+        onLogout={() => onLogout?.()}
+      />
 
       <main className="tt-shell-main">
         <header className="tt-shell-topbar">
           <div>
             <div className="tt-shell-kicker">TabbyTech</div>
-            <div className="tt-shell-h1">Dashboard</div>
+            <div className="tt-shell-h1">{pageTitle}</div>
           </div>
 
           <div className="tt-shell-actions">
@@ -19,12 +49,15 @@ export default function AppShell() {
               <input
                 className="tt-shell-searchinput"
                 placeholder="Search clients, batches, reports"
+                aria-label="Search"
               />
             </div>
 
-            <button className="tt-shell-iconbtn">🔔</button>
+            <button className="tt-shell-iconbtn" type="button" aria-label="Notifications">
+              🔔
+            </button>
 
-            <div className="tt-shell-user">
+            <div className="tt-shell-user" role="button" tabIndex={0} aria-label="User menu">
               <div className="tt-shell-avatar">T</div>
               <div>
                 <div className="tt-shell-username">TabbyTech</div>
@@ -34,9 +67,7 @@ export default function AppShell() {
           </div>
         </header>
 
-        <section className="tt-shell-content">
-          <Dashboard />
-        </section>
+        <section className="tt-shell-content">{content}</section>
       </main>
     </div>
   );
