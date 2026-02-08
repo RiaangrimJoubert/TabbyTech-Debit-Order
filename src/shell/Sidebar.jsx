@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 const nav = [
   { key: "dashboard", label: "Dashboard", icon: "▦" },
   { key: "clients", label: "Clients", icon: "👥" },
@@ -8,9 +6,7 @@ const nav = [
   { key: "reports", label: "Reports", icon: "📈" },
 ];
 
-export default function Sidebar() {
-  const [activeKey, setActiveKey] = useState("dashboard");
-
+export default function Sidebar({ activeKey, onNavigate, onLogout }) {
   return (
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
@@ -33,7 +29,7 @@ export default function Sidebar() {
                 key={item.key}
                 type="button"
                 className={`tt-sidenav-item ${isActive ? "is-active" : ""}`}
-                onClick={() => setActiveKey(item.key)}
+                onClick={() => onNavigate?.(item.key)}
                 aria-current={isActive ? "page" : undefined}
               >
                 <span className="tt-sidenav-icon" aria-hidden="true">
@@ -60,14 +56,14 @@ export default function Sidebar() {
 
         <div className="tt-sidedivider" />
 
-        <button type="button" className="tt-sidenav-item tt-sidenav-item-muted">
+        <button type="button" className="tt-sidenav-item tt-sidenav-item-muted" onClick={() => onNavigate?.("settings")}>
           <span className="tt-sidenav-icon" aria-hidden="true">
             ⚙
           </span>
           <span className="tt-sidenav-label">Settings</span>
         </button>
 
-        <button type="button" className="tt-sidenav-item tt-sidenav-item-muted">
+        <button type="button" className="tt-sidenav-item tt-sidenav-item-muted" onClick={() => onLogout?.()}>
           <span className="tt-sidenav-icon" aria-hidden="true">
             ⎋
           </span>
