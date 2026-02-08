@@ -814,15 +814,20 @@ const css = `
   height: 100%;
   color: rgba(255,255,255,0.92);
 }
+/* Force button text to inherit the dark theme text, not browser default button text */
+.tt-settings button {
+  color: rgba(255,255,255,0.92);
+}
 
-/* Use the same TabbyTech purple as the rest of the app */
+/* TabbyTech purple for all card and tile titles on Settings */
 .tt-settings .tt-cardTitle,
 .tt-settings .tt-tileTitle,
 .tt-settings .tt-miniTitle,
 .tt-settings .tt-chipTitle,
 .tt-settings .tt-recTitle {
-  color: var(--purple);
+  color: var(--purple) !important;
 }
+
 
 .tt-wrap {
   max-width: 1200px;
