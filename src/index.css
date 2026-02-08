@@ -251,6 +251,17 @@ body {
   transform: translateY(-1px);
 }
 
+/* Active state */
+.tt-sidenav-item.is-active {
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.22), rgba(255, 255, 255, 0.03));
+  border-color: rgba(124, 58, 237, 0.34);
+}
+
+.tt-sidenav-item.is-active .tt-sidenav-pill {
+  opacity: 1;
+}
+
 .tt-sidenav-icon {
   width: 26px;
   height: 26px;
