@@ -20,47 +20,45 @@ export default function Login({ onLogin }) {
           </div>
         </div>
 
-        {/* Card */}
+        {/* Login Card */}
         <div className="tt-login-card">
           <div className="tt-login-form-inner">
-            <div className="tt-login-form">
 
-              <input
-                className="tt-input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Username"
-                autoComplete="username"
-              />
+            <input
+              className="tt-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Username"
+              autoComplete="username"
+            />
 
-              <input
-                className="tt-input"
-                type="password"
-                value={pass}
-                onChange={(e) => setPass(e.target.value)}
-                placeholder="Password"
-                autoComplete="current-password"
-              />
+            <input
+              className="tt-input"
+              type="password"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              placeholder="Password"
+              autoComplete="current-password"
+            />
 
-              <button
-                type="button"
-                className="tt-btn tt-btn-primary"
-                onClick={() => onLogin?.()}
-              >
-                LOG IN
-              </button>
+            <button
+              type="button"
+              className="tt-btn tt-btn-primary"
+              onClick={() => onLogin?.()}
+            >
+              LOG IN
+            </button>
 
-              <div className="tt-login-foot">
-                <a href="#" className="tt-link">
-                  Forgot password?
-                </a>
+            <div className="tt-login-foot">
+              <a href="#" className="tt-link">
+                Forgot password?
+              </a>
 
-                <div className="tt-login-tag">
-                  TabbyTech Debit Orders
-                </div>
+              <div className="tt-login-tag">
+                TabbyTech Debit Orders
               </div>
-
             </div>
+
           </div>
         </div>
 
