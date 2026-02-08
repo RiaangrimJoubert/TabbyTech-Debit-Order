@@ -1,4 +1,5 @@
 import Sidebar from "./Sidebar";
+import Dashboard from "./Dashboard";
 
 export default function AppShell() {
   return (
@@ -7,7 +8,7 @@ export default function AppShell() {
 
       <main className="tt-shell-main">
         <header className="tt-shell-topbar">
-          <div className="tt-shell-title">
+          <div>
             <div className="tt-shell-kicker">TabbyTech</div>
             <div className="tt-shell-h1">Dashboard</div>
           </div>
@@ -18,17 +19,14 @@ export default function AppShell() {
               <input
                 className="tt-shell-searchinput"
                 placeholder="Search clients, batches, reports"
-                aria-label="Search"
               />
             </div>
 
-            <button className="tt-shell-iconbtn" type="button" aria-label="Notifications">
-              🔔
-            </button>
+            <button className="tt-shell-iconbtn">🔔</button>
 
-            <div className="tt-shell-user" role="button" tabIndex={0}>
+            <div className="tt-shell-user">
               <div className="tt-shell-avatar">T</div>
-              <div className="tt-shell-usermeta">
+              <div>
                 <div className="tt-shell-username">TabbyTech</div>
                 <div className="tt-shell-userrole">Ops</div>
               </div>
@@ -37,9 +35,7 @@ export default function AppShell() {
         </header>
 
         <section className="tt-shell-content">
-          <div className="tt-shell-placeholder">
-            Dashboard content next
-          </div>
+          <Dashboard />
         </section>
       </main>
     </div>
