@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
 
+const PURPLE = "var(--purple)";
+
 const styles = {
   page: {
     height: "100%",
@@ -25,12 +27,13 @@ const styles = {
     fontSize: 13,
     color: "rgba(255,255,255,0.62)",
     lineHeight: 1.4,
+    maxWidth: 960,
   },
   actionsRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
 
   grid: {
     display: "grid",
-    gridTemplateColumns: "1.6fr 1fr",
+    gridTemplateColumns: "1.65fr 1fr",
     gap: 16,
     minHeight: 0,
     flex: 1,
@@ -39,8 +42,7 @@ const styles = {
   glass: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)",
     boxShadow: "0 18px 50px rgba(0,0,0,0.35)",
     backdropFilter: "blur(14px)",
     overflow: "hidden",
@@ -90,6 +92,7 @@ const styles = {
     background: "rgba(10,10,14,0.75)",
     borderBottom: "1px solid rgba(255,255,255,0.08)",
     backdropFilter: "blur(10px)",
+    whiteSpace: "nowrap",
   },
   td: {
     padding: "12px 14px",
@@ -99,7 +102,7 @@ const styles = {
   },
   row: (active) => ({
     cursor: "pointer",
-    background: active ? "rgba(168,85,247,0.14)" : "transparent",
+    background: active ? "rgba(124,58,237,0.14)" : "transparent",
     transition: "transform 160ms ease, background 160ms ease, box-shadow 160ms ease",
   }),
   rowHover: {
@@ -125,8 +128,7 @@ const styles = {
   statCard: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%)",
     padding: 12,
   },
   statLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", margin: 0 },
@@ -152,7 +154,7 @@ const styles = {
     letterSpacing: 0.2,
     textTransform: "uppercase",
   },
-  kv: { display: "grid", gridTemplateColumns: "140px 1fr", gap: 10, marginTop: 10 },
+  kv: { display: "grid", gridTemplateColumns: "150px 1fr", gap: 10, marginTop: 10 },
   k: { fontSize: 12, color: "rgba(255,255,255,0.55)" },
   v: { fontSize: 13, color: "rgba(255,255,255,0.82)" },
 
@@ -171,18 +173,20 @@ const styles = {
       gap: 10,
       cursor: "pointer",
       userSelect: "none",
-      transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease",
+      transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease, filter 160ms ease",
       fontSize: 13,
       fontWeight: 600,
       letterSpacing: 0.2,
+      whiteSpace: "nowrap",
     };
 
     if (variant === "primary") {
       return {
         ...base,
-        background: "linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95))",
-        border: "1px solid rgba(168,85,247,0.55)",
+        background: PURPLE,
+        border: "1px solid rgba(124,58,237,0.55)",
         boxShadow: "0 14px 34px rgba(124,58,237,0.28)",
+        color: "rgba(255,255,255,0.96)",
       };
     }
 
@@ -201,8 +205,8 @@ const styles = {
     height: 34,
     padding: "0 10px",
     borderRadius: 999,
-    border: `1px solid ${active ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.12)"}`,
-    background: active ? "rgba(168,85,247,0.16)" : "rgba(255,255,255,0.05)",
+    border: `1px solid ${active ? "rgba(124,58,237,0.55)" : "rgba(255,255,255,0.12)"}`,
+    background: active ? "rgba(124,58,237,0.16)" : "rgba(255,255,255,0.05)",
     color: active ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.76)",
     display: "inline-flex",
     alignItems: "center",
@@ -236,12 +240,23 @@ const styles = {
     opacity: 0.7,
   },
 
+  select: {
+    height: 38,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(0,0,0,0.18)",
+    color: "rgba(255,255,255,0.88)",
+    outline: "none",
+    padding: "0 12px",
+    fontSize: 13,
+  },
+
   badge: (tone) => {
     const map = {
       Active: { bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.30)", tx: "rgba(255,255,255,0.86)" },
       Paused: { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.32)", tx: "rgba(255,255,255,0.86)" },
       Risk: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)", tx: "rgba(255,255,255,0.86)" },
-      New: { bg: "rgba(168,85,247,0.16)", bd: "rgba(168,85,247,0.32)", tx: "rgba(255,255,255,0.90)" },
+      New: { bg: "rgba(124,58,237,0.16)", bd: "rgba(124,58,237,0.32)", tx: "rgba(255,255,255,0.90)" },
     };
     const t = map[tone] || map.New;
     return {
@@ -258,22 +273,136 @@ const styles = {
       letterSpacing: 0.2,
     };
   },
+
+  syncBadge: (state) => {
+    const map = {
+      Synced: { bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.30)" },
+      Pending: { bg: "rgba(124,58,237,0.14)", bd: "rgba(124,58,237,0.28)" },
+      "Needs review": { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.30)" },
+      "Sync error": { bg: "rgba(239,68,68,0.14)", bd: "rgba(239,68,68,0.30)" },
+    };
+    const t = map[state] || map.Pending;
+    return {
+      height: 22,
+      padding: "0 10px",
+      borderRadius: 999,
+      display: "inline-flex",
+      alignItems: "center",
+      border: `1px solid ${t.bd}`,
+      background: t.bg,
+      color: "rgba(255,255,255,0.88)",
+      fontSize: 11,
+      fontWeight: 800,
+      letterSpacing: 0.2,
+      whiteSpace: "nowrap",
+    };
+  },
+
+  sourceBadge: (source) => ({
+    height: 22,
+    padding: "0 10px",
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    border: source === "Zoho CRM" ? "1px solid rgba(124,58,237,0.28)" : "1px solid rgba(255,255,255,0.12)",
+    background: source === "Zoho CRM" ? "rgba(124,58,237,0.12)" : "rgba(255,255,255,0.06)",
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 0.2,
+    whiteSpace: "nowrap",
+  }),
+
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.62)",
+    zIndex: 60,
+    display: "grid",
+    placeItems: "center",
+    padding: 18,
+  },
+  modal: {
+    width: "min(720px, 96vw)",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))",
+    boxShadow: "0 28px 90px rgba(0,0,0,0.55)",
+    backdropFilter: "blur(18px)",
+    overflow: "hidden",
+  },
+  modalHead: {
+    padding: 14,
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    borderBottom: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(0,0,0,0.14)",
+  },
+  modalTitle: { margin: 0, fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.92)" },
+  modalHint: { marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.62)", lineHeight: 1.4 },
+  modalBody: { padding: 14, display: "grid", gap: 12 },
+  modalGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+
+  field: { display: "grid", gap: 6 },
+  label: { fontSize: 12, color: "rgba(255,255,255,0.62)", fontWeight: 700 },
+  inputPlain: {
+    height: 40,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(0,0,0,0.18)",
+    color: "rgba(255,255,255,0.90)",
+    outline: "none",
+    padding: "0 12px",
+    fontSize: 13,
+  },
+  textarea: {
+    minHeight: 96,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(0,0,0,0.18)",
+    color: "rgba(255,255,255,0.90)",
+    outline: "none",
+    padding: "10px 12px",
+    fontSize: 13,
+    resize: "none",
+    lineHeight: 1.45,
+  },
+
+  banner: {
+    borderRadius: 14,
+    border: "1px solid rgba(245,158,11,0.30)",
+    background: "rgba(245,158,11,0.12)",
+    padding: 12,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  bannerTitle: { margin: 0, fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.90)" },
+  bannerText: { marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.74)", lineHeight: 1.45 },
+
+  toastWrap: { position: "fixed", bottom: 24, right: 24, zIndex: 80 },
+  toast: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(0,0,0,0.70)",
+    backdropFilter: "blur(14px)",
+    padding: "10px 12px",
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    boxShadow: "0 22px 70px rgba(0,0,0,0.45)",
+  },
+
+  muted: { color: "rgba(255,255,255,0.62)" },
 };
 
 function IconSearch({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-        stroke="rgba(255,255,255,0.75)"
-        strokeWidth="2"
-      />
-      <path
-        d="M16.2 16.2 21 21"
-        stroke="rgba(255,255,255,0.75)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
+      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -286,14 +415,51 @@ function IconPlus({ size = 16 }) {
   );
 }
 
+function IconRefresh({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M20 12a8 8 0 0 1-14.5 4.6M4 12a8 8 0 0 1 14.5-4.6"
+        stroke="rgba(255,255,255,0.90)"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path d="M19 5v5h-5" stroke="rgba(255,255,255,0.90)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 19v-5h5" stroke="rgba(255,255,255,0.90)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function currencyZar(n) {
   const val = Number(n || 0);
   return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
 }
 
 function formatDate(iso) {
+  if (!iso) return "-";
   const d = new Date(iso);
   return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function formatDateTime(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function makeId() {
+  return `CL-${Math.floor(10000 + Math.random() * 89999)}`;
+}
+
+function makeRef(name) {
+  const cleaned = String(name || "CLIENT")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .slice(0, 3)
+    .join("-");
+  return `${cleaned || "CLIENT"}-DO-${Math.floor(10 + Math.random() * 989)}`;
 }
 
 const seedClients = [
@@ -311,6 +477,10 @@ const seedClients = [
     industry: "Commercial",
     risk: "Low",
     notes: "High volume accounts. Prefers batch notifications by email.",
+    source: "Zoho CRM",
+    syncStatus: "Synced",
+    lastSync: "2026-02-07T09:30:00.000Z",
+    zohoRecordId: "5038291000000143021",
   },
   {
     id: "CL-10022",
@@ -326,6 +496,10 @@ const seedClients = [
     industry: "Property",
     risk: "High",
     notes: "Recent reversals. Monitor mandate activity and batch outcomes.",
+    source: "Zoho CRM",
+    syncStatus: "Needs review",
+    lastSync: "2026-02-07T09:35:00.000Z",
+    zohoRecordId: "5038291000000143059",
   },
   {
     id: "CL-10023",
@@ -341,6 +515,10 @@ const seedClients = [
     industry: "Healthcare",
     risk: "Medium",
     notes: "Multiple branches. Standard debit schedule on the 18th.",
+    source: "Zoho CRM",
+    syncStatus: "Synced",
+    lastSync: "2026-02-07T09:32:00.000Z",
+    zohoRecordId: "5038291000000143112",
   },
   {
     id: "CL-10024",
@@ -356,6 +534,10 @@ const seedClients = [
     industry: "Education",
     risk: "Low",
     notes: "Paused pending mandate refresh and updated banking details.",
+    source: "Zoho CRM",
+    syncStatus: "Pending",
+    lastSync: "",
+    zohoRecordId: "5038291000000143188",
   },
   {
     id: "CL-10025",
@@ -371,37 +553,159 @@ const seedClients = [
     industry: "Technology",
     risk: "Low",
     notes: "New onboarding. Needs mandate templates and first batch dry run.",
+    source: "Manual",
+    syncStatus: "Pending",
+    lastSync: "",
+    zohoRecordId: "",
   },
 ];
 
 export default function Clients() {
+  const [toast, setToast] = useState(null);
+  function showToast(message) {
+    setToast(message);
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => setToast(null), 2200);
+  }
+
+  // UI-only connection state (later this will come from Settings integration)
+  const [zohoConnected, setZohoConnected] = useState(true);
+
+  const [clients, setClients] = useState(seedClients);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [selectedId, setSelectedId] = useState(seedClients[0]?.id || "");
+  const [sourceFilter, setSourceFilter] = useState("All");
+  const [syncFilter, setSyncFilter] = useState("All");
+  const [selectedId, setSelectedId] = useState(clients[0]?.id || "");
   const [hoverRow, setHoverRow] = useState(null);
+
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualDraft, setManualDraft] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    industry: "",
+    notes: "",
+  });
+
+  const possibleDuplicate = useMemo(() => {
+    const n = manualDraft.name.trim().toLowerCase();
+    const e = manualDraft.email.trim().toLowerCase();
+    if (!n && !e) return null;
+
+    return (
+      clients.find((c) => c.source === "Zoho CRM" && ((n && c.name.toLowerCase() === n) || (e && c.contact.toLowerCase() === e))) ||
+      null
+    );
+  }, [manualDraft.name, manualDraft.email, clients]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return seedClients
+    return clients
       .filter((c) => (statusFilter === "All" ? true : c.status === statusFilter))
+      .filter((c) => (sourceFilter === "All" ? true : c.source === sourceFilter))
+      .filter((c) => (syncFilter === "All" ? true : c.syncStatus === syncFilter))
       .filter((c) => {
         if (!q) return true;
         return (
           c.name.toLowerCase().includes(q) ||
           c.id.toLowerCase().includes(q) ||
           c.ref.toLowerCase().includes(q) ||
-          c.contact.toLowerCase().includes(q)
+          c.contact.toLowerCase().includes(q) ||
+          String(c.zohoRecordId || "").toLowerCase().includes(q)
         );
       });
-  }, [query, statusFilter]);
+  }, [clients, query, statusFilter, sourceFilter, syncFilter]);
 
-  const selected = useMemo(() => seedClients.find((c) => c.id === selectedId) || seedClients[0], [selectedId]);
+  const selected = useMemo(() => clients.find((c) => c.id === selectedId) || clients[0], [clients, selectedId]);
 
   const counts = useMemo(() => {
-    const base = { All: seedClients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
-    for (const c of seedClients) base[c.status] = (base[c.status] || 0) + 1;
+    const base = { All: clients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
+    for (const c of clients) base[c.status] = (base[c.status] || 0) + 1;
     return base;
-  }, []);
+  }, [clients]);
+
+  function upsertClient(next) {
+    setClients((prev) => {
+      const idx = prev.findIndex((x) => x.id === next.id);
+      if (idx === -1) return [next, ...prev];
+      const copy = [...prev];
+      copy[idx] = next;
+      return copy;
+    });
+  }
+
+  function createManualClient() {
+    const name = manualDraft.name.trim();
+    const email = manualDraft.email.trim();
+    if (!name || !email) {
+      showToast("Name and email are required.");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const client = {
+      id: makeId(),
+      name,
+      ref: makeRef(name),
+      status: "New",
+      mandates: 0,
+      nextRun: "",
+      outstanding: 0,
+      updated: now,
+      contact: email,
+      phone: manualDraft.phone.trim() || "-",
+      industry: manualDraft.industry.trim() || "-",
+      risk: "Low",
+      notes: manualDraft.notes.trim() || "Manual client created.",
+      source: "Manual",
+      syncStatus: zohoConnected ? "Pending" : "Pending",
+      lastSync: "",
+      zohoRecordId: "",
+    };
+
+    setClients((prev) => [client, ...prev]);
+    setSelectedId(client.id);
+    setManualOpen(false);
+    setManualDraft({ name: "", email: "", phone: "", industry: "", notes: "" });
+    showToast("Manual client created (UI only).");
+  }
+
+  function linkManualToZoho(duplicateZohoRecordId) {
+    if (!selected) return;
+    if (selected.source !== "Manual") return;
+
+    const now = new Date().toISOString();
+    const updated = {
+      ...selected,
+      source: "Zoho CRM",
+      zohoRecordId: String(duplicateZohoRecordId || "5038291000000000000"),
+      syncStatus: "Synced",
+      lastSync: now,
+      updated: now,
+    };
+    upsertClient(updated);
+    showToast("Client linked to Zoho (UI only).");
+  }
+
+  function simulateZohoSync() {
+    if (!zohoConnected) {
+      showToast("Connect Zoho CRM first.");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.source !== "Zoho CRM") return c;
+        const nextState = c.syncStatus === "Synced" ? "Synced" : c.syncStatus;
+        return { ...c, syncStatus: nextState, lastSync: now, updated: now };
+      })
+    );
+    showToast("Zoho sync simulated (UI only).");
+  }
+
+  const topPrimary = zohoConnected ? "Sync from Zoho" : "Connect Zoho CRM";
 
   return (
     <div style={styles.page}>
@@ -409,20 +713,53 @@ export default function Clients() {
         <div style={styles.titleWrap}>
           <h1 style={styles.title}>Clients</h1>
           <p style={styles.subtitle}>
-            Manage client profiles, mandate activity, and operational status. UI-only for now, no backend actions.
+            Most clients are managed in Zoho CRM and synced into TabbyTech. Manual creation stays available for exceptions. UI-only for now, no backend actions.
           </p>
         </div>
 
         <div style={styles.actionsRow}>
-          <button style={styles.btn("secondary")} type="button">
+          <button
+            style={styles.btn("secondary")}
+            type="button"
+            onClick={() => showToast("Export placeholder (UI only).")}
+            title="UI-only placeholder"
+          >
             Export
           </button>
-          <button style={styles.btn("secondary")} type="button">
+
+          <button
+            style={styles.btn("secondary")}
+            type="button"
+            onClick={() => showToast("Import placeholder (UI only).")}
+            title="UI-only placeholder"
+          >
             Import
           </button>
-          <button style={styles.btn("primary")} type="button">
+
+          <button
+            style={styles.btn("primary")}
+            type="button"
+            onClick={() => {
+              if (zohoConnected) simulateZohoSync();
+              else {
+                setZohoConnected(true);
+                showToast("Zoho CRM marked connected (UI only).");
+              }
+            }}
+            title="UI-only placeholder"
+          >
+            <IconRefresh />
+            {topPrimary}
+          </button>
+
+          <button
+            style={styles.btn("secondary")}
+            type="button"
+            onClick={() => setManualOpen(true)}
+            title="Manual creation is the exception"
+          >
             <IconPlus />
-            New client
+            Add client manually
           </button>
         </div>
       </div>
@@ -432,11 +769,23 @@ export default function Clients() {
           <div style={styles.panelHeader}>
             <div style={styles.panelHeaderLeft}>
               <p style={styles.panelTitle}>Client list</p>
-              <p style={styles.panelMeta}>{filtered.length} shown</p>
+              <p style={styles.panelMeta}>
+                {filtered.length} shown · Zoho CRM:{" "}
+                <span style={{ fontWeight: 900, color: "rgba(255,255,255,0.82)" }}>{zohoConnected ? "Connected" : "Not connected"}</span>
+              </p>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Sort:</span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.82)" }}>Last updated</span>
+              <button
+                style={styles.btn("secondary")}
+                type="button"
+                onClick={() => {
+                  setZohoConnected((p) => !p);
+                  showToast(`Zoho CRM set to ${!zohoConnected ? "Connected" : "Not connected"} (UI only).`);
+                }}
+                title="UI-only toggle"
+              >
+                {zohoConnected ? "Disconnect Zoho" : "Connect Zoho"}
+              </button>
             </div>
           </div>
 
@@ -449,7 +798,7 @@ export default function Clients() {
                 style={styles.input}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search clients by name, id, reference, or email"
+                placeholder="Search by name, id, reference, email, or Zoho ID"
                 aria-label="Search clients"
               />
             </div>
@@ -475,6 +824,20 @@ export default function Clients() {
                 );
               })}
             </div>
+
+            <select style={styles.select} value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} aria-label="Filter source">
+              <option value="All">All sources</option>
+              <option value="Zoho CRM">Zoho CRM</option>
+              <option value="Manual">Manual</option>
+            </select>
+
+            <select style={styles.select} value={syncFilter} onChange={(e) => setSyncFilter(e.target.value)} aria-label="Filter sync status">
+              <option value="All">All sync</option>
+              <option value="Synced">Synced</option>
+              <option value="Pending">Pending</option>
+              <option value="Needs review">Needs review</option>
+              <option value="Sync error">Sync error</option>
+            </select>
           </div>
 
           <div style={styles.tableScroll}>
@@ -483,6 +846,8 @@ export default function Clients() {
                 <tr>
                   <th style={styles.th}>Client</th>
                   <th style={styles.th}>Status</th>
+                  <th style={styles.th}>Source</th>
+                  <th style={styles.th}>Sync</th>
                   <th style={styles.th}>Mandates</th>
                   <th style={styles.th}>Next run</th>
                   <th style={styles.th}>Outstanding</th>
@@ -493,10 +858,7 @@ export default function Clients() {
                 {filtered.map((c) => {
                   const isActive = c.id === selectedId;
                   const isHover = hoverRow === c.id;
-                  const rowStyle = {
-                    ...styles.row(isActive),
-                    ...(isHover ? styles.rowHover : null),
-                  };
+                  const rowStyle = { ...styles.row(isActive), ...(isHover ? styles.rowHover : null) };
 
                   return (
                     <tr
@@ -520,6 +882,14 @@ export default function Clients() {
                         <span style={styles.badge(c.status)}>{c.status}</span>
                       </td>
 
+                      <td style={styles.td}>
+                        <span style={styles.sourceBadge(c.source)}>{c.source}</span>
+                      </td>
+
+                      <td style={styles.td}>
+                        <span style={styles.syncBadge(c.syncStatus)}>{c.syncStatus}</span>
+                      </td>
+
                       <td style={styles.td}>{c.mandates}</td>
                       <td style={styles.td}>{formatDate(c.nextRun)}</td>
                       <td style={styles.td}>{currencyZar(c.outstanding)}</td>
@@ -530,11 +900,11 @@ export default function Clients() {
 
                 {filtered.length === 0 && (
                   <tr>
-                    <td style={{ ...styles.td, padding: 20 }} colSpan={6}>
+                    <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         <div style={{ fontWeight: 800, color: "rgba(255,255,255,0.86)" }}>No clients found</div>
                         <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                          Try a different search term or adjust the status filter.
+                          Try a different search term or adjust filters.
                         </div>
                       </div>
                     </td>
@@ -552,10 +922,23 @@ export default function Clients() {
               <p style={styles.panelMeta}>Selection updates this panel</p>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button style={styles.btn("secondary")} type="button">
+              <button
+                style={styles.btn("secondary")}
+                type="button"
+                onClick={() => {
+                  if (!selected) return;
+                  if (selected.source === "Zoho CRM") {
+                    showToast("Zoho sourced fields are read-only (UI only).");
+                    return;
+                  }
+                  showToast("Edit placeholder (UI only).");
+                }}
+                title="UI-only placeholder"
+              >
                 Edit
               </button>
-              <button style={styles.btn("danger")} type="button">
+
+              <button style={styles.btn("danger")} type="button" onClick={() => showToast("Disable placeholder (UI only).")} title="UI-only placeholder">
                 Disable
               </button>
             </div>
@@ -575,6 +958,28 @@ export default function Clients() {
                   </div>
                 </div>
 
+                {selected.source === "Manual" && zohoConnected && (
+                  <div style={styles.section}>
+                    <p style={styles.sectionTitle}>Sync guidance</p>
+                    <p style={{ margin: "10px 0 0 0", color: "rgba(255,255,255,0.70)", fontSize: 13, lineHeight: 1.5 }}>
+                      This client was created manually. If it exists in Zoho CRM, link it to reduce risk and prevent duplicates.
+                    </p>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                      <button
+                        style={styles.btn("primary")}
+                        type="button"
+                        onClick={() => linkManualToZoho("5038291000000000000")}
+                        title="UI-only placeholder"
+                      >
+                        Link to Zoho
+                      </button>
+                      <button style={styles.btn("secondary")} type="button" onClick={() => showToast("Marked as Keep separate (UI only).")}>
+                        Keep separate
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div style={styles.section}>
                   <p style={styles.sectionTitle}>Profile</p>
                   <div style={styles.kv}>
@@ -591,6 +996,22 @@ export default function Clients() {
                     <div style={styles.v}>
                       <span style={styles.badge(selected.status)}>{selected.status}</span>
                     </div>
+
+                    <div style={styles.k}>Source</div>
+                    <div style={styles.v}>
+                      <span style={styles.sourceBadge(selected.source)}>{selected.source}</span>
+                    </div>
+
+                    <div style={styles.k}>Sync status</div>
+                    <div style={styles.v}>
+                      <span style={styles.syncBadge(selected.syncStatus)}>{selected.syncStatus}</span>
+                    </div>
+
+                    <div style={styles.k}>Zoho Record ID</div>
+                    <div style={styles.v}>{selected.zohoRecordId ? selected.zohoRecordId : <span style={styles.muted}>-</span>}</div>
+
+                    <div style={styles.k}>Last sync</div>
+                    <div style={styles.v}>{selected.lastSync ? formatDateTime(selected.lastSync) : <span style={styles.muted}>-</span>}</div>
 
                     <div style={styles.k}>Industry</div>
                     <div style={styles.v}>{selected.industry}</div>
@@ -623,13 +1044,13 @@ export default function Clients() {
                   </p>
 
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                    <button style={styles.btn("secondary")} type="button">
+                    <button style={styles.btn("secondary")} type="button" onClick={() => showToast("View debit orders (UI only).")}>
                       View debit orders
                     </button>
-                    <button style={styles.btn("secondary")} type="button">
+                    <button style={styles.btn("secondary")} type="button" onClick={() => showToast("View batches (UI only).")}>
                       View batches
                     </button>
-                    <button style={styles.btn("primary")} type="button">
+                    <button style={styles.btn("primary")} type="button" onClick={() => showToast("Start onboarding (UI only).")}>
                       Start onboarding
                     </button>
                   </div>
@@ -641,6 +1062,138 @@ export default function Clients() {
           </div>
         </div>
       </div>
+
+      {manualOpen && (
+        <div style={styles.overlay} role="dialog" aria-modal="true" aria-label="Add client manually">
+          <div style={styles.modal}>
+            <div style={styles.modalHead}>
+              <div>
+                <p style={styles.modalTitle}>Add client manually</p>
+                <div style={styles.modalHint}>
+                  Manual creation is the exception. If a matching Zoho CRM record exists, linking later reduces risk and prevents duplicates.
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button style={styles.btn("secondary")} type="button" onClick={() => setManualOpen(false)}>
+                  Close
+                </button>
+                <button style={styles.btn("primary")} type="button" onClick={createManualClient}>
+                  Create
+                </button>
+              </div>
+            </div>
+
+            <div style={styles.modalBody}>
+              {possibleDuplicate && (
+                <div style={styles.banner}>
+                  <div>
+                    <p style={styles.bannerTitle}>Possible duplicate found in Zoho CRM</p>
+                    <div style={styles.bannerText}>
+                      Match: <b>{possibleDuplicate.name}</b> ({possibleDuplicate.contact}). You can still create this manually, but linking is recommended.
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <button
+                      style={styles.btn("primary")}
+                      type="button"
+                      onClick={() => {
+                        // UI-only: auto create manual and then link immediately
+                        const name = manualDraft.name.trim() || possibleDuplicate.name;
+                        const email = manualDraft.email.trim() || possibleDuplicate.contact;
+                        const now = new Date().toISOString();
+                        const manual = {
+                          id: makeId(),
+                          name,
+                          ref: makeRef(name),
+                          status: "New",
+                          mandates: 0,
+                          nextRun: "",
+                          outstanding: 0,
+                          updated: now,
+                          contact: email,
+                          phone: manualDraft.phone.trim() || "-",
+                          industry: manualDraft.industry.trim() || "-",
+                          risk: "Low",
+                          notes: manualDraft.notes.trim() || "Manual client created and linked.",
+                          source: "Zoho CRM",
+                          syncStatus: "Synced",
+                          lastSync: now,
+                          zohoRecordId: possibleDuplicate.zohoRecordId || "5038291000000000000",
+                        };
+                        setClients((prev) => [manual, ...prev]);
+                        setSelectedId(manual.id);
+                        setManualOpen(false);
+                        setManualDraft({ name: "", email: "", phone: "", industry: "", notes: "" });
+                        showToast("Created and linked to Zoho (UI only).");
+                      }}
+                    >
+                      Link to Zoho
+                    </button>
+                    <button style={styles.btn("secondary")} type="button" onClick={() => showToast("You can keep it separate and link later.")}>
+                      Keep separate
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={styles.modalGrid}>
+                <div style={styles.field}>
+                  <div style={styles.label}>Client name</div>
+                  <input
+                    style={styles.inputPlain}
+                    value={manualDraft.name}
+                    onChange={(e) => setManualDraft((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="Example: Mokoena Interiors"
+                  />
+                </div>
+                <div style={styles.field}>
+                  <div style={styles.label}>Email</div>
+                  <input
+                    style={styles.inputPlain}
+                    value={manualDraft.email}
+                    onChange={(e) => setManualDraft((p) => ({ ...p, email: e.target.value }))}
+                    placeholder="Example: accounts@example.co.za"
+                  />
+                </div>
+                <div style={styles.field}>
+                  <div style={styles.label}>Phone (optional)</div>
+                  <input
+                    style={styles.inputPlain}
+                    value={manualDraft.phone}
+                    onChange={(e) => setManualDraft((p) => ({ ...p, phone: e.target.value }))}
+                    placeholder="Example: 010 446 5754"
+                  />
+                </div>
+                <div style={styles.field}>
+                  <div style={styles.label}>Industry (optional)</div>
+                  <input
+                    style={styles.inputPlain}
+                    value={manualDraft.industry}
+                    onChange={(e) => setManualDraft((p) => ({ ...p, industry: e.target.value }))}
+                    placeholder="Example: Property"
+                  />
+                </div>
+              </div>
+
+              <div style={styles.field}>
+                <div style={styles.label}>Notes (optional)</div>
+                <textarea
+                  style={styles.textarea}
+                  value={manualDraft.notes}
+                  onChange={(e) => setManualDraft((p) => ({ ...p, notes: e.target.value }))}
+                  placeholder="Add any operational notes for onboarding and risk context."
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={styles.toastWrap}>
+          <div style={styles.toast}>{toast}</div>
+        </div>
+      )}
     </div>
   );
 }
