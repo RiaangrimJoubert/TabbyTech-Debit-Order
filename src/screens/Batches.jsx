@@ -208,10 +208,6 @@ export default function Batches() {
     []
   );
 
-  function canGoNext() {
-    return true;
-  }
-
   function goNext() {
     const i = steps.findIndex((s) => s.key === step);
     const next = steps[Math.min(i + 1, steps.length - 1)]?.key;
@@ -239,7 +235,9 @@ export default function Batches() {
         <div style={styles.panelHeader}>
           <div>
             <p style={styles.panelTitle}>Batch workflow</p>
-            <p style={styles.panelMeta}>Step {activeIndex + 1} of {steps.length}</p>
+            <p style={styles.panelMeta}>
+              Step {activeIndex + 1} of {steps.length}
+            </p>
           </div>
 
           <div style={styles.stepperWrap}>
@@ -268,7 +266,6 @@ export default function Batches() {
 
         <div style={styles.content}>
           <div style={styles.grid}>
-            {/* LEFT */}
             <div style={styles.card}>
               <p style={styles.cardTitle}>
                 {step === "create" && "Create a new batch"}
@@ -297,8 +294,18 @@ export default function Batches() {
                       <div style={styles.v}>{mockBatch.createdBy}</div>
                     </div>
 
-                    <div style={{ marginTop: 10, padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.03)" }}>
-                      <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)", marginBottom: 6 }}>What happens in this workflow</div>
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: 12,
+                        borderRadius: 14,
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        background: "rgba(255,255,255,0.03)",
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)", marginBottom: 6 }}>
+                        What happens in this workflow
+                      </div>
                       <div style={styles.hint}>
                         You select debit orders, validate items, and prepare a run. The submit step is visual only for now and does not call any backend.
                       </div>
@@ -320,7 +327,6 @@ export default function Batches() {
                       <tbody>
                         {batchItems.map((x) => (
                           <tr key={x.id}>
-                            <td style={styles.td} />
                             <td style={styles.td}>{x.id}</td>
                             <td style={styles.td}>{x.client}</td>
                             <td style={styles.td}>{currencyZar(x.amount)}</td>
@@ -332,8 +338,17 @@ export default function Batches() {
                       </tbody>
                     </table>
 
-                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(0,0,0,0.10)" }}>
-                      <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)", marginBottom: 6 }}>Review notes</div>
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 14,
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        background: "rgba(0,0,0,0.10)",
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)", marginBottom: 6 }}>
+                        Review notes
+                      </div>
                       <div style={styles.hint}>
                         Warnings indicate items that may fail in a real run, for example missing mandates or banking verification. In this UI-only build, warnings are visual markers.
                       </div>
@@ -344,9 +359,25 @@ export default function Batches() {
                 {step === "submit" && (
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <div style={{ padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.03)" }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          background: "rgba(255,255,255,0.03)",
+                        }}
+                      >
                         <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)" }}>Pre-submit checks</div>
-                        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.74)" }}>
+                        <div
+                          style={{
+                            marginTop: 10,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                            fontSize: 13,
+                            color: "rgba(255,255,255,0.74)",
+                          }}
+                        >
                           <div>Validation complete</div>
                           <div>Run date confirmed</div>
                           <div>Batch totals calculated</div>
@@ -354,7 +385,14 @@ export default function Batches() {
                         </div>
                       </div>
 
-                      <div style={{ padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.03)" }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          background: "rgba(255,255,255,0.03)",
+                        }}
+                      >
                         <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)" }}>Submit impact</div>
                         <div style={styles.hint}>
                           In a live system, submit would create a batch record, lock items, and trigger downstream processing. Here, it switches to the Results step only.
@@ -362,7 +400,14 @@ export default function Batches() {
                       </div>
                     </div>
 
-                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid rgba(168,85,247,0.30)", background: "rgba(168,85,247,0.10)" }}>
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 14,
+                        border: "1px solid rgba(168,85,247,0.30)",
+                        background: "rgba(168,85,247,0.10)",
+                      }}
+                    >
                       <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>Ready to submit</div>
                       <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.72)", lineHeight: 1.5 }}>
                         This is a premium UI flow for TabbyTech. No backend calls are made.
@@ -374,19 +419,35 @@ export default function Batches() {
                 {step === "results" && (
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <div style={{ padding: 12, borderRadius: 14, border: "1px solid rgba(34,197,94,0.30)", background: "rgba(34,197,94,0.10)" }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(34,197,94,0.30)",
+                          background: "rgba(34,197,94,0.10)",
+                        }}
+                      >
                         <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>Batch submitted</div>
                         <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.72)", lineHeight: 1.5 }}>
                           Result view is UI-only. In production this would display success, failures, and provider responses.
                         </div>
                       </div>
 
-                      <div style={{ padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.03)" }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          background: "rgba(255,255,255,0.03)",
+                        }}
+                      >
                         <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)" }}>Summary</div>
                         <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                           <div>
                             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Items</div>
-                            <div style={{ fontSize: 18, fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>{totals.count}</div>
+                            <div style={{ fontSize: 18, fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>
+                              {totals.count}
+                            </div>
                           </div>
                           <div>
                             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Total</div>
@@ -398,7 +459,14 @@ export default function Batches() {
                       </div>
                     </div>
 
-                    <div style={{ padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(0,0,0,0.10)" }}>
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 14,
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        background: "rgba(0,0,0,0.10)",
+                      }}
+                    >
                       <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)", marginBottom: 8 }}>Result breakdown</div>
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                         <span style={styles.badge("Validated")}>Validated {totals.validated}</span>
@@ -411,7 +479,6 @@ export default function Batches() {
               </div>
             </div>
 
-            {/* RIGHT */}
             <div style={styles.card}>
               <p style={styles.cardTitle}>Batch totals</p>
               <div style={styles.cardBody}>
@@ -428,9 +495,7 @@ export default function Batches() {
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
 
-                <div style={styles.hint}>
-                  This panel stays visible throughout the flow, giving the run a confident, operational feel.
-                </div>
+                <div style={styles.hint}>This panel stays visible throughout the flow, giving the run a confident, operational feel.</div>
 
                 <div style={styles.btnRow}>
                   <button style={styles.btn("secondary", activeIndex === 0)} type="button" disabled={activeIndex === 0} onClick={goBack}>
@@ -438,7 +503,7 @@ export default function Batches() {
                   </button>
 
                   {step !== "results" ? (
-                    <button style={styles.btn("primary", !canGoNext())} type="button" disabled={!canGoNext()} onClick={goNext}>
+                    <button style={styles.btn("primary", false)} type="button" onClick={goNext}>
                       {step === "submit" ? "Submit" : "Next"}
                     </button>
                   ) : (
@@ -448,11 +513,16 @@ export default function Batches() {
                   )}
                 </div>
 
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.03)" }}>
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
                   <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)", marginBottom: 6 }}>Pro tip</div>
-                  <div style={styles.hint}>
-                    When backend resumes, this flow maps neatly to a batch state machine. Create, validate, submit, results.
-                  </div>
+                  <div style={styles.hint}>When backend resumes, this flow maps neatly to a batch state machine. Create, validate, submit, results.</div>
                 </div>
               </div>
             </div>
