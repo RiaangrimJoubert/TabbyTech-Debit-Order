@@ -3,14 +3,23 @@
 :root {
   --bg: #080a12;
   --bg2: #0b1020;
+
   --glass: rgba(18, 22, 39, 0.55);
+  --glass2: rgba(18, 22, 39, 0.35);
+
   --stroke: rgba(255, 255, 255, 0.10);
+  --stroke2: rgba(255, 255, 255, 0.14);
+
   --text: rgba(255, 255, 255, 0.92);
   --muted: rgba(255, 255, 255, 0.70);
+  --dim: rgba(255, 255, 255, 0.50);
 
   --purple: #7c3aed;
   --radius: 18px;
+  --radius2: 14px;
+
   --shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+  --shadow2: 0 12px 30px rgba(0, 0, 0, 0.38);
 }
 
 * {
@@ -32,7 +41,7 @@ body {
     linear-gradient(180deg, var(--bg), var(--bg2));
 }
 
-/* ===== LOGIN LAYOUT ===== */
+/* ===== LOGIN ===== */
 
 .tt-login {
   min-height: 100vh;
@@ -41,13 +50,11 @@ body {
   padding: 24px;
 }
 
-/* Overall column */
 .tt-login-wrap {
   width: min(820px, 96vw);
   margin: 0 auto;
 }
 
-/* Brand block */
 .tt-login-brand {
   text-align: center;
   margin-bottom: 18px;
@@ -65,7 +72,6 @@ body {
   letter-spacing: 0.6px;
 }
 
-/* Smaller, centred card (this is the circled area) */
 .tt-login-card {
   width: min(640px, 100%);
   margin: 0 auto;
@@ -77,7 +83,6 @@ body {
   padding: 28px 24px;
 }
 
-/* Inner form width */
 .tt-login-form-inner {
   width: min(520px, 100%);
   margin: 0 auto;
@@ -85,7 +90,6 @@ body {
   gap: 18px;
 }
 
-/* Inputs */
 .tt-input {
   width: 100%;
   height: 56px;
@@ -103,7 +107,6 @@ body {
   box-shadow: 0 0 0 6px rgba(124, 58, 237, 0.18);
 }
 
-/* Button */
 .tt-btn {
   height: 46px;
   border-radius: 14px;
@@ -125,7 +128,6 @@ body {
   filter: brightness(1.06);
 }
 
-/* Footer text */
 .tt-login-foot {
   margin-top: 6px;
   display: grid;
@@ -148,4 +150,307 @@ body {
   font-size: 12px;
   color: var(--muted);
   font-weight: 700;
+}
+
+/* ===== APP SHELL + SIDEBAR ===== */
+
+.tt-appshell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 18px;
+  padding: 18px;
+}
+
+.tt-sidebar {
+  position: sticky;
+  top: 18px;
+  height: calc(100vh - 36px);
+}
+
+.tt-sidebar-inner {
+  height: 100%;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow2);
+  backdrop-filter: blur(14px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tt-sidebrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 14px;
+}
+
+.tt-sidebrand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: radial-gradient(circle at 30% 30%, rgba(167, 139, 250, 0.8), rgba(124, 58, 237, 0.45));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.tt-sidebrand-name {
+  font-weight: 900;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.tt-sidebrand-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.tt-sidedivider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+  margin: 10px 0;
+}
+
+.tt-sidenav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px;
+}
+
+.tt-sidenav-item {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  width: 100%;
+  text-align: left;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.tt-sidenav-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.tt-sidenav-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 14px;
+}
+
+.tt-sidenav-label {
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.tt-sidenav-pill {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  opacity: 0;
+  background: rgba(167, 139, 250, 0.9);
+  box-shadow: 0 0 0 6px rgba(124, 58, 237, 0.12);
+}
+
+.tt-sidenav-item:focus-visible {
+  outline: none;
+  border-color: rgba(124, 58, 237, 0.35);
+  box-shadow: 0 0 0 6px rgba(124, 58, 237, 0.18);
+}
+
+.tt-sidenav-item-muted {
+  color: rgba(255, 255, 255, 0.70);
+}
+
+.tt-sidespacer {
+  flex: 1;
+}
+
+.tt-sidepanel {
+  background: var(--glass2);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius2);
+  padding: 14px;
+  margin: 6px 6px 10px;
+}
+
+.tt-sidepanel-title {
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.tt-sidepanel-text {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.tt-sidepanel-btn {
+  margin-top: 12px;
+  width: 100%;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(124, 58, 237, 0.45);
+  background: rgba(124, 58, 237, 0.20);
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.tt-sidepanel-btn:hover {
+  background: rgba(124, 58, 237, 0.26);
+}
+
+.tt-shell-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tt-shell-topbar {
+  height: 72px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow2);
+  backdrop-filter: blur(14px);
+  padding: 14px 16px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tt-shell-kicker {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.tt-shell-h1 {
+  margin-top: 2px;
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.tt-shell-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tt-shell-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--glass2);
+  border: 1px solid var(--stroke);
+  min-width: 380px;
+}
+
+.tt-shell-searchicon {
+  color: var(--dim);
+}
+
+.tt-shell-searchinput {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.tt-shell-iconbtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--glass2);
+  border: 1px solid var(--stroke);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tt-shell-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--glass2);
+  border: 1px solid var(--stroke);
+  cursor: pointer;
+}
+
+.tt-shell-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+}
+
+.tt-shell-username {
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.tt-shell-userrole {
+  margin-top: 2px;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.tt-shell-content {
+  border-radius: var(--radius);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow2);
+  backdrop-filter: blur(14px);
+  padding: 18px;
+  min-height: calc(100vh - 18px - 72px - 18px - 18px);
+}
+
+.tt-shell-placeholder {
+  height: 100%;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 800;
 }
