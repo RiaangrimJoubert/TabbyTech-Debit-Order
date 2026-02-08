@@ -101,7 +101,7 @@ const styles = {
       fontWeight: 800,
       letterSpacing: 0.2,
       opacity: disabled ? 0.55 : 1,
-      minWidth: 120,
+      minWidth: 160,
     };
 
     if (variant === "primary") {
@@ -280,7 +280,7 @@ function buildMockData(reportKey, periodKey) {
       { id: "BT-20260112-0004", date: "2026-01-12T10:00:00.000Z", items: 52, amount: 301000, status: "Success" },
     ],
     summary:
-      "This report is UI-only and uses sample data. When backend resumes, these metrics should reflect provider responses, batch outcomes, and client level performance.",
+      "This report preview uses sample data. Once backend resumes, these metrics will reflect real batch outcomes and provider responses.",
   };
 
   if (reportKey === "collections") {
@@ -289,10 +289,9 @@ function buildMockData(reportKey, periodKey) {
       totalCollected: 1928400,
       successRate: 0.958,
       failedCount: 22,
-      activeClients: 84,
       bars: [50, 62, 58, 74, 66, 80, 72, 88, 78, 95, 92, 98],
       summary:
-        "Collections performance focuses on amounts collected, success rates, and month-on-month movement. Sample values shown here are placeholders only.",
+        "Collections performance focuses on amounts collected, success rates, and month-on-month movement. Sample values shown here are placeholders.",
     };
   }
 
@@ -302,23 +301,19 @@ function buildMockData(reportKey, periodKey) {
       totalCollected: 1422000,
       successRate: 0.905,
       failedCount: 64,
-      activeClients: 84,
       bars: [30, 42, 38, 55, 49, 62, 58, 70, 61, 78, 72, 82],
       summary:
-        "Failures and reversals highlights failed debits, rejection reasons, and risk areas. This UI shows how the report will be structured once real data is connected.",
+        "Failures and reversals highlights failed debits, rejection reasons, and risk areas. This UI shows the report structure for later integration.",
     };
   }
 
   if (reportKey === "clients") {
     return {
       ...base,
-      totalCollected: 1581100,
-      successRate: 0.934,
-      failedCount: 41,
       activeClients: 92,
       bars: [40, 52, 46, 66, 58, 74, 63, 82, 71, 89, 84, 93],
       summary:
-        "Client health groups clients by activity, risk, mandate freshness, and collection outcomes. The visuals here are placeholders for the final connected report.",
+        "Client health groups clients by activity, risk, and outcome patterns. Values shown are placeholders for the final connected report.",
     };
   }
 
@@ -355,6 +350,22 @@ function buildMockData(reportKey, periodKey) {
   return base;
 }
 
+function csvEscape(value) {
+  const s = String(value ?? "");
+  if (s.includes('"') || s.includes(",") || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function toCsv(rows, headers) {
+  const head = headers.map(csvEscape).join(",");
+  const body = rows
+    .map((r) => headers.map((h) => csvEscape(r[h])).join(","))
+    .join("\n");
+  return `${head}\n${body}\n`;
+}
+
 export default function Reports() {
   const [reportKey, setReportKey] = useState("overview");
   const [periodKey, setPeriodKey] = useState("thismonth");
@@ -363,27 +374,28 @@ export default function Reports() {
 
   const successPct = Math.round((data.successRate || 0) * 100);
 
-  function downloadMock() {
-    const payload = {
-      report: reportKey,
-      period: periodKey,
-      generatedAt: new Date().toISOString(),
-      kpis: {
-        totalCollected: data.totalCollected,
-        successRate: data.successRate,
-        failedCount: data.failedCount,
-        activeClients: data.activeClients,
-      },
-      batches: data.table,
-      note: "UI-only mock export. Replace with real report generator later.",
-    };
+  function exportCsv() {
+    const rows = data.table.map((r) => ({
+      "Batch ID": r.id,
+      Date: formatDate(r.date),
+      Items: r.items,
+      Amount: r.amount,
+      Status: r.status,
+    }));
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const headers = ["Batch ID", "Date", "Items", "Amount", "Status"];
+    const csv = toCsv(rows, headers);
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
+
+    const reportLabel = REPORT_TYPES.find((r) => r.key === reportKey)?.label || "report";
+    const periodLabel = PERIODS.find((p) => p.key === periodKey)?.label || "period";
+    const safeName = `${reportLabel}-${periodLabel}`.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = `tabbytech-report-${reportKey}-${periodKey}.json`;
+    a.download = `tabbytech-${safeName}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -397,16 +409,13 @@ export default function Reports() {
         <div style={styles.titleWrap}>
           <h1 style={styles.title}>Reports</h1>
           <p style={styles.subtitle}>
-            Generate operational snapshots and performance summaries. This page uses sample data and supports a UI-only mock export.
+            Generate operational snapshots and performance summaries. UI-only preview with export to CSV for Excel.
           </p>
         </div>
 
         <div style={styles.actionsRow}>
-          <button style={styles.btn("secondary")} type="button" onClick={downloadMock}>
-            Download report
-          </button>
-          <button style={styles.btn("primary")} type="button">
-            New report
+          <button style={styles.btn("primary")} type="button" onClick={exportCsv}>
+            Export CSV
           </button>
         </div>
       </div>
@@ -456,12 +465,12 @@ export default function Reports() {
             <div style={styles.divider} />
 
             <div style={styles.hint}>
-              Download report exports a JSON file with the selected KPI values and batch lines. When backend resumes, this will become a PDF or spreadsheet generator.
+              Export CSV downloads the visible batch lines into a spreadsheet-friendly format that opens in Excel.
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
-              <button style={styles.btn("primary")} type="button" onClick={downloadMock}>
-                Generate and download
+              <button style={styles.btn("primary")} type="button" onClick={exportCsv}>
+                Export CSV
               </button>
               <button style={styles.btn("secondary")} type="button">
                 Save preset
@@ -469,7 +478,7 @@ export default function Reports() {
             </div>
 
             <div style={{ marginTop: 6, ...styles.hint }}>
-              Tip: we can later add presets like Monthly finance pack, Client risk review, and Batch outcome summary.
+              Next: we can add presets like Monthly finance pack, Client risk review, and Batch outcome summary.
             </div>
           </div>
         </div>
@@ -519,8 +528,8 @@ export default function Reports() {
                 </div>
 
                 <div style={styles.chartLegend}>
-                  <div>Grey bars show historical performance</div>
-                  <div>Purple bars highlight latest period</div>
+                  <div>Historical performance</div>
+                  <div>Latest period highlighted</div>
                 </div>
 
                 <div style={styles.summary}>{data.summary}</div>
@@ -568,15 +577,6 @@ export default function Reports() {
                 <div style={{ marginTop: 8, ...styles.hint }}>
                   This section will later pull real batch history, outcomes, and provider responses.
                 </div>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div style={styles.hint}>
-                Generated: <span style={{ color: "rgba(255,255,255,0.78)", fontWeight: 900 }}>UI-only</span>
-              </div>
-              <div style={styles.hint}>
-                Export format: <span style={{ color: "rgba(255,255,255,0.78)", fontWeight: 900 }}>JSON mock</span>
               </div>
             </div>
           </div>
