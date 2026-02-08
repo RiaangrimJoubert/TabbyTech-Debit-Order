@@ -7,5 +7,5 @@ export default function App() {
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
-  return <AppShell />;
+  return <AppShell onLogout={() => setAuthed(false)} />;
 }
