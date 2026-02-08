@@ -30,7 +30,13 @@ const styles = {
   panelTitle: { margin: 0, fontSize: 14, color: "rgba(255,255,255,0.86)" },
   panelMeta: { margin: 0, fontSize: 12, color: "rgba(255,255,255,0.55)" },
 
-  tabsRow: { padding: 14, display: "flex", gap: 10, flexWrap: "wrap", borderBottom: "1px solid rgba(255,255,255,0.08)" },
+  tabsRow: {
+    padding: 14,
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  },
   tab: (active) => ({
     height: 36,
     padding: "0 12px",
@@ -202,7 +208,13 @@ const styles = {
     alignItems: "center",
     background: "rgba(0,0,0,0.08)",
   },
-  previewTitle: { fontSize: 12, fontWeight: 900, letterSpacing: 0.2, color: "rgba(255,255,255,0.78)", textTransform: "uppercase" },
+  previewTitle: {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 0.2,
+    color: "rgba(255,255,255,0.78)",
+    textTransform: "uppercase",
+  },
   previewBody: { padding: 12, display: "flex", flexDirection: "column", gap: 10 },
   emailCard: {
     borderRadius: 14,
@@ -222,7 +234,6 @@ function mask(value) {
 
 function sampleVars() {
   return {
-    client_name: "Mkhize Holdings",
     payer_name: "Thandi Mokoena",
     amount: "R3,990",
     run_date: "15 Feb 2026",
@@ -241,7 +252,6 @@ function applyVars(template, vars) {
 export default function Settings() {
   const [tab, setTab] = useState("integrations");
 
-  // Integrations state
   const [zohoRegion, setZohoRegion] = useState("ZA");
   const [zohoCrmClientId, setZohoCrmClientId] = useState("");
   const [zohoCrmClientSecret, setZohoCrmClientSecret] = useState("");
@@ -257,18 +267,18 @@ export default function Settings() {
   const [booksStatus, setBooksStatus] = useState("Not connected");
   const [paystackStatus, setPaystackStatus] = useState("Not connected");
 
-  // Branding/Profile state
   const [companyName, setCompanyName] = useState("TabbyTech");
   const [supportEmail, setSupportEmail] = useState("support@tabbytech.co.za");
   const [supportPhone, setSupportPhone] = useState("010 446 5754");
   const [timezone, setTimezone] = useState("Africa/Johannesburg");
   const [accent, setAccent] = useState("#A855F7");
-  const [emailFooter, setEmailFooter] = useState("If you have questions, reply to this email or contact support.");
+  const [emailFooter, setEmailFooter] = useState(
+    "If you have questions, reply to this email or contact support."
+  );
 
   const logoInputRef = useRef(null);
   const [logoUrl, setLogoUrl] = useState("");
 
-  // Email Rules state
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [reminderDaysBefore, setReminderDaysBefore] = useState(2);
   const [sendTime, setSendTime] = useState("09:00");
@@ -305,18 +315,12 @@ export default function Settings() {
   }, [supportEmail, supportPhone, companyName]);
 
   const reminderPreview = useMemo(() => {
-    return {
-      subject: applyVars(reminderSubject, vars),
-      body: applyVars(reminderBody, vars),
-    };
+    return { subject: applyVars(reminderSubject, vars), body: applyVars(reminderBody, vars) };
   }, [reminderSubject, reminderBody, vars]);
 
   const failurePreview = useMemo(() => {
     const v = includeReasonCodes ? vars : { ...vars, failure_reason: "" };
-    return {
-      subject: applyVars(failureSubject, v),
-      body: applyVars(failureBody, v),
-    };
+    return { subject: applyVars(failureSubject, v), body: applyVars(failureBody, v) };
   }, [failureSubject, failureBody, vars, includeReasonCodes]);
 
   function handleLogoPick(e) {
@@ -520,7 +524,7 @@ export default function Settings() {
 
                   <div style={styles.divider} />
                   <div style={styles.hint}>
-                    Best practice: keep keys masked by default and only reveal them when needed. In production, secrets must be stored in server-side secure storage.
+                    Best practice: keep keys masked by default and only reveal them when needed. In production, secrets must be stored in secure server-side storage.
                   </div>
                 </div>
               </div>
@@ -650,6 +654,7 @@ export default function Settings() {
                         type="button"
                         style={{
                           height: 40,
+                          padding: "0 14px",
                           borderRadius: 12,
                           border: `1px solid ${accent}88`,
                           background: `linear-gradient(135deg, ${accent}, rgba(124,58,237,0.95))`,
@@ -668,7 +673,7 @@ export default function Settings() {
                 </div>
 
                 <div style={{ marginTop: 12, ...styles.hint }}>
-                  Best practice: keep support details consistent across all client-facing messages. This reduces chargeback risk and improves trust.
+                  Best practice: keep support details consistent across all client facing messages. This reduces disputes and improves trust.
                 </div>
               </div>
             </div>
@@ -683,9 +688,16 @@ export default function Settings() {
                   <div style={styles.toggleRow}>
                     <div>
                       <div style={styles.toggleTitle}>Upcoming debit reminder</div>
-                      <div style={styles.toggleSub}>Send a reminder before a debit order runs. Default is 2 days before.</div>
+                      <div style={styles.toggleSub}>
+                        Send a reminder before a debit order runs. Default is 2 days before.
+                      </div>
                     </div>
-                    <input style={styles.toggle} type="checkbox" checked={reminderEnabled} onChange={(e) => setReminderEnabled(e.target.checked)} />
+                    <input
+                      style={styles.toggle}
+                      type="checkbox"
+                      checked={reminderEnabled}
+                      onChange={(e) => setReminderEnabled(e.target.checked)}
+                    />
                   </div>
 
                   <div style={styles.formGrid}>
@@ -704,12 +716,23 @@ export default function Settings() {
 
                     <div style={styles.field}>
                       <div style={styles.label}>Send time</div>
-                      <input style={styles.input} type="time" value={sendTime} onChange={(e) => setSendTime(e.target.value)} disabled={!reminderEnabled} />
+                      <input
+                        style={styles.input}
+                        type="time"
+                        value={sendTime}
+                        onChange={(e) => setSendTime(e.target.value)}
+                        disabled={!reminderEnabled}
+                      />
                     </div>
 
                     <div style={styles.field}>
                       <div style={styles.label}>Avoid weekends</div>
-                      <select style={styles.select} value={avoidWeekends ? "yes" : "no"} onChange={(e) => setAvoidWeekends(e.target.value === "yes")} disabled={!reminderEnabled}>
+                      <select
+                        style={styles.select}
+                        value={avoidWeekends ? "yes" : "no"}
+                        onChange={(e) => setAvoidWeekends(e.target.value === "yes")}
+                        disabled={!reminderEnabled}
+                      >
                         <option value="yes">Yes</option>
                         <option value="no">No</option>
                       </select>
@@ -723,17 +746,35 @@ export default function Settings() {
 
                   <div style={styles.card}>
                     <p style={styles.cardTitle}>Recipients</p>
+
                     <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                       <label style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
-                        <input type="checkbox" checked={reminderToClient} onChange={(e) => setReminderToClient(e.target.checked)} disabled={!reminderEnabled} />
+                        <input
+                          type="checkbox"
+                          checked={reminderToClient}
+                          onChange={(e) => setReminderToClient(e.target.checked)}
+                          disabled={!reminderEnabled}
+                        />
                         Reminder to payer
                       </label>
+
                       <label style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
-                        <input type="checkbox" checked={reminderToMerchant} onChange={(e) => setReminderToMerchant(e.target.checked)} disabled={!reminderEnabled} />
+                        <input
+                          type="checkbox"
+                          checked={reminderToMerchant}
+                          onChange={(e) => setReminderToMerchant(e.target.checked)}
+                          disabled={!reminderEnabled}
+                        />
                         Reminder to client business
                       </label>
+
                       <label style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
-                        <input type="checkbox" checked={reminderToOps} onChange={(e) => setReminderToOps(e.target.checked)} disabled={!reminderEnabled} />
+                        <input
+                          type="checkbox"
+                          checked={reminderToOps}
+                          onChange={(e) => setReminderToOps(e.target.checked)}
+                          disabled={!reminderEnabled}
+                        />
                         Reminder to ops inbox
                       </label>
                     </div>
@@ -746,28 +787,59 @@ export default function Settings() {
                   <div style={styles.toggleRow}>
                     <div>
                       <div style={styles.toggleTitle}>Failed debit alert</div>
-                      <div style={styles.toggleSub}>Send an alert when a debit fails. Both the payer and your team should be notified.</div>
+                      <div style={styles.toggleSub}>
+                        Send an alert when a debit fails. Both the payer and your team should be notified.
+                      </div>
                     </div>
-                    <input style={styles.toggle} type="checkbox" checked={failureEnabled} onChange={(e) => setFailureEnabled(e.target.checked)} />
+                    <input
+                      style={styles.toggle}
+                      type="checkbox"
+                      checked={failureEnabled}
+                      onChange={(e) => setFailureEnabled(e.target.checked)}
+                    />
                   </div>
 
                   <div style={styles.card}>
                     <p style={styles.cardTitle}>Failure recipients</p>
+
                     <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                       <label style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
-                        <input type="checkbox" checked={failureToClient} onChange={(e) => setFailureToClient(e.target.checked)} disabled={!failureEnabled} />
+                        <input
+                          type="checkbox"
+                          checked={failureToClient}
+                          onChange={(e) => setFailureToClient(e.target.checked)}
+                          disabled={!failureEnabled}
+                        />
                         Failure to payer
                       </label>
+
                       <label style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
-                        <input type="checkbox" checked={failureToMerchant} onChange={(e) => setFailureToMerchant(e.target.checked)} disabled={!failureEnabled} />
+                        <input
+                          type="checkbox"
+                          checked={failureToMerchant}
+                          onChange={(e) => setFailureToMerchant(e.target.checked)}
+                          disabled={!failureEnabled}
+                        />
                         Failure to client business
                       </label>
+
                       <label style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
-                        <input type="checkbox" checked={failureToOps} onChange={(e) => setFailureToOps(e.target.checked)} disabled={!failureEnabled} />
+                        <input
+                          type="checkbox"
+                          checked={failureToOps}
+                          onChange={(e) => setFailureToOps(e.target.checked)}
+                          disabled={!failureEnabled}
+                        />
                         Failure to ops inbox
                       </label>
+
                       <label style={{ display: "flex", alignItems: "center", gap: 10, color: "rgba(255,255,255,0.74)", fontSize: 13 }}>
-                        <input type="checkbox" checked={includeReasonCodes} onChange={(e) => setIncludeReasonCodes(e.target.checked)} disabled={!failureEnabled} />
+                        <input
+                          type="checkbox"
+                          checked={includeReasonCodes}
+                          onChange={(e) => setIncludeReasonCodes(e.target.checked)}
+                          disabled={!failureEnabled}
+                        />
                         Include reason in payer email
                       </label>
                     </div>
@@ -816,7 +888,9 @@ export default function Settings() {
                 <div style={styles.previewBox}>
                   <div style={styles.previewHeader}>
                     <div style={styles.previewTitle}>Live preview</div>
-                    <div style={styles.hint}>Variables: {{`{{payer_name}}`}}, {{`{{amount}}`}}, {{`{{run_date}}`}}, {{`{{reference}}`}}</div>
+                    <div style={styles.hint}>
+                      Variables: {"{{payer_name}}"}, {"{{amount}}"}, {"{{run_date}}"}, {"{{reference}}"}
+                    </div>
                   </div>
 
                   <div style={styles.previewBody}>
@@ -833,7 +907,7 @@ export default function Settings() {
                 </div>
 
                 <div style={{ marginTop: 12, ...styles.hint }}>
-                  Best practice: keep subjects short, include the run date, and avoid sounding like a warning unless the debit actually failed.
+                  Best practice: keep subjects short, include the run date, and avoid warning tone unless the debit actually failed.
                 </div>
               </div>
             </div>
@@ -843,4 +917,3 @@ export default function Settings() {
     </div>
   );
 }
-
