@@ -428,7 +428,6 @@ export default function Clients() {
       </div>
 
       <div style={styles.grid}>
-        {/* LEFT: LIST */}
         <div style={{ ...styles.glass, ...styles.tableWrap, minHeight: 0 }}>
           <div style={styles.panelHeader}>
             <div style={styles.panelHeaderLeft}>
@@ -546,7 +545,6 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* RIGHT: DETAILS */}
         <div style={{ ...styles.glass, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <div style={styles.panelHeader}>
             <div style={styles.panelHeaderLeft}>
