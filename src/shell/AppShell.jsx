@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import Sidebar from "./Sidebar";
 
 import Dashboard from "./Dashboard";
-import Clients from "./Clients";
-import DebitOrders from "./DebitOrders";
-import Batches from "./Batches";
+import Clients from "../screens/Clients";
+import DebitOrders from "../screens/DebitOrders";
+import Batches from "../screens/Batches";
 import Reports from "./Reports";
 
 const TITLES = {
