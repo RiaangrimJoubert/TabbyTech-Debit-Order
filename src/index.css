@@ -732,3 +732,14 @@ h6 {
   font-weight: 800;
   font-size: 12px;
 }
+
+/* ===== SETTINGS PAGE: CARD TITLE ACCENT FIX ===== */
+/* Ensures all card titles on Settings use TabbyTech purple */
+
+.tt-settings .tt-panel-title,
+.tt-settings .tt-sidepanel-title,
+.tt-settings h3,
+.tt-settings h4 {
+  color: var(--purple);
+}
+
