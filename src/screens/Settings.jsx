@@ -121,7 +121,7 @@ export default function Settings() {
 
   function updateEmailRule(path, value) {
     setEmailRules((prev) => {
-      const next = structuredClone(prev);
+      const next = typeof structuredClone === "function" ? structuredClone(prev) : JSON.parse(JSON.stringify(prev));
       const parts = path.split(".");
       let cur = next;
       for (let i = 0; i < parts.length - 1; i++) cur = cur[parts[i]];
@@ -131,15 +131,7 @@ export default function Settings() {
   }
 
   const variables = useMemo(
-    () => [
-      "{clientName}",
-      "{recipientName}",
-      "{runDate}",
-      "{amount}",
-      "{reference}",
-      "{senderName}",
-      "{failureReason}",
-    ],
+    () => ["{clientName}", "{recipientName}", "{runDate}", "{amount}", "{reference}", "{senderName}", "{failureReason}"],
     []
   );
 
@@ -195,10 +187,7 @@ export default function Settings() {
               />
 
               <GlassCard>
-                <CardTitle
-                  title="Connection overview"
-                  subtitle="Status-first view. Connect only what you need."
-                />
+                <CardTitle title="Connection overview" subtitle="Status-first view. Connect only what you need." />
                 <div className="mt-5 grid grid-cols-3 gap-4">
                   <IntegrationTile
                     name="Zoho CRM"
@@ -323,15 +312,45 @@ export default function Settings() {
                 <CardTitle title="Business identity" subtitle="What your clients see in emails and receipts." />
 
                 <div className="mt-5 grid grid-cols-2 gap-4">
-                  <Field label="Business name" value={branding.businessName} onChange={(v) => updateBranding({ businessName: v })} placeholder="Your business name" />
-                  <Field label="Sender name" value={branding.senderName} onChange={(v) => updateBranding({ senderName: v })} placeholder="Name shown in inbox" />
-                  <Field label="Sender email" value={branding.senderEmail} onChange={(v) => updateBranding({ senderEmail: v })} placeholder="no-reply@yourdomain.co.za" />
-                  <Field label="Reply-to email" value={branding.replyToEmail} onChange={(v) => updateBranding({ replyToEmail: v })} placeholder="support@yourdomain.co.za" />
+                  <Field
+                    label="Business name"
+                    value={branding.businessName}
+                    onChange={(v) => updateBranding({ businessName: v })}
+                    placeholder="Your business name"
+                  />
+                  <Field
+                    label="Sender name"
+                    value={branding.senderName}
+                    onChange={(v) => updateBranding({ senderName: v })}
+                    placeholder="Name shown in inbox"
+                  />
+                  <Field
+                    label="Sender email"
+                    value={branding.senderEmail}
+                    onChange={(v) => updateBranding({ senderEmail: v })}
+                    placeholder="no-reply@yourdomain.co.za"
+                  />
+                  <Field
+                    label="Reply-to email"
+                    value={branding.replyToEmail}
+                    onChange={(v) => updateBranding({ replyToEmail: v })}
+                    placeholder="support@yourdomain.co.za"
+                  />
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-4">
-                  <Field label="Support email" value={branding.supportEmail} onChange={(v) => updateBranding({ supportEmail: v })} placeholder="support@yourdomain.co.za" />
-                  <Field label="Support phone" value={branding.supportPhone} onChange={(v) => updateBranding({ supportPhone: v })} placeholder="010 446 5754" />
+                  <Field
+                    label="Support email"
+                    value={branding.supportEmail}
+                    onChange={(v) => updateBranding({ supportEmail: v })}
+                    placeholder="support@yourdomain.co.za"
+                  />
+                  <Field
+                    label="Support phone"
+                    value={branding.supportPhone}
+                    onChange={(v) => updateBranding({ supportPhone: v })}
+                    placeholder="010 446 5754"
+                  />
                 </div>
 
                 <div className="mt-5">
@@ -431,9 +450,7 @@ export default function Settings() {
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
-                  <div className="text-xs text-white/60">
-                    Template variables: {variables.join("  ")}
-                  </div>
+                  <div className="text-xs text-white/60">Template variables: {variables.join("  ")}</div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
@@ -498,9 +515,7 @@ export default function Settings() {
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
-                  <div className="text-xs text-white/60">
-                    Template variables: {variables.join("  ")}
-                  </div>
+                  <div className="text-xs text-white/60">Template variables: {variables.join("  ")}</div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
@@ -530,11 +545,7 @@ export default function Settings() {
                 <GlassCard>
                   <CardTitle
                     title="Template editor"
-                    subtitle={
-                      templateFocus === "failure"
-                        ? "Failure notification template"
-                        : "Debit reminder template"
-                    }
+                    subtitle={templateFocus === "failure" ? "Failure notification template" : "Debit reminder template"}
                   />
 
                   <div className="mt-4 text-xs text-white/70 leading-relaxed">
@@ -580,14 +591,10 @@ export default function Settings() {
 
                   <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-4">
                     <div className="text-xs text-white/60">Subject</div>
-                    <div className="mt-1 text-sm font-semibold leading-snug whitespace-pre-wrap">
-                      {preview.subject}
-                    </div>
+                    <div className="mt-1 text-sm font-semibold leading-snug whitespace-pre-wrap">{preview.subject}</div>
 
                     <div className="mt-4 text-xs text-white/60">Body</div>
-                    <div className="mt-1 text-sm text-white/80 leading-relaxed whitespace-pre-wrap">
-                      {preview.body}
-                    </div>
+                    <div className="mt-1 text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{preview.body}</div>
                   </div>
 
                   <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -641,20 +648,14 @@ function TabIntro({ title, text }) {
 }
 
 function GlassCard({ children }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
-      {children}
-    </div>
-  );
+  return <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">{children}</div>;
 }
 
 function CardTitle({ title, subtitle }) {
   return (
     <div>
       <div className="text-base font-semibold">{title}</div>
-      {subtitle ? (
-        <div className="mt-1 text-sm text-white/70 leading-relaxed">{subtitle}</div>
-      ) : null}
+      {subtitle ? <div className="mt-1 text-sm text-white/70 leading-relaxed">{subtitle}</div> : null}
     </div>
   );
 }
@@ -674,9 +675,7 @@ function Field({ label, value, onChange, placeholder, helper, rightAddon }) {
           className="w-full bg-transparent px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none"
         />
         {rightAddon ? (
-          <div className="px-3 flex items-center text-xs text-white/55 border-l border-white/10">
-            {rightAddon}
-          </div>
+          <div className="px-3 flex items-center text-xs text-white/55 border-l border-white/10">{rightAddon}</div>
         ) : null}
       </div>
     </div>
@@ -745,11 +744,7 @@ function RecipientsPicker({ value, onChange, note, forceOps }) {
       <div className="mt-1 text-xs text-white/65 leading-relaxed">{note}</div>
 
       <div className="mt-4 grid grid-cols-3 gap-3">
-        <RecipientChip
-          label="Client"
-          enabled={!!value.client}
-          onToggle={() => setRecipient("client", !value.client)}
-        />
+        <RecipientChip label="Client" enabled={!!value.client} onToggle={() => setRecipient("client", !value.client)} />
         <RecipientChip
           label="Merchant"
           enabled={!!value.merchant}
@@ -790,4 +785,224 @@ function IntegrationTile({ name, description, status, onOpen }) {
   return (
     <button
       onClick={onOpen}
-      className="rounded-2xl border border-white/
+      className="rounded-2xl border border-white/10 bg-black/20 p-4 text-left hover:bg-black/25 transition"
+      type="button"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold">{name}</div>
+        <div className="text-xs text-white/60">
+          {status === "connected" ? "Connected" : status === "needs_attention" ? "Needs attention" : "Not connected"}
+        </div>
+      </div>
+      <div className="mt-1 text-xs text-white/65 leading-relaxed">{description}</div>
+      <div className="mt-3 text-xs text-white/55">Open</div>
+    </button>
+  );
+}
+
+function IntegrationCard({
+  title,
+  status,
+  statusClass,
+  statusLabel,
+  enabled,
+  onToggleEnabled,
+  connectMode,
+  onChangeMode,
+  fields,
+  lastChecked,
+  onConnect,
+  onDisconnect,
+  onTest,
+}) {
+  const showFields = enabled;
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-base font-semibold">{title}</div>
+          <div className="mt-1 text-sm text-white/70 leading-relaxed">
+            Status:{" "}
+            <span className={["inline-flex items-center px-2 py-1 rounded-full border text-xs", statusClass].join(" ")}>
+              {statusLabel}
+            </span>
+            {lastChecked ? <span className="ml-2 text-xs text-white/50">Last checked: {lastChecked}</span> : null}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onToggleEnabled(!enabled)}
+            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+            type="button"
+          >
+            {enabled ? "Disable" : "Enable"}
+          </button>
+          {status === "connected" ? (
+            <button
+              onClick={onDisconnect}
+              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/80"
+              type="button"
+            >
+              Disconnect
+            </button>
+          ) : (
+            <button
+              onClick={onConnect}
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+              type="button"
+            >
+              Connect
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-3">
+        <ModeChip label="OAuth" active={connectMode === "oauth"} onClick={() => onChangeMode("oauth")} disabled={!enabled} />
+        <ModeChip
+          label="API Key"
+          active={connectMode === "apiKey"}
+          onClick={() => onChangeMode("apiKey")}
+          disabled={!enabled}
+        />
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <div className="text-xs text-white/60">Quick actions</div>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={onTest}
+              disabled={!enabled}
+              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs disabled:opacity-50"
+              type="button"
+            >
+              Test connection
+            </button>
+            <button
+              onClick={() => {}}
+              disabled={!enabled}
+              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/80 disabled:opacity-50"
+              title="UI-only placeholder"
+              type="button"
+            >
+              Advanced
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {showFields ? (
+        <div className="mt-5 grid grid-cols-2 gap-4">
+          {fields.map((f) => (
+            <SecretField
+              key={f.label}
+              label={f.label}
+              value={f.value}
+              onChange={f.onChange}
+              secret={!!f.secret}
+              disabled={!enabled}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70 leading-relaxed">
+          Enable this integration to configure credentials and connection settings.
+        </div>
+      )}
+
+      <div className="mt-6 flex items-center justify-end gap-2">
+        <button
+          onClick={onTest}
+          disabled={!enabled}
+          className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/80 disabled:opacity-50"
+          type="button"
+        >
+          Test
+        </button>
+        <button
+          onClick={() => {}}
+          disabled={!enabled}
+          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm disabled:opacity-50"
+          title="UI-only placeholder"
+          type="button"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ModeChip({ label, active, onClick, disabled }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={[
+        "rounded-2xl border px-4 py-4 text-left transition",
+        active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10 hover:bg-white/7",
+        disabled ? "opacity-50 cursor-not-allowed" : "",
+      ].join(" ")}
+      type="button"
+    >
+      <div className="text-sm font-semibold">{label}</div>
+      <div className="mt-1 text-xs text-white/65">UI-only mode selector</div>
+    </button>
+  );
+}
+
+function SecretField({ label, value, onChange, secret, disabled }) {
+  const [reveal, setReveal] = useState(false);
+
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-white/70">{label}</div>
+        {secret ? (
+          <button
+            onClick={() => setReveal((p) => !p)}
+            className="text-xs text-white/55 hover:text-white/80"
+            type="button"
+            disabled={disabled}
+          >
+            {reveal ? "Hide" : "Show"}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mt-2 rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20">
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={secret ? "••••••••" : ""}
+          type={secret && !reveal ? "password" : "text"}
+          disabled={disabled}
+          className="w-full bg-transparent px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none disabled:opacity-60"
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------
+   Helpers
+---------------------------- */
+
+function interpolate(text, vars) {
+  let out = text || "";
+  for (const [k, v] of Object.entries(vars)) {
+    out = out.split(`{${k}}`).join(String(v));
+  }
+  return out;
+}
+
+function clampInt(v, min, max) {
+  const n = parseInt(String(v).replace(/[^\d]/g, ""), 10);
+  if (Number.isNaN(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function openIntegrationModal(_key, showToast) {
+  // UI-only placeholder. Keeps the UX intention without introducing a modal dependency.
+  showToast("Integration opened (UI-only placeholder).");
+}
