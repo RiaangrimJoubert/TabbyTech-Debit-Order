@@ -13,7 +13,7 @@ const TITLES = {
   clients: "Clients",
   debitorders: "Debit Orders",
   batches: "Batches",
-  reorts: "Reports",
+  reports: "Reports",
   settings: "Settings",
 };
 
