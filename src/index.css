@@ -20,6 +20,10 @@
 
   --shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
   --shadow2: 0 12px 30px rgba(0, 0, 0, 0.38);
+
+  --ease: cubic-bezier(0.2, 0.9, 0.2, 1);
+  --t-fast: 140ms;
+  --t-med: 200ms;
 }
 
 * {
@@ -100,6 +104,7 @@ body {
   color: #0b1020;
   font-weight: 700;
   outline: none;
+  transition: box-shadow var(--t-med) var(--ease), border-color var(--t-med) var(--ease);
 }
 
 .tt-input:focus {
@@ -122,10 +127,16 @@ body {
   color: #fff;
   letter-spacing: 1px;
   text-transform: uppercase;
+  transition: transform var(--t-fast) var(--ease), filter var(--t-fast) var(--ease);
 }
 
 .tt-btn-primary:hover {
   filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.tt-btn-primary:active {
+  transform: translateY(0px);
 }
 
 .tt-login-foot {
@@ -139,6 +150,7 @@ body {
   color: var(--muted);
   text-decoration: none;
   font-weight: 700;
+  transition: color var(--t-fast) var(--ease);
 }
 
 .tt-link:hover {
@@ -241,7 +253,10 @@ body {
   border-radius: 14px;
   cursor: pointer;
 
-  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease;
+  transition: transform var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 
 .tt-sidenav-item:hover {
@@ -251,7 +266,6 @@ body {
   transform: translateY(-1px);
 }
 
-/* Active state */
 .tt-sidenav-item.is-active {
   color: var(--text);
   background: linear-gradient(180deg, rgba(124, 58, 237, 0.22), rgba(255, 255, 255, 0.03));
@@ -286,6 +300,7 @@ body {
   opacity: 0;
   background: rgba(167, 139, 250, 0.9);
   box-shadow: 0 0 0 6px rgba(124, 58, 237, 0.12);
+  transition: opacity var(--t-fast) var(--ease);
 }
 
 .tt-sidenav-item:focus-visible {
@@ -308,6 +323,12 @@ body {
   border-radius: var(--radius2);
   padding: 14px;
   margin: 6px 6px 10px;
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.tt-sidepanel:hover {
+  transform: translateY(-1px);
+  border-color: rgba(124, 58, 237, 0.22);
 }
 
 .tt-sidepanel-title {
@@ -332,10 +353,16 @@ body {
   color: var(--text);
   font-weight: 900;
   cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 
 .tt-sidepanel-btn:hover {
   background: rgba(124, 58, 237, 0.26);
+  transform: translateY(-1px);
+}
+
+.tt-sidepanel-btn:active {
+  transform: translateY(0px);
 }
 
 .tt-shell-main {
@@ -387,6 +414,12 @@ body {
   background: var(--glass2);
   border: 1px solid var(--stroke);
   min-width: 380px;
+  transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+.tt-shell-search:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .tt-shell-searchicon {
@@ -410,6 +443,12 @@ body {
   border: 1px solid var(--stroke);
   color: var(--text);
   cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.tt-shell-iconbtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .tt-shell-user {
@@ -421,6 +460,12 @@ body {
   background: var(--glass2);
   border: 1px solid var(--stroke);
   cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.tt-shell-user:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .tt-shell-avatar {
@@ -454,16 +499,7 @@ body {
   backdrop-filter: blur(14px);
   padding: 18px;
   min-height: calc(100vh - 18px - 72px - 18px - 18px);
-}
-
-.tt-shell-placeholder {
-  height: 100%;
-  border-radius: 14px;
-  border: 1px dashed rgba(255, 255, 255, 0.18);
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  font-weight: 800;
+  overflow: hidden;
 }
 
 /* ===== DASHBOARD ===== */
@@ -486,6 +522,12 @@ body {
   border-radius: var(--radius);
   padding: 18px;
   box-shadow: var(--shadow2);
+  transition: transform var(--t-med) var(--ease), border-color var(--t-med) var(--ease);
+}
+
+.tt-statcard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(124, 58, 237, 0.24);
 }
 
 .tt-stat-label {
@@ -498,6 +540,7 @@ body {
   margin-top: 8px;
   font-size: 28px;
   font-weight: 900;
+  letter-spacing: 0.2px;
 }
 
 .tt-stat-meta {
@@ -521,6 +564,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  transition: transform var(--t-med) var(--ease), border-color var(--t-med) var(--ease);
+}
+
+.tt-panel:hover {
+  transform: translateY(-2px);
+  border-color: rgba(124, 58, 237, 0.22);
 }
 
 .tt-panel-title {
@@ -534,22 +583,34 @@ body {
   align-items: center;
   padding: 12px;
   border-radius: 12px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+.tt-panel-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .tt-panel-btn {
-  background: rgba(124,58,237,0.20);
-  border: 1px solid rgba(124,58,237,0.40);
+  background: rgba(124, 58, 237, 0.20);
+  border: 1px solid rgba(124, 58, 237, 0.40);
   color: var(--text);
   border-radius: 10px;
   padding: 6px 12px;
   font-weight: 800;
   cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 
 .tt-panel-btn:hover {
-  background: rgba(124,58,237,0.28);
+  background: rgba(124, 58, 237, 0.28);
+  transform: translateY(-1px);
+}
+
+.tt-panel-btn:active {
+  transform: translateY(0px);
 }
 
 .tt-table-row {
@@ -558,8 +619,14 @@ body {
   gap: 10px;
   padding: 10px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+.tt-table-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .tt-table-head {
@@ -567,15 +634,20 @@ body {
   border: none;
   color: var(--muted);
   font-weight: 800;
+  padding: 0 2px 6px;
+}
+
+.tt-table-head:hover {
+  transform: none;
+  border-color: transparent;
 }
 
 .tt-badge {
   display: inline-block;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(124,58,237,0.22);
-  border: 1px solid rgba(124,58,237,0.45);
+  background: rgba(124, 58, 237, 0.22);
+  border: 1px solid rgba(124, 58, 237, 0.45);
   font-weight: 800;
   font-size: 12px;
 }
-
