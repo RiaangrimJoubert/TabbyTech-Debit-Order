@@ -355,23 +355,12 @@ export default function Settings() {
               </div>
 
               <div className="tt-grid2 tt-mt">
-                <Field
-                  label="Ops email"
-                  value={emailRules.ops.opsEmail}
-                  onChange={(v) => updateEmailRule("ops.opsEmail", v)}
-                />
-                <Field
-                  label="CC email (optional)"
-                  value={emailRules.ops.ccEmail}
-                  onChange={(v) => updateEmailRule("ops.ccEmail", v)}
-                />
+                <Field label="Ops email" value={emailRules.ops.opsEmail} onChange={(v) => updateEmailRule("ops.opsEmail", v)} />
+                <Field label="CC email (optional)" value={emailRules.ops.ccEmail} onChange={(v) => updateEmailRule("ops.ccEmail", v)} />
               </div>
             </div>
 
-            <RuleCard
-              title="Rule 1: Debit reminder"
-              subtitle="Two days before the run date, reduce surprises and failures."
-            >
+            <RuleCard title="Rule 1: Debit reminder" subtitle="Two days before the run date, reduce surprises and failures.">
               <div className="tt-grid3">
                 <ToggleRow
                   label="Enabled"
@@ -424,10 +413,7 @@ export default function Settings() {
               </div>
             </RuleCard>
 
-            <RuleCard
-              title="Rule 2: Failure notifications"
-              subtitle="Notify stakeholders immediately so recovery can start."
-            >
+            <RuleCard title="Rule 2: Failure notifications" subtitle="Notify stakeholders immediately so recovery can start.">
               <div className="tt-grid3">
                 <ToggleRow
                   label="Enabled"
@@ -494,16 +480,12 @@ export default function Settings() {
                   <Field
                     label="Subject"
                     value={templateFocus === "failure" ? emailRules.failure.subject : emailRules.reminder.subject}
-                    onChange={(v) =>
-                      templateFocus === "failure" ? updateEmailRule("failure.subject", v) : updateEmailRule("reminder.subject", v)
-                    }
+                    onChange={(v) => (templateFocus === "failure" ? updateEmailRule("failure.subject", v) : updateEmailRule("reminder.subject", v))}
                   />
                   <TextArea
                     label="Body"
                     value={templateFocus === "failure" ? emailRules.failure.body : emailRules.reminder.body}
-                    onChange={(v) =>
-                      templateFocus === "failure" ? updateEmailRule("failure.body", v) : updateEmailRule("reminder.body", v)
-                    }
+                    onChange={(v) => (templateFocus === "failure" ? updateEmailRule("failure.body", v) : updateEmailRule("reminder.body", v))}
                     rows={14}
                   />
                 </div>
@@ -556,27 +538,11 @@ function IntegrationTile({ name, description, status, onOpen }) {
   );
 }
 
-function IntegrationCard({
-  title,
-  hint,
-  data,
-  fields,
-  onToggleEnabled,
-  onChangeMode,
-  onChangeField,
-  onConnect,
-  onDisconnect,
-  onTest,
-}) {
-  const statusLabel =
-    data.status === "connected" ? "Connected" : data.status === "needs_attention" ? "Needs attention" : "Not connected";
+function IntegrationCard({ title, hint, data, fields, onToggleEnabled, onChangeMode, onChangeField, onConnect, onDisconnect, onTest }) {
+  const statusLabel = data.status === "connected" ? "Connected" : data.status === "needs_attention" ? "Needs attention" : "Not connected";
 
   const pillClass =
-    data.status === "connected"
-      ? "tt-pill tt-pillGood"
-      : data.status === "needs_attention"
-      ? "tt-pill tt-pillWarn"
-      : "tt-pill";
+    data.status === "connected" ? "tt-pill tt-pillGood" : data.status === "needs_attention" ? "tt-pill tt-pillWarn" : "tt-pill";
 
   return (
     <div className="tt-card">
@@ -593,11 +559,7 @@ function IntegrationCard({
         </div>
 
         <div className="tt-row">
-          <button
-            type="button"
-            className="tt-btn tt-btnGhost"
-            onClick={() => onToggleEnabled(!data.enabled)}
-          >
+          <button type="button" className="tt-btn tt-btnGhost" onClick={() => onToggleEnabled(!data.enabled)}>
             {data.enabled ? "Disable" : "Enable"}
           </button>
 
@@ -646,9 +608,7 @@ function IntegrationCard({
           ))}
         </div>
       ) : (
-        <div className="tt-emptyState tt-mt">
-          Enable this integration to configure credentials and connection settings.
-        </div>
+        <div className="tt-emptyState tt-mt">Enable this integration to configure credentials and connection settings.</div>
       )}
 
       <div className="tt-row tt-mt">
@@ -668,12 +628,7 @@ function IntegrationCard({
 
 function ModeChip({ label, active, onClick, disabled }) {
   return (
-    <button
-      type="button"
-      className={active ? "tt-chip tt-chipActive" : "tt-chip"}
-      onClick={onClick}
-      disabled={disabled}
-    >
+    <button type="button" className={active ? "tt-chip tt-chipActive" : "tt-chip"} onClick={onClick} disabled={disabled}>
       <div className="tt-chipTitle">{label}</div>
       <div className="tt-chipSub">UI-only selector</div>
     </button>
@@ -858,6 +813,15 @@ const css = `
   width: 100%;
   height: 100%;
   color: rgba(255,255,255,0.92);
+}
+
+/* Use the same TabbyTech purple as the rest of the app */
+.tt-settings .tt-cardTitle,
+.tt-settings .tt-tileTitle,
+.tt-settings .tt-miniTitle,
+.tt-settings .tt-chipTitle,
+.tt-settings .tt-recTitle {
+  color: var(--purple);
 }
 
 .tt-wrap {
@@ -1269,15 +1233,8 @@ const css = `
   color: rgba(255,255,255,0.70);
 }
 
-.tt-vars {
-  font-size: 12px;
-  color: rgba(255,255,255,0.60);
-}
-
-.tt-varsList {
-  color: rgba(255,255,255,0.80);
-}
-
+.tt-vars { font-size: 12px; color: rgba(255,255,255,0.60); }
+.tt-varsList { color: rgba(255,255,255,0.80); }
 .tt-muted { color: rgba(255,255,255,0.62); }
 
 .tt-toastWrap {
