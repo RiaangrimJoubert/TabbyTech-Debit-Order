@@ -47,6 +47,43 @@ body {
     linear-gradient(180deg, var(--bg), var(--bg2));
 }
 
+/* ===== HARD GUARD: NO BLACK HEADINGS IN DARK UI ===== */
+/* This prevents browser default heading color from showing as black anywhere */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--text);
+}
+
+/* ===== CARD TITLE ACCENT (GLOBAL) ===== */
+/* Use these classes for all card titles and small card headings */
+.tt-card-title {
+  color: var(--purple);
+  font-weight: 900;
+}
+
+.tt-card-title-sm {
+  color: var(--purple);
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.tt-card-title-md {
+  color: var(--purple);
+  font-weight: 900;
+  font-size: 14px;
+}
+
+/* ===== OPTIONAL: AUTO PURPLE FOR COMMON CARD TITLE CLASSES ===== */
+/* These are existing title classes in your CSS, so we make them purple centrally */
+.tt-sidepanel-title,
+.tt-panel-title {
+  color: var(--purple);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
