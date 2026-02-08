@@ -7,53 +7,64 @@ export default function Login({ onLogin }) {
   return (
     <div className="tt-login">
       <div className="tt-login-wrap">
+
+        {/* Brand */}
         <div className="tt-login-brand">
           <img
             src="/tabbytech-logo.png"
             alt="TabbyTech"
             className="tt-login-logo"
           />
-          <div className="tt-login-title">WELCOME TO TABBYTECH</div>
+          <div className="tt-login-title">
+            WELCOME TO TABBYTECH
+          </div>
         </div>
 
+        {/* Card */}
         <div className="tt-login-card">
-          <div className="tt-login-form">
-            <input
-              className="tt-input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Username"
-              autoComplete="username"
-            />
+          <div className="tt-login-form-inner">
+            <div className="tt-login-form">
 
-            <input
-              className="tt-input"
-              type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              placeholder="Password"
-              autoComplete="current-password"
-            />
+              <input
+                className="tt-input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Username"
+                autoComplete="username"
+              />
 
-            <button
-              type="button"
-              className="tt-btn tt-btn-primary"
-              onClick={() => onLogin?.()}
-            >
-              Log In
-            </button>
+              <input
+                className="tt-input"
+                type="password"
+                value={pass}
+                onChange={(e) => setPass(e.target.value)}
+                placeholder="Password"
+                autoComplete="current-password"
+              />
 
-            <div className="tt-login-foot">
-              <a className="tt-link" href="#">
-                Forgot password?
-              </a>
+              <button
+                type="button"
+                className="tt-btn tt-btn-primary"
+                onClick={() => onLogin?.()}
+              >
+                LOG IN
+              </button>
 
-              <div className="tt-login-tag">TabbyTech Debit Orders</div>
+              <div className="tt-login-foot">
+                <a href="#" className="tt-link">
+                  Forgot password?
+                </a>
+
+                <div className="tt-login-tag">
+                  TabbyTech Debit Orders
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
 }
-
