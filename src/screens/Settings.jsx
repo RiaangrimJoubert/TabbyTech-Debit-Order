@@ -75,7 +75,7 @@ export default function Settings() {
       recipients: {
         client: true,
         merchant: true,
-        ops: true, // should remain true as a best-practice default
+        ops: true,
       },
       subject: "Debit order failed for {clientName} - action required",
       body:
@@ -97,9 +97,9 @@ export default function Settings() {
   }
 
   function pillForStatus(status) {
-    if (status === "connected") return "bg-emerald-500/15 text-emerald-200 border-emerald-500/20";
-    if (status === "needs_attention") return "bg-amber-500/15 text-amber-200 border-amber-500/20";
-    return "bg-white/5 text-white/70 border-white/10";
+    if (status === "connected") return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
+    if (status === "needs_attention") return "bg-amber-500/15 text-amber-200 border-amber-500/25";
+    return "bg-white/5 text-white/70 border-white/12";
   }
 
   function labelForStatus(status) {
@@ -147,10 +147,10 @@ export default function Settings() {
     };
 
     const rule = templateFocus === "failure" ? emailRules.failure : emailRules.reminder;
-    const subject = interpolate(rule.subject, sample);
-    const body = interpolate(rule.body, sample);
-
-    return { subject, body };
+    return {
+      subject: interpolate(rule.subject, sample),
+      body: interpolate(rule.body, sample),
+    };
   }, [emailRules, templateFocus, branding.senderName]);
 
   return (
@@ -158,24 +158,31 @@ export default function Settings() {
       <div className="max-w-[1200px] mx-auto">
         <Header
           title="Settings"
-          subtitle="Configure integrations, brand details, and email behaviour. UI-only for now."
+          subtitle="Control integrations, identity, and email behaviour. Everything here is UI-only until backend wiring resumes."
         />
 
-        <div className="mt-5 flex items-center gap-2">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              className={[
-                "px-4 py-2 rounded-xl border text-sm transition",
-                activeTab === t.key
-                  ? "bg-white/10 border-white/15 text-white"
-                  : "bg-transparent border-white/10 text-white/70 hover:bg-white/5 hover:text-white",
-              ].join(" ")}
-            >
-              {t.label}
-            </button>
-          ))}
+        {/* Tabs */}
+        <div className="mt-6">
+          <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-2">
+            {TABS.map((t) => {
+              const active = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  type="button"
+                  className={[
+                    "px-4 py-2 rounded-xl text-sm transition relative",
+                    active
+                      ? "bg-white/10 border border-white/15 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                      : "text-white/70 hover:text-white hover:bg-white/5",
+                  ].join(" ")}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="mt-6">
@@ -183,27 +190,33 @@ export default function Settings() {
             <div className="space-y-4">
               <TabIntro
                 title="Integrations"
-                text="Connect external systems so TabbyTech can sync clients, reconcile payments, and streamline ops. These controls are UI-only until backend wiring resumes."
+                text="Connect the tools your team already uses. Status-first controls keep this clean today and scalable later."
               />
 
               <GlassCard>
-                <CardTitle title="Connection overview" subtitle="Status-first view. Connect only what you need." />
+                <div className="flex items-start justify-between gap-4">
+                  <CardTitle title="Connection overview" subtitle="Connect only what you need. Test status without leaving this page." />
+                  <div className="text-xs text-white/55 leading-relaxed text-right">
+                    Tip: keep credentials in a password manager
+                  </div>
+                </div>
+
                 <div className="mt-5 grid grid-cols-3 gap-4">
                   <IntegrationTile
                     name="Zoho CRM"
-                    description="Sync clients and company records."
+                    description="Sync clients and account records."
                     status={integrations.zohoCrm.status}
                     onOpen={() => openIntegrationModal("zohoCrm", showToast)}
                   />
                   <IntegrationTile
                     name="Zoho Books"
-                    description="Invoice and reconciliation support."
+                    description="Invoices and reconciliation support."
                     status={integrations.zohoBooks.status}
                     onOpen={() => openIntegrationModal("zohoBooks", showToast)}
                   />
                   <IntegrationTile
                     name="Paystack"
-                    description="Payment processing and webhooks."
+                    description="Payments and webhooks."
                     status={integrations.paystack.status}
                     onOpen={() => openIntegrationModal("paystack", showToast)}
                   />
@@ -212,6 +225,7 @@ export default function Settings() {
 
               <IntegrationCard
                 title="Zoho CRM"
+                hint="Ideal for client sync and account management."
                 status={integrations.zohoCrm.status}
                 statusClass={pillForStatus(integrations.zohoCrm.status)}
                 statusLabel={labelForStatus(integrations.zohoCrm.status)}
@@ -242,6 +256,7 @@ export default function Settings() {
 
               <IntegrationCard
                 title="Zoho Books"
+                hint="Useful for finance workflows and reconciliation."
                 status={integrations.zohoBooks.status}
                 statusClass={pillForStatus(integrations.zohoBooks.status)}
                 statusLabel={labelForStatus(integrations.zohoBooks.status)}
@@ -272,6 +287,7 @@ export default function Settings() {
 
               <IntegrationCard
                 title="Paystack"
+                hint="Payment processing and event webhooks."
                 status={integrations.paystack.status}
                 statusClass={pillForStatus(integrations.paystack.status)}
                 statusLabel={labelForStatus(integrations.paystack.status)}
@@ -305,72 +321,46 @@ export default function Settings() {
             <div className="space-y-4">
               <TabIntro
                 title="Profile and Branding"
-                text="Control sender identity, support details, and branding used in emails and exports. These values will later flow into templates and PDFs."
+                text="Make emails and exports feel consistent. Keep sender details stable so clients always recognise you."
               />
 
               <GlassCard>
-                <CardTitle title="Business identity" subtitle="What your clients see in emails and receipts." />
-
-                <div className="mt-5 grid grid-cols-2 gap-4">
-                  <Field
-                    label="Business name"
-                    value={branding.businessName}
-                    onChange={(v) => updateBranding({ businessName: v })}
-                    placeholder="Your business name"
-                  />
-                  <Field
-                    label="Sender name"
-                    value={branding.senderName}
-                    onChange={(v) => updateBranding({ senderName: v })}
-                    placeholder="Name shown in inbox"
-                  />
-                  <Field
-                    label="Sender email"
-                    value={branding.senderEmail}
-                    onChange={(v) => updateBranding({ senderEmail: v })}
-                    placeholder="no-reply@yourdomain.co.za"
-                  />
-                  <Field
-                    label="Reply-to email"
-                    value={branding.replyToEmail}
-                    onChange={(v) => updateBranding({ replyToEmail: v })}
-                    placeholder="support@yourdomain.co.za"
-                  />
-                </div>
-
-                <div className="mt-5 grid grid-cols-2 gap-4">
-                  <Field
-                    label="Support email"
-                    value={branding.supportEmail}
-                    onChange={(v) => updateBranding({ supportEmail: v })}
-                    placeholder="support@yourdomain.co.za"
-                  />
-                  <Field
-                    label="Support phone"
-                    value={branding.supportPhone}
-                    onChange={(v) => updateBranding({ supportPhone: v })}
-                    placeholder="010 446 5754"
-                  />
-                </div>
-
-                <div className="mt-5">
-                  <Field
-                    label="Logo URL (optional)"
-                    value={branding.logoUrl}
-                    onChange={(v) => updateBranding({ logoUrl: v })}
-                    placeholder="https://..."
-                    helper="Shown in email headers and future PDF exports. Keep it square for best results."
-                  />
-                </div>
-
-                <div className="mt-6 flex items-center justify-end gap-2">
+                <div className="flex items-start justify-between gap-4">
+                  <CardTitle title="Business identity" subtitle="What clients see in their inbox and in future exports." />
                   <button
                     onClick={() => showToast("Branding saved (UI only).")}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                    type="button"
                   >
                     Save changes
                   </button>
                 </div>
+
+                <Divider />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Business name" value={branding.businessName} onChange={(v) => updateBranding({ businessName: v })} placeholder="Your business name" />
+                  <Field label="Sender name" value={branding.senderName} onChange={(v) => updateBranding({ senderName: v })} placeholder="Name shown in inbox" />
+                  <Field label="Sender email" value={branding.senderEmail} onChange={(v) => updateBranding({ senderEmail: v })} placeholder="no-reply@yourdomain.co.za" />
+                  <Field label="Reply-to email" value={branding.replyToEmail} onChange={(v) => updateBranding({ replyToEmail: v })} placeholder="support@yourdomain.co.za" />
+                </div>
+
+                <Divider />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Support email" value={branding.supportEmail} onChange={(v) => updateBranding({ supportEmail: v })} placeholder="support@yourdomain.co.za" />
+                  <Field label="Support phone" value={branding.supportPhone} onChange={(v) => updateBranding({ supportPhone: v })} placeholder="010 446 5754" />
+                </div>
+
+                <Divider />
+
+                <Field
+                  label="Logo URL (optional)"
+                  value={branding.logoUrl}
+                  onChange={(v) => updateBranding({ logoUrl: v })}
+                  placeholder="https://..."
+                  helper="Used in email headers and future PDFs. Square logos look best."
+                />
               </GlassCard>
             </div>
           )}
@@ -379,50 +369,40 @@ export default function Settings() {
             <div className="space-y-4">
               <TabIntro
                 title="Email Rules"
-                text="Define what gets sent, when, and to whom. Templates include a live preview with sample data so you can confirm tone and clarity."
+                text="Rules read like logic: when something happens, who gets notified, and what they receive."
               />
 
               <GlassCard>
-                <CardTitle
-                  title="Operational recipients"
-                  subtitle="Defaults and safety rails. Ops should always receive failures."
-                />
-                <div className="mt-5 grid grid-cols-2 gap-4">
-                  <Field
-                    label="Ops email"
-                    value={emailRules.ops.opsEmail}
-                    onChange={(v) => updateEmailRule("ops.opsEmail", v)}
-                    placeholder="ops@yourdomain.co.za"
-                  />
-                  <Field
-                    label="CC email (optional)"
-                    value={emailRules.ops.ccEmail}
-                    onChange={(v) => updateEmailRule("ops.ccEmail", v)}
-                    placeholder="finance@yourdomain.co.za"
-                  />
-                </div>
-                <div className="mt-6 flex items-center justify-end gap-2">
+                <div className="flex items-start justify-between gap-4">
+                  <CardTitle title="Operational recipients" subtitle="Safe defaults. Ops should always receive failures." />
                   <button
                     onClick={() => showToast("Recipients saved (UI only).")}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                    type="button"
                   >
                     Save
                   </button>
                 </div>
+
+                <Divider />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Ops email" value={emailRules.ops.opsEmail} onChange={(v) => updateEmailRule("ops.opsEmail", v)} placeholder="ops@yourdomain.co.za" />
+                  <Field label="CC email (optional)" value={emailRules.ops.ccEmail} onChange={(v) => updateEmailRule("ops.ccEmail", v)} placeholder="finance@yourdomain.co.za" />
+                </div>
               </GlassCard>
 
               <GlassCard>
-                <CardTitle
-                  title="Rule 1: Debit reminder"
-                  subtitle="When a debit run is scheduled, send a reminder to reduce surprises and failed collections."
-                />
+                <CardTitle title="Rule 1: Debit reminder" subtitle="Two days before the run date, reduce surprises and failures." />
 
-                <div className="mt-5 grid grid-cols-3 gap-4">
+                <Divider />
+
+                <div className="grid grid-cols-3 gap-4">
                   <ToggleRow
                     label="Enabled"
                     checked={emailRules.reminder.enabled}
                     onChange={(v) => updateEmailRule("reminder.enabled", v)}
-                    hint="If disabled, no reminder emails will be sent."
+                    hint="Turn off if you do not want reminder emails."
                   />
                   <Field
                     label="Send"
@@ -436,7 +416,7 @@ export default function Settings() {
                     value={emailRules.reminder.sendTime}
                     onChange={(v) => updateEmailRule("reminder.sendTime", v)}
                     placeholder="09:00"
-                    helper="Local time. Example: 09:00"
+                    helper="Local time, for example 09:00"
                   />
                 </div>
 
@@ -444,31 +424,35 @@ export default function Settings() {
                   <RecipientsPicker
                     value={emailRules.reminder.recipients}
                     onChange={(next) => updateEmailRule("reminder.recipients", next)}
-                    note="Ops is recommended for reminders so you can trace what clients received."
+                    note="Ops is recommended for traceability."
                     forceOps={false}
                   />
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
-                  <div className="text-xs text-white/60">Template variables: {variables.join("  ")}</div>
+                  <div className="text-xs text-white/55 leading-relaxed">
+                    Variables available: <span className="text-white/75">{variables.join("  ")}</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
                         setTemplateFocus("reminder");
-                        showToast("Editing: debit reminder template");
+                        showToast("Editing reminder template");
                       }}
                       className={[
-                        "px-4 py-2 rounded-xl border text-sm",
+                        "px-4 py-2 rounded-xl border text-sm transition shadow-[0_0_0_1px_rgba(255,255,255,0.04)]",
                         templateFocus === "reminder"
-                          ? "bg-white/10 border-white/15"
-                          : "bg-transparent border-white/10 hover:bg-white/5 text-white/80",
+                          ? "bg-white/10 border-white/15 text-white"
+                          : "bg-transparent border-white/10 text-white/75 hover:bg-white/5 hover:text-white",
                       ].join(" ")}
+                      type="button"
                     >
                       Edit template
                     </button>
                     <button
                       onClick={() => showToast("Reminder rule saved (UI only).")}
-                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                      type="button"
                     >
                       Save
                     </button>
@@ -477,17 +461,16 @@ export default function Settings() {
               </GlassCard>
 
               <GlassCard>
-                <CardTitle
-                  title="Rule 2: Failure notifications"
-                  subtitle="When a debit order fails, notify stakeholders so recovery actions can start immediately."
-                />
+                <CardTitle title="Rule 2: Failure notifications" subtitle="Notify stakeholders immediately so recovery can start." />
 
-                <div className="mt-5 grid grid-cols-3 gap-4">
+                <Divider />
+
+                <div className="grid grid-cols-3 gap-4">
                   <ToggleRow
                     label="Enabled"
                     checked={emailRules.failure.enabled}
                     onChange={(v) => updateEmailRule("failure.enabled", v)}
-                    hint="If disabled, failures will not trigger any emails."
+                    hint="Turn off only if failures are handled elsewhere."
                   />
                   <Field
                     label="Resend throttle"
@@ -497,12 +480,10 @@ export default function Settings() {
                     rightAddon="hours"
                     helper="Prevents repeated emails for the same failure."
                   />
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-sm font-semibold">Best practice</div>
-                    <div className="mt-1 text-xs text-white/70 leading-relaxed">
-                      Ops should always receive failures to support audit trails and recovery workflows.
-                    </div>
-                  </div>
+                  <InfoCard
+                    title="Best practice"
+                    text="Ops stays on for failures to maintain audit trails and reduce response time."
+                  />
                 </div>
 
                 <div className="mt-5">
@@ -515,25 +496,29 @@ export default function Settings() {
                 </div>
 
                 <div className="mt-6 flex items-center justify-between gap-3">
-                  <div className="text-xs text-white/60">Template variables: {variables.join("  ")}</div>
+                  <div className="text-xs text-white/55 leading-relaxed">
+                    Variables available: <span className="text-white/75">{variables.join("  ")}</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
                         setTemplateFocus("failure");
-                        showToast("Editing: failure template");
+                        showToast("Editing failure template");
                       }}
                       className={[
-                        "px-4 py-2 rounded-xl border text-sm",
+                        "px-4 py-2 rounded-xl border text-sm transition shadow-[0_0_0_1px_rgba(255,255,255,0.04)]",
                         templateFocus === "failure"
-                          ? "bg-white/10 border-white/15"
-                          : "bg-transparent border-white/10 hover:bg-white/5 text-white/80",
+                          ? "bg-white/10 border-white/15 text-white"
+                          : "bg-transparent border-white/10 text-white/75 hover:bg-white/5 hover:text-white",
                       ].join(" ")}
+                      type="button"
                     >
                       Edit template
                     </button>
                     <button
                       onClick={() => showToast("Failure rule saved (UI only).")}
-                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                      type="button"
                     >
                       Save
                     </button>
@@ -548,8 +533,10 @@ export default function Settings() {
                     subtitle={templateFocus === "failure" ? "Failure notification template" : "Debit reminder template"}
                   />
 
-                  <div className="mt-4 text-xs text-white/70 leading-relaxed">
-                    Keep it short, clear, and action-driven. Variables will be replaced automatically once backend logic is active.
+                  <Divider />
+
+                  <div className="text-xs text-white/65 leading-relaxed">
+                    Keep tone consistent and action-driven. Templates will become live once backend logic is active.
                   </div>
 
                   <div className="mt-5 space-y-3">
@@ -576,10 +563,11 @@ export default function Settings() {
                     />
                   </div>
 
-                  <div className="mt-6 flex items-center justify-end gap-2">
+                  <div className="mt-6 flex items-center justify-end">
                     <button
                       onClick={() => showToast("Template saved (UI only).")}
-                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                      type="button"
                     >
                       Save template
                     </button>
@@ -587,23 +575,16 @@ export default function Settings() {
                 </GlassCard>
 
                 <GlassCard>
-                  <CardTitle title="Live preview" subtitle="Sample data preview to confirm tone and structure." />
+                  <CardTitle title="Live preview" subtitle="Sample data preview to validate clarity and tone." />
 
-                  <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <div className="text-xs text-white/60">Subject</div>
-                    <div className="mt-1 text-sm font-semibold leading-snug whitespace-pre-wrap">{preview.subject}</div>
+                  <Divider />
 
-                    <div className="mt-4 text-xs text-white/60">Body</div>
-                    <div className="mt-1 text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{preview.body}</div>
-                  </div>
+                  <EmailPreview subject={preview.subject} body={preview.body} />
 
-                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-sm font-semibold">Preview notes</div>
-                    <ul className="mt-2 space-y-2 text-xs text-white/70 leading-relaxed list-disc pl-5">
-                      <li>Keep reminders friendly and direct.</li>
-                      <li>Failures should list next steps clearly.</li>
-                      <li>Use a consistent sender name for trust.</li>
-                    </ul>
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <MiniHint title="Clear subject" text="Client can understand in one glance." />
+                    <MiniHint title="Next steps" text="Failure emails should point to action." />
+                    <MiniHint title="Trust signals" text="Consistent sender name and tone." />
                   </div>
                 </GlassCard>
               </div>
@@ -613,7 +594,7 @@ export default function Settings() {
 
         {toast && (
           <div className="fixed bottom-6 right-6">
-            <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl px-4 py-3 text-sm text-white/90 shadow-xl">
+            <div className="rounded-2xl border border-white/10 bg-black/70 backdrop-blur-xl px-4 py-3 text-sm text-white/90 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
               {toast}
             </div>
           </div>
@@ -624,15 +605,19 @@ export default function Settings() {
 }
 
 /* ---------------------------
-   UI building blocks
+   Premium UI building blocks
 ---------------------------- */
 
 function Header({ title, subtitle }) {
   return (
-    <div className="flex items-end justify-between gap-4">
-      <div>
+    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/6 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/4 blur-3xl" />
+      </div>
+      <div className="relative">
         <div className="text-2xl font-semibold tracking-tight">{title}</div>
-        <div className="mt-1 text-sm text-white/70 leading-relaxed">{subtitle}</div>
+        <div className="mt-2 text-sm text-white/70 leading-relaxed max-w-[820px]">{subtitle}</div>
       </div>
     </div>
   );
@@ -640,24 +625,32 @@ function Header({ title, subtitle }) {
 
 function TabIntro({ title, text }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
+    <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
       <div className="text-sm font-semibold">{title}</div>
-      <div className="mt-1 text-sm text-white/70 leading-relaxed">{text}</div>
+      <div className="mt-2 text-sm text-white/70 leading-relaxed">{text}</div>
     </div>
   );
 }
 
 function GlassCard({ children }) {
-  return <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">{children}</div>;
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
+      {children}
+    </div>
+  );
 }
 
 function CardTitle({ title, subtitle }) {
   return (
     <div>
       <div className="text-base font-semibold">{title}</div>
-      {subtitle ? <div className="mt-1 text-sm text-white/70 leading-relaxed">{subtitle}</div> : null}
+      {subtitle ? <div className="mt-2 text-sm text-white/70 leading-relaxed">{subtitle}</div> : null}
     </div>
   );
+}
+
+function Divider() {
+  return <div className="my-6 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />;
 }
 
 function Field({ label, value, onChange, placeholder, helper, rightAddon }) {
@@ -667,7 +660,7 @@ function Field({ label, value, onChange, placeholder, helper, rightAddon }) {
         <div className="text-xs text-white/70">{label}</div>
         {helper ? <div className="text-xs text-white/45">{helper}</div> : null}
       </div>
-      <div className="mt-2 flex items-stretch rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20">
+      <div className="mt-2 flex items-stretch rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.04)]">
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -686,7 +679,7 @@ function TextArea({ label, value, onChange, placeholder, rows = 10 }) {
   return (
     <div className="w-full">
       <div className="text-xs text-white/70">{label}</div>
-      <div className="mt-2 rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20">
+      <div className="mt-2 rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.04)]">
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -701,7 +694,7 @@ function TextArea({ label, value, onChange, placeholder, rows = 10 }) {
 
 function ToggleRow({ label, checked, onChange, hint }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="text-sm font-semibold">{label}</div>
@@ -711,15 +704,16 @@ function ToggleRow({ label, checked, onChange, hint }) {
         <button
           onClick={() => onChange(!checked)}
           className={[
-            "w-[54px] h-[30px] rounded-full border transition relative",
+            "w-[56px] h-[32px] rounded-full border transition relative",
             checked ? "bg-white/15 border-white/20" : "bg-white/5 border-white/10",
           ].join(" ")}
           aria-label={label}
+          type="button"
         >
           <span
             className={[
-              "absolute top-[4px] w-[22px] h-[22px] rounded-full transition",
-              checked ? "left-[28px] bg-white" : "left-[4px] bg-white/70",
+              "absolute top-[4px] w-[24px] h-[24px] rounded-full transition",
+              checked ? "left-[28px] bg-white shadow-[0_10px_28px_rgba(0,0,0,0.35)]" : "left-[4px] bg-white/70",
             ].join(" ")}
           />
         </button>
@@ -739,23 +733,14 @@ function RecipientsPicker({ value, onChange, note, forceOps }) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
       <div className="text-sm font-semibold">Recipients</div>
       <div className="mt-1 text-xs text-white/65 leading-relaxed">{note}</div>
 
       <div className="mt-4 grid grid-cols-3 gap-3">
         <RecipientChip label="Client" enabled={!!value.client} onToggle={() => setRecipient("client", !value.client)} />
-        <RecipientChip
-          label="Merchant"
-          enabled={!!value.merchant}
-          onToggle={() => setRecipient("merchant", !value.merchant)}
-        />
-        <RecipientChip
-          label="Ops"
-          enabled={!!value.ops}
-          onToggle={() => setRecipient("ops", !value.ops)}
-          locked={forceOps}
-        />
+        <RecipientChip label="Merchant" enabled={!!value.merchant} onToggle={() => setRecipient("merchant", !value.merchant)} />
+        <RecipientChip label="Ops" enabled={!!value.ops} onToggle={() => setRecipient("ops", !value.ops)} locked={forceOps} />
       </div>
     </div>
   );
@@ -766,9 +751,12 @@ function RecipientChip({ label, enabled, onToggle, locked }) {
     <button
       onClick={onToggle}
       disabled={locked}
+      type="button"
       className={[
         "rounded-2xl border px-4 py-3 text-left transition",
-        enabled ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10 hover:bg-white/7",
+        enabled
+          ? "bg-white/10 border-white/15 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+          : "bg-white/5 border-white/10 hover:bg-white/7",
         locked ? "opacity-80 cursor-not-allowed" : "",
       ].join(" ")}
     >
@@ -782,26 +770,32 @@ function RecipientChip({ label, enabled, onToggle, locked }) {
 }
 
 function IntegrationTile({ name, description, status, onOpen }) {
+  const statusText = status === "connected" ? "Connected" : status === "needs_attention" ? "Needs attention" : "Not connected";
+
   return (
     <button
       onClick={onOpen}
-      className="rounded-2xl border border-white/10 bg-black/20 p-4 text-left hover:bg-black/25 transition"
       type="button"
+      className="group rounded-3xl border border-white/10 bg-black/25 p-5 text-left transition hover:bg-black/30 shadow-[0_14px_50px_rgba(0,0,0,0.22)]"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-semibold">{name}</div>
-        <div className="text-xs text-white/60">
-          {status === "connected" ? "Connected" : status === "needs_attention" ? "Needs attention" : "Not connected"}
-        </div>
+        <div className="text-xs text-white/60 group-hover:text-white/75 transition">{statusText}</div>
       </div>
-      <div className="mt-1 text-xs text-white/65 leading-relaxed">{description}</div>
-      <div className="mt-3 text-xs text-white/55">Open</div>
+
+      <div className="mt-2 text-xs text-white/65 leading-relaxed">{description}</div>
+
+      <div className="mt-4 flex items-center justify-between">
+        <div className="h-px w-12 bg-white/10 group-hover:bg-white/15 transition" />
+        <div className="text-xs text-white/55 group-hover:text-white/75 transition">Open</div>
+      </div>
     </button>
   );
 }
 
 function IntegrationCard({
   title,
+  hint,
   status,
   statusClass,
   statusLabel,
@@ -818,27 +812,31 @@ function IntegrationCard({
   const showFields = enabled;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
+    <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-base font-semibold">{title}</div>
-          <div className="mt-1 text-sm text-white/70 leading-relaxed">
-            Status:{" "}
-            <span className={["inline-flex items-center px-2 py-1 rounded-full border text-xs", statusClass].join(" ")}>
-              {statusLabel}
+          <div className="mt-2 text-sm text-white/70 leading-relaxed">
+            {hint ? <span className="text-white/65">{hint} </span> : null}
+            <span className="ml-0">
+              Status:{" "}
+              <span className={["inline-flex items-center px-2.5 py-1 rounded-full border text-xs", statusClass].join(" ")}>
+                {statusLabel}
+              </span>
+              {lastChecked ? <span className="ml-2 text-xs text-white/50">Last checked: {lastChecked}</span> : null}
             </span>
-            {lastChecked ? <span className="ml-2 text-xs text-white/50">Last checked: {lastChecked}</span> : null}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => onToggleEnabled(!enabled)}
-            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
             type="button"
           >
             {enabled ? "Disable" : "Enable"}
           </button>
+
           {status === "connected" ? (
             <button
               onClick={onDisconnect}
@@ -850,7 +848,7 @@ function IntegrationCard({
           ) : (
             <button
               onClick={onConnect}
-              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
               type="button"
             >
               Connect
@@ -859,15 +857,13 @@ function IntegrationCard({
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-3">
+      <Divider />
+
+      <div className="grid grid-cols-3 gap-3">
         <ModeChip label="OAuth" active={connectMode === "oauth"} onClick={() => onChangeMode("oauth")} disabled={!enabled} />
-        <ModeChip
-          label="API Key"
-          active={connectMode === "apiKey"}
-          onClick={() => onChangeMode("apiKey")}
-          disabled={!enabled}
-        />
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <ModeChip label="API Key" active={connectMode === "apiKey"} onClick={() => onChangeMode("apiKey")} disabled={!enabled} />
+
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
           <div className="text-xs text-white/60">Quick actions</div>
           <div className="mt-3 flex gap-2">
             <button
@@ -905,7 +901,7 @@ function IntegrationCard({
           ))}
         </div>
       ) : (
-        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70 leading-relaxed">
+        <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm text-white/70 leading-relaxed">
           Enable this integration to configure credentials and connection settings.
         </div>
       )}
@@ -922,7 +918,7 @@ function IntegrationCard({
         <button
           onClick={() => {}}
           disabled={!enabled}
-          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm disabled:opacity-50"
+          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm disabled:opacity-50 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
           title="UI-only placeholder"
           type="button"
         >
@@ -938,15 +934,15 @@ function ModeChip({ label, active, onClick, disabled }) {
     <button
       onClick={onClick}
       disabled={disabled}
+      type="button"
       className={[
-        "rounded-2xl border px-4 py-4 text-left transition",
+        "rounded-2xl border px-4 py-4 text-left transition shadow-[0_0_0_1px_rgba(255,255,255,0.03)]",
         active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10 hover:bg-white/7",
         disabled ? "opacity-50 cursor-not-allowed" : "",
       ].join(" ")}
-      type="button"
     >
       <div className="text-sm font-semibold">{label}</div>
-      <div className="mt-1 text-xs text-white/65">UI-only mode selector</div>
+      <div className="mt-1 text-xs text-white/65">UI-only selector</div>
     </button>
   );
 }
@@ -970,7 +966,7 @@ function SecretField({ label, value, onChange, secret, disabled }) {
         ) : null}
       </div>
 
-      <div className="mt-2 rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20">
+      <div className="mt-2 rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.04)]">
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -980,6 +976,40 @@ function SecretField({ label, value, onChange, secret, disabled }) {
           className="w-full bg-transparent px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none disabled:opacity-60"
         />
       </div>
+    </div>
+  );
+}
+
+function InfoCard({ title, text }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+      <div className="text-sm font-semibold">{title}</div>
+      <div className="mt-1 text-xs text-white/70 leading-relaxed">{text}</div>
+    </div>
+  );
+}
+
+function EmailPreview({ subject, body }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-black/30 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-white/60">Subject</div>
+        <div className="text-[11px] text-white/45">Preview</div>
+      </div>
+
+      <div className="mt-2 text-sm font-semibold leading-snug whitespace-pre-wrap">{subject}</div>
+
+      <div className="mt-5 text-xs text-white/60">Body</div>
+      <div className="mt-2 text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{body}</div>
+    </div>
+  );
+}
+
+function MiniHint({ title, text }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+      <div className="text-xs font-semibold">{title}</div>
+      <div className="mt-1 text-xs text-white/65 leading-relaxed">{text}</div>
     </div>
   );
 }
@@ -1003,6 +1033,5 @@ function clampInt(v, min, max) {
 }
 
 function openIntegrationModal(_key, showToast) {
-  // UI-only placeholder. Keeps the UX intention without introducing a modal dependency.
   showToast("Integration opened (UI-only placeholder).");
 }
