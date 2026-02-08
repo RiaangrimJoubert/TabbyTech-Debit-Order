@@ -465,3 +465,117 @@ body {
   color: var(--muted);
   font-weight: 800;
 }
+
+/* ===== DASHBOARD ===== */
+
+.tt-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tt-dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+.tt-statcard {
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow2);
+}
+
+.tt-stat-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.tt-stat-value {
+  margin-top: 8px;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.tt-stat-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tt-dashboard-panels {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+}
+
+.tt-panel {
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow2);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tt-panel-title {
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.tt-panel-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.tt-panel-btn {
+  background: rgba(124,58,237,0.20);
+  border: 1px solid rgba(124,58,237,0.40);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tt-panel-btn:hover {
+  background: rgba(124,58,237,0.28);
+}
+
+.tt-table-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.6fr;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.tt-table-head {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.tt-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(124,58,237,0.22);
+  border: 1px solid rgba(124,58,237,0.45);
+  font-weight: 800;
+  font-size: 12px;
+}
+
