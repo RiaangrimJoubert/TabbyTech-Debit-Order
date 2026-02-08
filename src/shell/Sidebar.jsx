@@ -4,6 +4,7 @@ const nav = [
   { key: "debitorders", label: "Debit Orders", icon: "↻" },
   { key: "batches", label: "Batches", icon: "⧉" },
   { key: "reports", label: "Reports", icon: "📈" },
+  { key: "settings", label: "Settings", icon: "⚙" },
 ];
 
 export default function Sidebar({ activeKey, onNavigate, onLogout }) {
@@ -55,13 +56,6 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
         </div>
 
         <div className="tt-sidedivider" />
-
-        <button type="button" className="tt-sidenav-item tt-sidenav-item-muted" onClick={() => onNavigate?.("settings")}>
-          <span className="tt-sidenav-icon" aria-hidden="true">
-            ⚙
-          </span>
-          <span className="tt-sidenav-label">Settings</span>
-        </button>
 
         <button type="button" className="tt-sidenav-item tt-sidenav-item-muted" onClick={() => onLogout?.()}>
           <span className="tt-sidenav-icon" aria-hidden="true">
