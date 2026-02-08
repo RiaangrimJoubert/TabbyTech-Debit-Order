@@ -12,12 +12,18 @@ export default function Settings() {
 
   const [activeTab, setActiveTab] = useState("integrations");
 
-  // UI-only state
+  const [toast, setToast] = useState(null);
+  function showToast(message) {
+    setToast(message);
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => setToast(null), 2200);
+  }
+
   const [integrations, setIntegrations] = useState({
     zohoCrm: {
       enabled: true,
-      status: "not_connected", // not_connected | connected | needs_attention
-      connectMode: "oauth", // oauth | apiKey (UI only)
+      status: "not_connected",
+      connectMode: "oauth",
       orgId: "",
       clientId: "",
       clientSecret: "",
@@ -88,25 +94,6 @@ export default function Settings() {
   });
 
   const [templateFocus, setTemplateFocus] = useState("reminder"); // reminder | failure
-  const [toast, setToast] = useState(null);
-
-  function showToast(message) {
-    setToast(message);
-    window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(() => setToast(null), 2200);
-  }
-
-  function pillForStatus(status) {
-    if (status === "connected") return "bg-emerald-500/15 text-emerald-200 border-emerald-500/25";
-    if (status === "needs_attention") return "bg-amber-500/15 text-amber-200 border-amber-500/25";
-    return "bg-white/5 text-white/70 border-white/12";
-  }
-
-  function labelForStatus(status) {
-    if (status === "connected") return "Connected";
-    if (status === "needs_attention") return "Needs attention";
-    return "Not connected";
-  }
 
   function updateIntegration(key, patch) {
     setIntegrations((prev) => ({
@@ -154,29 +141,29 @@ export default function Settings() {
   }, [emailRules, templateFocus, branding.senderName]);
 
   return (
-    <div className="w-full h-full p-6 text-white">
-      <div className="max-w-[1200px] mx-auto">
-        <Header
-          title="Settings"
-          subtitle="Control integrations, identity, and email behaviour. Everything here is UI-only until backend wiring resumes."
-        />
+    <div className="tt-settings">
+      <style>{css}</style>
 
-        {/* Tabs */}
-        <div className="mt-6">
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-2">
+      <div className="tt-wrap">
+        <div className="tt-hero">
+          <div className="tt-heroTop">
+            <div>
+              <div className="tt-title">Settings</div>
+              <div className="tt-subtitle">
+                Control integrations, identity, and email behaviour. Everything here is UI-only until backend wiring resumes.
+              </div>
+            </div>
+          </div>
+
+          <div className="tt-tabs">
             {TABS.map((t) => {
               const active = activeTab === t.key;
               return (
                 <button
                   key={t.key}
-                  onClick={() => setActiveTab(t.key)}
                   type="button"
-                  className={[
-                    "px-4 py-2 rounded-xl text-sm transition relative",
-                    active
-                      ? "bg-white/10 border border-white/15 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-                      : "text-white/70 hover:text-white hover:bg-white/5",
-                  ].join(" ")}
+                  className={active ? "tt-tab tt-tabActive" : "tt-tab"}
+                  onClick={() => setActiveTab(t.key)}
                 >
                   {t.label}
                 </button>
@@ -185,418 +172,362 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="mt-6">
-          {activeTab === "integrations" && (
-            <div className="space-y-4">
-              <TabIntro
-                title="Integrations"
-                text="Connect the tools your team already uses. Status-first controls keep this clean today and scalable later."
-              />
-
-              <GlassCard>
-                <div className="flex items-start justify-between gap-4">
-                  <CardTitle title="Connection overview" subtitle="Connect only what you need. Test status without leaving this page." />
-                  <div className="text-xs text-white/55 leading-relaxed text-right">
-                    Tip: keep credentials in a password manager
+        {activeTab === "integrations" && (
+          <div className="tt-stack">
+            <div className="tt-card">
+              <div className="tt-cardHead">
+                <div>
+                  <div className="tt-cardTitle">Integrations</div>
+                  <div className="tt-cardHint">
+                    Connect the tools your team already uses. Status-first controls keep this clean today and scalable later.
                   </div>
                 </div>
+                <div className="tt-note">Tip: keep credentials in a password manager</div>
+              </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-4">
-                  <IntegrationTile
-                    name="Zoho CRM"
-                    description="Sync clients and account records."
-                    status={integrations.zohoCrm.status}
-                    onOpen={() => openIntegrationModal("zohoCrm", showToast)}
-                  />
-                  <IntegrationTile
-                    name="Zoho Books"
-                    description="Invoices and reconciliation support."
-                    status={integrations.zohoBooks.status}
-                    onOpen={() => openIntegrationModal("zohoBooks", showToast)}
-                  />
-                  <IntegrationTile
-                    name="Paystack"
-                    description="Payments and webhooks."
-                    status={integrations.paystack.status}
-                    onOpen={() => openIntegrationModal("paystack", showToast)}
-                  />
-                </div>
-              </GlassCard>
-
-              <IntegrationCard
-                title="Zoho CRM"
-                hint="Ideal for client sync and account management."
-                status={integrations.zohoCrm.status}
-                statusClass={pillForStatus(integrations.zohoCrm.status)}
-                statusLabel={labelForStatus(integrations.zohoCrm.status)}
-                enabled={integrations.zohoCrm.enabled}
-                onToggleEnabled={(v) => updateIntegration("zohoCrm", { enabled: v })}
-                connectMode={integrations.zohoCrm.connectMode}
-                onChangeMode={(v) => updateIntegration("zohoCrm", { connectMode: v })}
-                fields={[
-                  { label: "Organisation ID", value: integrations.zohoCrm.orgId, onChange: (v) => updateIntegration("zohoCrm", { orgId: v }) },
-                  { label: "Client ID", value: integrations.zohoCrm.clientId, onChange: (v) => updateIntegration("zohoCrm", { clientId: v }) },
-                  { label: "Client Secret", value: integrations.zohoCrm.clientSecret, onChange: (v) => updateIntegration("zohoCrm", { clientSecret: v }), secret: true },
-                  { label: "API Key (optional)", value: integrations.zohoCrm.apiKey, onChange: (v) => updateIntegration("zohoCrm", { apiKey: v }), secret: true },
-                ]}
-                lastChecked={integrations.zohoCrm.lastChecked}
-                onConnect={() => {
-                  updateIntegration("zohoCrm", { status: "connected", lastChecked: new Date().toLocaleString() });
-                  showToast("Zoho CRM marked as connected (UI only).");
-                }}
-                onDisconnect={() => {
-                  updateIntegration("zohoCrm", { status: "not_connected" });
-                  showToast("Zoho CRM disconnected (UI only).");
-                }}
-                onTest={() => {
-                  updateIntegration("zohoCrm", { lastChecked: new Date().toLocaleString() });
-                  showToast("Connection test simulated (UI only).");
-                }}
-              />
-
-              <IntegrationCard
-                title="Zoho Books"
-                hint="Useful for finance workflows and reconciliation."
-                status={integrations.zohoBooks.status}
-                statusClass={pillForStatus(integrations.zohoBooks.status)}
-                statusLabel={labelForStatus(integrations.zohoBooks.status)}
-                enabled={integrations.zohoBooks.enabled}
-                onToggleEnabled={(v) => updateIntegration("zohoBooks", { enabled: v })}
-                connectMode={integrations.zohoBooks.connectMode}
-                onChangeMode={(v) => updateIntegration("zohoBooks", { connectMode: v })}
-                fields={[
-                  { label: "Organisation ID", value: integrations.zohoBooks.orgId, onChange: (v) => updateIntegration("zohoBooks", { orgId: v }) },
-                  { label: "Client ID", value: integrations.zohoBooks.clientId, onChange: (v) => updateIntegration("zohoBooks", { clientId: v }) },
-                  { label: "Client Secret", value: integrations.zohoBooks.clientSecret, onChange: (v) => updateIntegration("zohoBooks", { clientSecret: v }), secret: true },
-                  { label: "API Key (optional)", value: integrations.zohoBooks.apiKey, onChange: (v) => updateIntegration("zohoBooks", { apiKey: v }), secret: true },
-                ]}
-                lastChecked={integrations.zohoBooks.lastChecked}
-                onConnect={() => {
-                  updateIntegration("zohoBooks", { status: "connected", lastChecked: new Date().toLocaleString() });
-                  showToast("Zoho Books marked as connected (UI only).");
-                }}
-                onDisconnect={() => {
-                  updateIntegration("zohoBooks", { status: "not_connected" });
-                  showToast("Zoho Books disconnected (UI only).");
-                }}
-                onTest={() => {
-                  updateIntegration("zohoBooks", { lastChecked: new Date().toLocaleString() });
-                  showToast("Connection test simulated (UI only).");
-                }}
-              />
-
-              <IntegrationCard
-                title="Paystack"
-                hint="Payment processing and event webhooks."
-                status={integrations.paystack.status}
-                statusClass={pillForStatus(integrations.paystack.status)}
-                statusLabel={labelForStatus(integrations.paystack.status)}
-                enabled={integrations.paystack.enabled}
-                onToggleEnabled={(v) => updateIntegration("paystack", { enabled: v })}
-                connectMode={integrations.paystack.connectMode}
-                onChangeMode={(v) => updateIntegration("paystack", { connectMode: v })}
-                fields={[
-                  { label: "Public key", value: integrations.paystack.publicKey, onChange: (v) => updateIntegration("paystack", { publicKey: v }) },
-                  { label: "Secret key", value: integrations.paystack.secretKey, onChange: (v) => updateIntegration("paystack", { secretKey: v }), secret: true },
-                  { label: "Webhook secret (optional)", value: integrations.paystack.webhookSecret, onChange: (v) => updateIntegration("paystack", { webhookSecret: v }), secret: true },
-                ]}
-                lastChecked={integrations.paystack.lastChecked}
-                onConnect={() => {
-                  updateIntegration("paystack", { status: "connected", lastChecked: new Date().toLocaleString() });
-                  showToast("Paystack marked as connected (UI only).");
-                }}
-                onDisconnect={() => {
-                  updateIntegration("paystack", { status: "not_connected" });
-                  showToast("Paystack disconnected (UI only).");
-                }}
-                onTest={() => {
-                  updateIntegration("paystack", { lastChecked: new Date().toLocaleString() });
-                  showToast("Connection test simulated (UI only).");
-                }}
-              />
-            </div>
-          )}
-
-          {activeTab === "branding" && (
-            <div className="space-y-4">
-              <TabIntro
-                title="Profile and Branding"
-                text="Make emails and exports feel consistent. Keep sender details stable so clients always recognise you."
-              />
-
-              <GlassCard>
-                <div className="flex items-start justify-between gap-4">
-                  <CardTitle title="Business identity" subtitle="What clients see in their inbox and in future exports." />
-                  <button
-                    onClick={() => showToast("Branding saved (UI only).")}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-                    type="button"
-                  >
-                    Save changes
-                  </button>
-                </div>
-
-                <Divider />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Business name" value={branding.businessName} onChange={(v) => updateBranding({ businessName: v })} placeholder="Your business name" />
-                  <Field label="Sender name" value={branding.senderName} onChange={(v) => updateBranding({ senderName: v })} placeholder="Name shown in inbox" />
-                  <Field label="Sender email" value={branding.senderEmail} onChange={(v) => updateBranding({ senderEmail: v })} placeholder="no-reply@yourdomain.co.za" />
-                  <Field label="Reply-to email" value={branding.replyToEmail} onChange={(v) => updateBranding({ replyToEmail: v })} placeholder="support@yourdomain.co.za" />
-                </div>
-
-                <Divider />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Support email" value={branding.supportEmail} onChange={(v) => updateBranding({ supportEmail: v })} placeholder="support@yourdomain.co.za" />
-                  <Field label="Support phone" value={branding.supportPhone} onChange={(v) => updateBranding({ supportPhone: v })} placeholder="010 446 5754" />
-                </div>
-
-                <Divider />
-
-                <Field
-                  label="Logo URL (optional)"
-                  value={branding.logoUrl}
-                  onChange={(v) => updateBranding({ logoUrl: v })}
-                  placeholder="https://..."
-                  helper="Used in email headers and future PDFs. Square logos look best."
+              <div className="tt-grid3 tt-mt">
+                <IntegrationTile
+                  name="Zoho CRM"
+                  description="Sync clients and account records."
+                  status={integrations.zohoCrm.status}
+                  onOpen={() => showToast("Integration opened (UI-only placeholder).")}
                 />
-              </GlassCard>
+                <IntegrationTile
+                  name="Zoho Books"
+                  description="Invoices and reconciliation support."
+                  status={integrations.zohoBooks.status}
+                  onOpen={() => showToast("Integration opened (UI-only placeholder).")}
+                />
+                <IntegrationTile
+                  name="Paystack"
+                  description="Payments and webhooks."
+                  status={integrations.paystack.status}
+                  onOpen={() => showToast("Integration opened (UI-only placeholder).")}
+                />
+              </div>
             </div>
-          )}
 
-          {activeTab === "email" && (
-            <div className="space-y-4">
-              <TabIntro
-                title="Email Rules"
-                text="Rules read like logic: when something happens, who gets notified, and what they receive."
+            <IntegrationCard
+              title="Zoho CRM"
+              hint="Ideal for client sync and account management."
+              data={integrations.zohoCrm}
+              onToggleEnabled={(v) => updateIntegration("zohoCrm", { enabled: v })}
+              onChangeMode={(v) => updateIntegration("zohoCrm", { connectMode: v })}
+              onChangeField={(patch) => updateIntegration("zohoCrm", patch)}
+              onConnect={() => {
+                updateIntegration("zohoCrm", { status: "connected", lastChecked: new Date().toLocaleString() });
+                showToast("Zoho CRM marked as connected (UI only).");
+              }}
+              onDisconnect={() => {
+                updateIntegration("zohoCrm", { status: "not_connected" });
+                showToast("Zoho CRM disconnected (UI only).");
+              }}
+              onTest={() => {
+                updateIntegration("zohoCrm", { lastChecked: new Date().toLocaleString() });
+                showToast("Connection test simulated (UI only).");
+              }}
+              fields={[
+                { key: "orgId", label: "Organisation ID", secret: false },
+                { key: "clientId", label: "Client ID", secret: false },
+                { key: "clientSecret", label: "Client Secret", secret: true },
+                { key: "apiKey", label: "API Key (optional)", secret: true },
+              ]}
+            />
+
+            <IntegrationCard
+              title="Zoho Books"
+              hint="Useful for finance workflows and reconciliation."
+              data={integrations.zohoBooks}
+              onToggleEnabled={(v) => updateIntegration("zohoBooks", { enabled: v })}
+              onChangeMode={(v) => updateIntegration("zohoBooks", { connectMode: v })}
+              onChangeField={(patch) => updateIntegration("zohoBooks", patch)}
+              onConnect={() => {
+                updateIntegration("zohoBooks", { status: "connected", lastChecked: new Date().toLocaleString() });
+                showToast("Zoho Books marked as connected (UI only).");
+              }}
+              onDisconnect={() => {
+                updateIntegration("zohoBooks", { status: "not_connected" });
+                showToast("Zoho Books disconnected (UI only).");
+              }}
+              onTest={() => {
+                updateIntegration("zohoBooks", { lastChecked: new Date().toLocaleString() });
+                showToast("Connection test simulated (UI only).");
+              }}
+              fields={[
+                { key: "orgId", label: "Organisation ID", secret: false },
+                { key: "clientId", label: "Client ID", secret: false },
+                { key: "clientSecret", label: "Client Secret", secret: true },
+                { key: "apiKey", label: "API Key (optional)", secret: true },
+              ]}
+            />
+
+            <IntegrationCard
+              title="Paystack"
+              hint="Payment processing and event webhooks."
+              data={integrations.paystack}
+              onToggleEnabled={(v) => updateIntegration("paystack", { enabled: v })}
+              onChangeMode={(v) => updateIntegration("paystack", { connectMode: v })}
+              onChangeField={(patch) => updateIntegration("paystack", patch)}
+              onConnect={() => {
+                updateIntegration("paystack", { status: "connected", lastChecked: new Date().toLocaleString() });
+                showToast("Paystack marked as connected (UI only).");
+              }}
+              onDisconnect={() => {
+                updateIntegration("paystack", { status: "not_connected" });
+                showToast("Paystack disconnected (UI only).");
+              }}
+              onTest={() => {
+                updateIntegration("paystack", { lastChecked: new Date().toLocaleString() });
+                showToast("Connection test simulated (UI only).");
+              }}
+              fields={[
+                { key: "publicKey", label: "Public key", secret: false },
+                { key: "secretKey", label: "Secret key", secret: true },
+                { key: "webhookSecret", label: "Webhook secret (optional)", secret: true },
+              ]}
+            />
+          </div>
+        )}
+
+        {activeTab === "branding" && (
+          <div className="tt-stack">
+            <div className="tt-card">
+              <div className="tt-cardHead">
+                <div>
+                  <div className="tt-cardTitle">Profile and Branding</div>
+                  <div className="tt-cardHint">
+                    Make emails and exports feel consistent. Keep sender details stable so clients always recognise you.
+                  </div>
+                </div>
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={() => showToast("Branding saved (UI only).")}>
+                  Save changes
+                </button>
+              </div>
+
+              <div className="tt-divider" />
+
+              <div className="tt-grid2">
+                <Field label="Business name" value={branding.businessName} onChange={(v) => updateBranding({ businessName: v })} />
+                <Field label="Sender name" value={branding.senderName} onChange={(v) => updateBranding({ senderName: v })} />
+                <Field label="Sender email" value={branding.senderEmail} onChange={(v) => updateBranding({ senderEmail: v })} />
+                <Field label="Reply-to email" value={branding.replyToEmail} onChange={(v) => updateBranding({ replyToEmail: v })} />
+              </div>
+
+              <div className="tt-divider" />
+
+              <div className="tt-grid2">
+                <Field label="Support email" value={branding.supportEmail} onChange={(v) => updateBranding({ supportEmail: v })} />
+                <Field label="Support phone" value={branding.supportPhone} onChange={(v) => updateBranding({ supportPhone: v })} />
+              </div>
+
+              <div className="tt-divider" />
+
+              <Field
+                label="Logo URL (optional)"
+                value={branding.logoUrl}
+                onChange={(v) => updateBranding({ logoUrl: v })}
+                helper="Used in email headers and future PDFs. Square logos look best."
               />
+            </div>
+          </div>
+        )}
 
-              <GlassCard>
-                <div className="flex items-start justify-between gap-4">
-                  <CardTitle title="Operational recipients" subtitle="Safe defaults. Ops should always receive failures." />
+        {activeTab === "email" && (
+          <div className="tt-stack">
+            <div className="tt-card">
+              <div className="tt-cardHead">
+                <div>
+                  <div className="tt-cardTitle">Email Rules</div>
+                  <div className="tt-cardHint">Rules read like logic: when something happens, who gets notified, and what they receive.</div>
+                </div>
+              </div>
+
+              <div className="tt-divider" />
+
+              <div className="tt-cardHead" style={{ padding: 0, marginBottom: 8 }}>
+                <div>
+                  <div className="tt-sectionTitle">Operational recipients</div>
+                  <div className="tt-cardHint">Safe defaults. Ops should always receive failures.</div>
+                </div>
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={() => showToast("Recipients saved (UI only).")}>
+                  Save
+                </button>
+              </div>
+
+              <div className="tt-grid2 tt-mt">
+                <Field
+                  label="Ops email"
+                  value={emailRules.ops.opsEmail}
+                  onChange={(v) => updateEmailRule("ops.opsEmail", v)}
+                />
+                <Field
+                  label="CC email (optional)"
+                  value={emailRules.ops.ccEmail}
+                  onChange={(v) => updateEmailRule("ops.ccEmail", v)}
+                />
+              </div>
+            </div>
+
+            <RuleCard
+              title="Rule 1: Debit reminder"
+              subtitle="Two days before the run date, reduce surprises and failures."
+            >
+              <div className="tt-grid3">
+                <ToggleRow
+                  label="Enabled"
+                  checked={emailRules.reminder.enabled}
+                  onChange={(v) => updateEmailRule("reminder.enabled", v)}
+                  hint="Turn off if you do not want reminder emails."
+                />
+                <Field
+                  label="Send"
+                  value={String(emailRules.reminder.daysBefore)}
+                  onChange={(v) => updateEmailRule("reminder.daysBefore", clampInt(v, 0, 30))}
+                  rightAddon="days before"
+                />
+                <Field
+                  label="Time"
+                  value={emailRules.reminder.sendTime}
+                  onChange={(v) => updateEmailRule("reminder.sendTime", v)}
+                  helper="Local time, for example 09:00"
+                />
+              </div>
+
+              <div className="tt-mt">
+                <RecipientsPicker
+                  value={emailRules.reminder.recipients}
+                  onChange={(next) => updateEmailRule("reminder.recipients", next)}
+                  note="Ops is recommended for traceability."
+                  forceOps={false}
+                />
+              </div>
+
+              <div className="tt-row tt-mt">
+                <div className="tt-vars">
+                  Variables available: <span className="tt-varsList">{variables.join("  ")}</span>
+                </div>
+                <div className="tt-row">
                   <button
-                    onClick={() => showToast("Recipients saved (UI only).")}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                     type="button"
+                    className={templateFocus === "reminder" ? "tt-btn tt-btnGhost tt-btnActive" : "tt-btn tt-btnGhost"}
+                    onClick={() => {
+                      setTemplateFocus("reminder");
+                      showToast("Editing reminder template");
+                    }}
                   >
+                    Edit template
+                  </button>
+                  <button type="button" className="tt-btn tt-btnPrimary" onClick={() => showToast("Reminder rule saved (UI only).")}>
                     Save
                   </button>
                 </div>
+              </div>
+            </RuleCard>
 
-                <Divider />
+            <RuleCard
+              title="Rule 2: Failure notifications"
+              subtitle="Notify stakeholders immediately so recovery can start."
+            >
+              <div className="tt-grid3">
+                <ToggleRow
+                  label="Enabled"
+                  checked={emailRules.failure.enabled}
+                  onChange={(v) => updateEmailRule("failure.enabled", v)}
+                  hint="Turn off only if failures are handled elsewhere."
+                />
+                <Field
+                  label="Resend throttle"
+                  value={String(emailRules.failure.throttleHours)}
+                  onChange={(v) => updateEmailRule("failure.throttleHours", clampInt(v, 1, 168))}
+                  rightAddon="hours"
+                  helper="Prevents repeated emails for the same failure."
+                />
+                <InfoCard title="Best practice" text="Ops stays on for failures to maintain audit trails and reduce response time." />
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Ops email" value={emailRules.ops.opsEmail} onChange={(v) => updateEmailRule("ops.opsEmail", v)} placeholder="ops@yourdomain.co.za" />
-                  <Field label="CC email (optional)" value={emailRules.ops.ccEmail} onChange={(v) => updateEmailRule("ops.ccEmail", v)} placeholder="finance@yourdomain.co.za" />
+              <div className="tt-mt">
+                <RecipientsPicker
+                  value={emailRules.failure.recipients}
+                  onChange={(next) => updateEmailRule("failure.recipients", next)}
+                  note="Ops is locked on for failures."
+                  forceOps={true}
+                />
+              </div>
+
+              <div className="tt-row tt-mt">
+                <div className="tt-vars">
+                  Variables available: <span className="tt-varsList">{variables.join("  ")}</span>
                 </div>
-              </GlassCard>
+                <div className="tt-row">
+                  <button
+                    type="button"
+                    className={templateFocus === "failure" ? "tt-btn tt-btnGhost tt-btnActive" : "tt-btn tt-btnGhost"}
+                    onClick={() => {
+                      setTemplateFocus("failure");
+                      showToast("Editing failure template");
+                    }}
+                  >
+                    Edit template
+                  </button>
+                  <button type="button" className="tt-btn tt-btnPrimary" onClick={() => showToast("Failure rule saved (UI only).")}>
+                    Save
+                  </button>
+                </div>
+              </div>
+            </RuleCard>
 
-              <GlassCard>
-                <CardTitle title="Rule 1: Debit reminder" subtitle="Two days before the run date, reduce surprises and failures." />
+            <div className="tt-grid2">
+              <div className="tt-card">
+                <div className="tt-cardHead">
+                  <div>
+                    <div className="tt-cardTitle">Template editor</div>
+                    <div className="tt-cardHint">{templateFocus === "failure" ? "Failure notification template" : "Debit reminder template"}</div>
+                  </div>
+                  <button type="button" className="tt-btn tt-btnPrimary" onClick={() => showToast("Template saved (UI only).")}>
+                    Save template
+                  </button>
+                </div>
 
-                <Divider />
+                <div className="tt-divider" />
 
-                <div className="grid grid-cols-3 gap-4">
-                  <ToggleRow
-                    label="Enabled"
-                    checked={emailRules.reminder.enabled}
-                    onChange={(v) => updateEmailRule("reminder.enabled", v)}
-                    hint="Turn off if you do not want reminder emails."
-                  />
+                <div className="tt-formStack">
                   <Field
-                    label="Send"
-                    value={String(emailRules.reminder.daysBefore)}
-                    onChange={(v) => updateEmailRule("reminder.daysBefore", clampInt(v, 0, 30))}
-                    placeholder="2"
-                    rightAddon="days before"
+                    label="Subject"
+                    value={templateFocus === "failure" ? emailRules.failure.subject : emailRules.reminder.subject}
+                    onChange={(v) =>
+                      templateFocus === "failure" ? updateEmailRule("failure.subject", v) : updateEmailRule("reminder.subject", v)
+                    }
                   />
-                  <Field
-                    label="Time"
-                    value={emailRules.reminder.sendTime}
-                    onChange={(v) => updateEmailRule("reminder.sendTime", v)}
-                    placeholder="09:00"
-                    helper="Local time, for example 09:00"
-                  />
-                </div>
-
-                <div className="mt-5">
-                  <RecipientsPicker
-                    value={emailRules.reminder.recipients}
-                    onChange={(next) => updateEmailRule("reminder.recipients", next)}
-                    note="Ops is recommended for traceability."
-                    forceOps={false}
+                  <TextArea
+                    label="Body"
+                    value={templateFocus === "failure" ? emailRules.failure.body : emailRules.reminder.body}
+                    onChange={(v) =>
+                      templateFocus === "failure" ? updateEmailRule("failure.body", v) : updateEmailRule("reminder.body", v)
+                    }
+                    rows={14}
                   />
                 </div>
+              </div>
 
-                <div className="mt-6 flex items-center justify-between gap-3">
-                  <div className="text-xs text-white/55 leading-relaxed">
-                    Variables available: <span className="text-white/75">{variables.join("  ")}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setTemplateFocus("reminder");
-                        showToast("Editing reminder template");
-                      }}
-                      className={[
-                        "px-4 py-2 rounded-xl border text-sm transition shadow-[0_0_0_1px_rgba(255,255,255,0.04)]",
-                        templateFocus === "reminder"
-                          ? "bg-white/10 border-white/15 text-white"
-                          : "bg-transparent border-white/10 text-white/75 hover:bg-white/5 hover:text-white",
-                      ].join(" ")}
-                      type="button"
-                    >
-                      Edit template
-                    </button>
-                    <button
-                      onClick={() => showToast("Reminder rule saved (UI only).")}
-                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-                      type="button"
-                    >
-                      Save
-                    </button>
+              <div className="tt-card">
+                <div className="tt-cardHead">
+                  <div>
+                    <div className="tt-cardTitle">Live preview</div>
+                    <div className="tt-cardHint">Sample data preview to validate clarity and tone.</div>
                   </div>
                 </div>
-              </GlassCard>
 
-              <GlassCard>
-                <CardTitle title="Rule 2: Failure notifications" subtitle="Notify stakeholders immediately so recovery can start." />
+                <div className="tt-divider" />
 
-                <Divider />
-
-                <div className="grid grid-cols-3 gap-4">
-                  <ToggleRow
-                    label="Enabled"
-                    checked={emailRules.failure.enabled}
-                    onChange={(v) => updateEmailRule("failure.enabled", v)}
-                    hint="Turn off only if failures are handled elsewhere."
-                  />
-                  <Field
-                    label="Resend throttle"
-                    value={String(emailRules.failure.throttleHours)}
-                    onChange={(v) => updateEmailRule("failure.throttleHours", clampInt(v, 1, 168))}
-                    placeholder="24"
-                    rightAddon="hours"
-                    helper="Prevents repeated emails for the same failure."
-                  />
-                  <InfoCard
-                    title="Best practice"
-                    text="Ops stays on for failures to maintain audit trails and reduce response time."
-                  />
-                </div>
-
-                <div className="mt-5">
-                  <RecipientsPicker
-                    value={emailRules.failure.recipients}
-                    onChange={(next) => updateEmailRule("failure.recipients", next)}
-                    note="Ops is locked on for failures."
-                    forceOps={true}
-                  />
-                </div>
-
-                <div className="mt-6 flex items-center justify-between gap-3">
-                  <div className="text-xs text-white/55 leading-relaxed">
-                    Variables available: <span className="text-white/75">{variables.join("  ")}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setTemplateFocus("failure");
-                        showToast("Editing failure template");
-                      }}
-                      className={[
-                        "px-4 py-2 rounded-xl border text-sm transition shadow-[0_0_0_1px_rgba(255,255,255,0.04)]",
-                        templateFocus === "failure"
-                          ? "bg-white/10 border-white/15 text-white"
-                          : "bg-transparent border-white/10 text-white/75 hover:bg-white/5 hover:text-white",
-                      ].join(" ")}
-                      type="button"
-                    >
-                      Edit template
-                    </button>
-                    <button
-                      onClick={() => showToast("Failure rule saved (UI only).")}
-                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-                      type="button"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              </GlassCard>
-
-              <div className="grid grid-cols-2 gap-4">
-                <GlassCard>
-                  <CardTitle
-                    title="Template editor"
-                    subtitle={templateFocus === "failure" ? "Failure notification template" : "Debit reminder template"}
-                  />
-
-                  <Divider />
-
-                  <div className="text-xs text-white/65 leading-relaxed">
-                    Keep tone consistent and action-driven. Templates will become live once backend logic is active.
-                  </div>
-
-                  <div className="mt-5 space-y-3">
-                    <Field
-                      label="Subject"
-                      value={templateFocus === "failure" ? emailRules.failure.subject : emailRules.reminder.subject}
-                      onChange={(v) =>
-                        templateFocus === "failure"
-                          ? updateEmailRule("failure.subject", v)
-                          : updateEmailRule("reminder.subject", v)
-                      }
-                      placeholder="Subject line"
-                    />
-                    <TextArea
-                      label="Body"
-                      value={templateFocus === "failure" ? emailRules.failure.body : emailRules.reminder.body}
-                      onChange={(v) =>
-                        templateFocus === "failure"
-                          ? updateEmailRule("failure.body", v)
-                          : updateEmailRule("reminder.body", v)
-                      }
-                      placeholder="Email body"
-                      rows={14}
-                    />
-                  </div>
-
-                  <div className="mt-6 flex items-center justify-end">
-                    <button
-                      onClick={() => showToast("Template saved (UI only).")}
-                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-                      type="button"
-                    >
-                      Save template
-                    </button>
-                  </div>
-                </GlassCard>
-
-                <GlassCard>
-                  <CardTitle title="Live preview" subtitle="Sample data preview to validate clarity and tone." />
-
-                  <Divider />
-
-                  <EmailPreview subject={preview.subject} body={preview.body} />
-
-                  <div className="mt-5 grid grid-cols-3 gap-3">
-                    <MiniHint title="Clear subject" text="Client can understand in one glance." />
-                    <MiniHint title="Next steps" text="Failure emails should point to action." />
-                    <MiniHint title="Trust signals" text="Consistent sender name and tone." />
-                  </div>
-                </GlassCard>
+                <EmailPreview subject={preview.subject} body={preview.body} />
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {toast && (
-          <div className="fixed bottom-6 right-6">
-            <div className="rounded-2xl border border-white/10 bg-black/70 backdrop-blur-xl px-4 py-3 text-sm text-white/90 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
-              {toast}
-            </div>
+          <div className="tt-toastWrap">
+            <div className="tt-toast">{toast}</div>
           </div>
         )}
       </div>
@@ -605,88 +536,189 @@ export default function Settings() {
 }
 
 /* ---------------------------
-   Premium UI building blocks
+   Components
 ---------------------------- */
 
-function Header({ title, subtitle }) {
+function IntegrationTile({ name, description, status, onOpen }) {
+  const statusText = status === "connected" ? "Connected" : status === "needs_attention" ? "Needs attention" : "Not connected";
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/6 blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/4 blur-3xl" />
+    <button type="button" className="tt-tile" onClick={onOpen}>
+      <div className="tt-tileTop">
+        <div className="tt-tileTitle">{name}</div>
+        <div className="tt-tileStatus">{statusText}</div>
       </div>
-      <div className="relative">
-        <div className="text-2xl font-semibold tracking-tight">{title}</div>
-        <div className="mt-2 text-sm text-white/70 leading-relaxed max-w-[820px]">{subtitle}</div>
+      <div className="tt-tileDesc">{description}</div>
+      <div className="tt-tileBottom">
+        <div className="tt-tileLine" />
+        <div className="tt-tileOpen">Open</div>
+      </div>
+    </button>
+  );
+}
+
+function IntegrationCard({
+  title,
+  hint,
+  data,
+  fields,
+  onToggleEnabled,
+  onChangeMode,
+  onChangeField,
+  onConnect,
+  onDisconnect,
+  onTest,
+}) {
+  const statusLabel =
+    data.status === "connected" ? "Connected" : data.status === "needs_attention" ? "Needs attention" : "Not connected";
+
+  const pillClass =
+    data.status === "connected"
+      ? "tt-pill tt-pillGood"
+      : data.status === "needs_attention"
+      ? "tt-pill tt-pillWarn"
+      : "tt-pill";
+
+  return (
+    <div className="tt-card">
+      <div className="tt-cardHead">
+        <div>
+          <div className="tt-cardTitle">{title}</div>
+          <div className="tt-cardHint">
+            {hint}{" "}
+            <span className="tt-muted">
+              Status: <span className={pillClass}>{statusLabel}</span>
+              {data.lastChecked ? <span className="tt-muted"> Last checked: {data.lastChecked}</span> : null}
+            </span>
+          </div>
+        </div>
+
+        <div className="tt-row">
+          <button
+            type="button"
+            className="tt-btn tt-btnGhost"
+            onClick={() => onToggleEnabled(!data.enabled)}
+          >
+            {data.enabled ? "Disable" : "Enable"}
+          </button>
+
+          {data.status === "connected" ? (
+            <button type="button" className="tt-btn tt-btnGhost" onClick={onDisconnect}>
+              Disconnect
+            </button>
+          ) : (
+            <button type="button" className="tt-btn tt-btnPrimary" onClick={onConnect}>
+              Connect
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="tt-divider" />
+
+      <div className="tt-grid3">
+        <ModeChip label="OAuth" active={data.connectMode === "oauth"} onClick={() => onChangeMode("oauth")} disabled={!data.enabled} />
+        <ModeChip label="API Key" active={data.connectMode === "apiKey"} onClick={() => onChangeMode("apiKey")} disabled={!data.enabled} />
+
+        <div className="tt-miniCard">
+          <div className="tt-miniTitle">Quick actions</div>
+          <div className="tt-row tt-mtSm">
+            <button type="button" className="tt-btn tt-btnGhost" onClick={onTest} disabled={!data.enabled}>
+              Test connection
+            </button>
+            <button type="button" className="tt-btn tt-btnGhost" onClick={() => {}} disabled={!data.enabled} title="UI-only placeholder">
+              Advanced
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {data.enabled ? (
+        <div className="tt-grid2 tt-mt">
+          {fields.map((f) => (
+            <SecretField
+              key={f.key}
+              label={f.label}
+              value={data[f.key] || ""}
+              onChange={(v) => onChangeField({ [f.key]: v })}
+              secret={!!f.secret}
+              disabled={!data.enabled}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="tt-emptyState tt-mt">
+          Enable this integration to configure credentials and connection settings.
+        </div>
+      )}
+
+      <div className="tt-row tt-mt">
+        <div />
+        <div className="tt-row">
+          <button type="button" className="tt-btn tt-btnGhost" onClick={onTest} disabled={!data.enabled}>
+            Test
+          </button>
+          <button type="button" className="tt-btn tt-btnPrimary" onClick={() => {}} disabled={!data.enabled} title="UI-only placeholder">
+            Save
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function TabIntro({ title, text }) {
+function ModeChip({ label, active, onClick, disabled }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
-      <div className="text-sm font-semibold">{title}</div>
-      <div className="mt-2 text-sm text-white/70 leading-relaxed">{text}</div>
-    </div>
+    <button
+      type="button"
+      className={active ? "tt-chip tt-chipActive" : "tt-chip"}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <div className="tt-chipTitle">{label}</div>
+      <div className="tt-chipSub">UI-only selector</div>
+    </button>
   );
 }
 
-function GlassCard({ children }) {
+function RuleCard({ title, subtitle, children }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
+    <div className="tt-card">
+      <div className="tt-cardHead">
+        <div>
+          <div className="tt-cardTitle">{title}</div>
+          <div className="tt-cardHint">{subtitle}</div>
+        </div>
+      </div>
+      <div className="tt-divider" />
       {children}
     </div>
   );
 }
 
-function CardTitle({ title, subtitle }) {
+function Field({ label, value, onChange, helper, rightAddon }) {
   return (
-    <div>
-      <div className="text-base font-semibold">{title}</div>
-      {subtitle ? <div className="mt-2 text-sm text-white/70 leading-relaxed">{subtitle}</div> : null}
-    </div>
-  );
-}
-
-function Divider() {
-  return <div className="my-6 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />;
-}
-
-function Field({ label, value, onChange, placeholder, helper, rightAddon }) {
-  return (
-    <div className="w-full">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-white/70">{label}</div>
-        {helper ? <div className="text-xs text-white/45">{helper}</div> : null}
+    <div className="tt-field">
+      <div className="tt-fieldTop">
+        <div className="tt-label">{label}</div>
+        {helper ? <div className="tt-helper">{helper}</div> : null}
       </div>
-      <div className="mt-2 flex items-stretch rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.04)]">
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full bg-transparent px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none"
-        />
-        {rightAddon ? (
-          <div className="px-3 flex items-center text-xs text-white/55 border-l border-white/10">{rightAddon}</div>
-        ) : null}
+
+      <div className="tt-inputWrap">
+        <input className="tt-input" value={value} onChange={(e) => onChange(e.target.value)} />
+        {rightAddon ? <div className="tt-addon">{rightAddon}</div> : null}
       </div>
     </div>
   );
 }
 
-function TextArea({ label, value, onChange, placeholder, rows = 10 }) {
+function TextArea({ label, value, onChange, rows = 10 }) {
   return (
-    <div className="w-full">
-      <div className="text-xs text-white/70">{label}</div>
-      <div className="mt-2 rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.04)]">
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={rows}
-          className="w-full resize-none bg-transparent px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none"
-        />
+    <div className="tt-field">
+      <div className="tt-fieldTop">
+        <div className="tt-label">{label}</div>
+      </div>
+      <div className="tt-inputWrap">
+        <textarea className="tt-textarea" rows={rows} value={value} onChange={(e) => onChange(e.target.value)} />
       </div>
     </div>
   );
@@ -694,28 +726,20 @@ function TextArea({ label, value, onChange, placeholder, rows = 10 }) {
 
 function ToggleRow({ label, checked, onChange, hint }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-      <div className="flex items-center justify-between gap-4">
+    <div className="tt-miniCard">
+      <div className="tt-toggleRow">
         <div>
-          <div className="text-sm font-semibold">{label}</div>
-          {hint ? <div className="mt-1 text-xs text-white/65 leading-relaxed">{hint}</div> : null}
+          <div className="tt-miniTitle">{label}</div>
+          {hint ? <div className="tt-miniText">{hint}</div> : null}
         </div>
 
         <button
-          onClick={() => onChange(!checked)}
-          className={[
-            "w-[56px] h-[32px] rounded-full border transition relative",
-            checked ? "bg-white/15 border-white/20" : "bg-white/5 border-white/10",
-          ].join(" ")}
-          aria-label={label}
           type="button"
+          className={checked ? "tt-switch tt-switchOn" : "tt-switch"}
+          onClick={() => onChange(!checked)}
+          aria-label={label}
         >
-          <span
-            className={[
-              "absolute top-[4px] w-[24px] h-[24px] rounded-full transition",
-              checked ? "left-[28px] bg-white shadow-[0_10px_28px_rgba(0,0,0,0.35)]" : "left-[4px] bg-white/70",
-            ].join(" ")}
-          />
+          <span className={checked ? "tt-knob tt-knobOn" : "tt-knob"} />
         </button>
       </div>
     </div>
@@ -733,11 +757,11 @@ function RecipientsPicker({ value, onChange, note, forceOps }) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-      <div className="text-sm font-semibold">Recipients</div>
-      <div className="mt-1 text-xs text-white/65 leading-relaxed">{note}</div>
+    <div className="tt-miniCard">
+      <div className="tt-miniTitle">Recipients</div>
+      <div className="tt-miniText">{note}</div>
 
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="tt-grid3 tt-mtSm">
         <RecipientChip label="Client" enabled={!!value.client} onToggle={() => setRecipient("client", !value.client)} />
         <RecipientChip label="Merchant" enabled={!!value.merchant} onToggle={() => setRecipient("merchant", !value.merchant)} />
         <RecipientChip label="Ops" enabled={!!value.ops} onToggle={() => setRecipient("ops", !value.ops)} locked={forceOps} />
@@ -749,201 +773,38 @@ function RecipientsPicker({ value, onChange, note, forceOps }) {
 function RecipientChip({ label, enabled, onToggle, locked }) {
   return (
     <button
+      type="button"
+      className={enabled ? "tt-rec tt-recOn" : "tt-rec"}
       onClick={onToggle}
       disabled={locked}
-      type="button"
-      className={[
-        "rounded-2xl border px-4 py-3 text-left transition",
-        enabled
-          ? "bg-white/10 border-white/15 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-          : "bg-white/5 border-white/10 hover:bg-white/7",
-        locked ? "opacity-80 cursor-not-allowed" : "",
-      ].join(" ")}
+      title={locked ? "Locked" : ""}
     >
-      <div className="text-sm font-semibold flex items-center justify-between">
-        <span>{label}</span>
-        {locked ? <span className="text-xs text-white/55">Locked</span> : null}
+      <div className="tt-recTop">
+        <div className="tt-recTitle">{label}</div>
+        {locked ? <div className="tt-recLock">Locked</div> : null}
       </div>
-      <div className="mt-1 text-xs text-white/65">{enabled ? "Enabled" : "Disabled"}</div>
+      <div className="tt-recSub">{enabled ? "Enabled" : "Disabled"}</div>
     </button>
   );
 }
 
-function IntegrationTile({ name, description, status, onOpen }) {
-  const statusText = status === "connected" ? "Connected" : status === "needs_attention" ? "Needs attention" : "Not connected";
-
+function InfoCard({ title, text }) {
   return (
-    <button
-      onClick={onOpen}
-      type="button"
-      className="group rounded-3xl border border-white/10 bg-black/25 p-5 text-left transition hover:bg-black/30 shadow-[0_14px_50px_rgba(0,0,0,0.22)]"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold">{name}</div>
-        <div className="text-xs text-white/60 group-hover:text-white/75 transition">{statusText}</div>
-      </div>
-
-      <div className="mt-2 text-xs text-white/65 leading-relaxed">{description}</div>
-
-      <div className="mt-4 flex items-center justify-between">
-        <div className="h-px w-12 bg-white/10 group-hover:bg-white/15 transition" />
-        <div className="text-xs text-white/55 group-hover:text-white/75 transition">Open</div>
-      </div>
-    </button>
-  );
-}
-
-function IntegrationCard({
-  title,
-  hint,
-  status,
-  statusClass,
-  statusLabel,
-  enabled,
-  onToggleEnabled,
-  connectMode,
-  onChangeMode,
-  fields,
-  lastChecked,
-  onConnect,
-  onDisconnect,
-  onTest,
-}) {
-  const showFields = enabled;
-
-  return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-base font-semibold">{title}</div>
-          <div className="mt-2 text-sm text-white/70 leading-relaxed">
-            {hint ? <span className="text-white/65">{hint} </span> : null}
-            <span className="ml-0">
-              Status:{" "}
-              <span className={["inline-flex items-center px-2.5 py-1 rounded-full border text-xs", statusClass].join(" ")}>
-                {statusLabel}
-              </span>
-              {lastChecked ? <span className="ml-2 text-xs text-white/50">Last checked: {lastChecked}</span> : null}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onToggleEnabled(!enabled)}
-            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-            type="button"
-          >
-            {enabled ? "Disable" : "Enable"}
-          </button>
-
-          {status === "connected" ? (
-            <button
-              onClick={onDisconnect}
-              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/80"
-              type="button"
-            >
-              Disconnect
-            </button>
-          ) : (
-            <button
-              onClick={onConnect}
-              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-              type="button"
-            >
-              Connect
-            </button>
-          )}
-        </div>
-      </div>
-
-      <Divider />
-
-      <div className="grid grid-cols-3 gap-3">
-        <ModeChip label="OAuth" active={connectMode === "oauth"} onClick={() => onChangeMode("oauth")} disabled={!enabled} />
-        <ModeChip label="API Key" active={connectMode === "apiKey"} onClick={() => onChangeMode("apiKey")} disabled={!enabled} />
-
-        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-          <div className="text-xs text-white/60">Quick actions</div>
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={onTest}
-              disabled={!enabled}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs disabled:opacity-50"
-              type="button"
-            >
-              Test connection
-            </button>
-            <button
-              onClick={() => {}}
-              disabled={!enabled}
-              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white/80 disabled:opacity-50"
-              title="UI-only placeholder"
-              type="button"
-            >
-              Advanced
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {showFields ? (
-        <div className="mt-5 grid grid-cols-2 gap-4">
-          {fields.map((f) => (
-            <SecretField
-              key={f.label}
-              label={f.label}
-              value={f.value}
-              onChange={f.onChange}
-              secret={!!f.secret}
-              disabled={!enabled}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm text-white/70 leading-relaxed">
-          Enable this integration to configure credentials and connection settings.
-        </div>
-      )}
-
-      <div className="mt-6 flex items-center justify-end gap-2">
-        <button
-          onClick={onTest}
-          disabled={!enabled}
-          className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/80 disabled:opacity-50"
-          type="button"
-        >
-          Test
-        </button>
-        <button
-          onClick={() => {}}
-          disabled={!enabled}
-          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-sm disabled:opacity-50 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-          title="UI-only placeholder"
-          type="button"
-        >
-          Save
-        </button>
-      </div>
+    <div className="tt-miniCard">
+      <div className="tt-miniTitle">{title}</div>
+      <div className="tt-miniText">{text}</div>
     </div>
   );
 }
 
-function ModeChip({ label, active, onClick, disabled }) {
+function EmailPreview({ subject, body }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      type="button"
-      className={[
-        "rounded-2xl border px-4 py-4 text-left transition shadow-[0_0_0_1px_rgba(255,255,255,0.03)]",
-        active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10 hover:bg-white/7",
-        disabled ? "opacity-50 cursor-not-allowed" : "",
-      ].join(" ")}
-    >
-      <div className="text-sm font-semibold">{label}</div>
-      <div className="mt-1 text-xs text-white/65">UI-only selector</div>
-    </button>
+    <div className="tt-preview">
+      <div className="tt-previewLabel">Subject</div>
+      <div className="tt-previewSubject">{subject}</div>
+      <div className="tt-previewLabel tt-mtSm">Body</div>
+      <div className="tt-previewBody">{body}</div>
+    </div>
   );
 }
 
@@ -951,71 +812,31 @@ function SecretField({ label, value, onChange, secret, disabled }) {
   const [reveal, setReveal] = useState(false);
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-white/70">{label}</div>
+    <div className="tt-field">
+      <div className="tt-fieldTop">
+        <div className="tt-label">{label}</div>
         {secret ? (
-          <button
-            onClick={() => setReveal((p) => !p)}
-            className="text-xs text-white/55 hover:text-white/80"
-            type="button"
-            disabled={disabled}
-          >
+          <button type="button" className="tt-link" onClick={() => setReveal((p) => !p)} disabled={disabled}>
             {reveal ? "Hide" : "Show"}
           </button>
         ) : null}
       </div>
 
-      <div className="mt-2 rounded-2xl border border-white/10 bg-black/30 focus-within:border-white/20 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.04)]">
+      <div className="tt-inputWrap">
         <input
+          className="tt-input"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={secret ? "••••••••" : ""}
           type={secret && !reveal ? "password" : "text"}
           disabled={disabled}
-          className="w-full bg-transparent px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none disabled:opacity-60"
         />
       </div>
     </div>
   );
 }
 
-function InfoCard({ title, text }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-      <div className="text-sm font-semibold">{title}</div>
-      <div className="mt-1 text-xs text-white/70 leading-relaxed">{text}</div>
-    </div>
-  );
-}
-
-function EmailPreview({ subject, body }) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-black/30 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-white/60">Subject</div>
-        <div className="text-[11px] text-white/45">Preview</div>
-      </div>
-
-      <div className="mt-2 text-sm font-semibold leading-snug whitespace-pre-wrap">{subject}</div>
-
-      <div className="mt-5 text-xs text-white/60">Body</div>
-      <div className="mt-2 text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{body}</div>
-    </div>
-  );
-}
-
-function MiniHint({ title, text }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-      <div className="text-xs font-semibold">{title}</div>
-      <div className="mt-1 text-xs text-white/65 leading-relaxed">{text}</div>
-    </div>
-  );
-}
-
 /* ---------------------------
-   Helpers
+   Helpers + styles
 ---------------------------- */
 
 function interpolate(text, vars) {
@@ -1032,6 +853,454 @@ function clampInt(v, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
-function openIntegrationModal(_key, showToast) {
-  showToast("Integration opened (UI-only placeholder).");
+const css = `
+.tt-settings {
+  width: 100%;
+  height: 100%;
+  color: rgba(255,255,255,0.92);
 }
+
+.tt-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 18px 18px 32px;
+}
+
+.tt-hero {
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+  backdrop-filter: blur(18px);
+  box-shadow: 0 22px 70px rgba(0,0,0,0.35);
+  padding: 18px;
+}
+
+.tt-heroTop {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tt-title {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.tt-subtitle {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.68);
+  max-width: 900px;
+}
+
+.tt-tabs {
+  margin-top: 14px;
+  display: inline-flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.tt-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255,255,255,0.72);
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.tt-tab:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.9);
+}
+
+.tt-tabActive {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.95);
+  box-shadow: 0 8px 26px rgba(0,0,0,0.35);
+}
+
+.tt-stack { display: grid; gap: 14px; margin-top: 14px; }
+
+.tt-card {
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.26);
+  padding: 18px;
+}
+
+.tt-cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tt-cardTitle {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.tt-sectionTitle {
+  font-size: 13px;
+  font-weight: 650;
+  color: rgba(255,255,255,0.92);
+}
+
+.tt-cardHint {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.68);
+}
+
+.tt-note {
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+}
+
+.tt-divider {
+  height: 1px;
+  margin: 14px 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+}
+
+.tt-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.tt-grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.tt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tt-mt { margin-top: 14px; }
+.tt-mtSm { margin-top: 10px; }
+
+.tt-btn {
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 120ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.tt-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tt-btn:hover {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.14);
+}
+
+.tt-btn:active { transform: translateY(1px); }
+
+.tt-btnPrimary {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+.tt-btnGhost {
+  background: rgba(255,255,255,0.04);
+}
+
+.tt-btnActive {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.14);
+}
+
+.tt-field { width: 100%; }
+
+.tt-fieldTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.tt-label { font-size: 12px; color: rgba(255,255,255,0.70); }
+.tt-helper { font-size: 11px; color: rgba(255,255,255,0.45); }
+
+.tt-inputWrap {
+  display: flex;
+  align-items: stretch;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.26);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.tt-inputWrap:focus-within {
+  border-color: rgba(255,255,255,0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 4px rgba(255,255,255,0.04);
+}
+
+.tt-input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.92);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.tt-textarea {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.92);
+  padding: 10px 12px;
+  font-size: 13px;
+  resize: none;
+}
+
+.tt-addon {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  border-left: 1px solid rgba(255,255,255,0.10);
+}
+
+.tt-link {
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.55);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tt-link:hover { color: rgba(255,255,255,0.85); }
+
+.tt-tile {
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.24);
+  box-shadow: 0 16px 50px rgba(0,0,0,0.22);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 140ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.tt-tile:hover {
+  background: rgba(0,0,0,0.30);
+  border-color: rgba(255,255,255,0.14);
+  transform: translateY(-1px);
+}
+
+.tt-tileTop { display: flex; justify-content: space-between; gap: 10px; }
+.tt-tileTitle { font-size: 13px; font-weight: 650; }
+.tt-tileStatus { font-size: 12px; color: rgba(255,255,255,0.60); }
+.tt-tileDesc { margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.68); line-height: 1.45; }
+
+.tt-tileBottom { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; }
+.tt-tileLine { width: 46px; height: 1px; background: rgba(255,255,255,0.12); }
+.tt-tileOpen { font-size: 12px; color: rgba(255,255,255,0.60); }
+
+.tt-miniCard {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.22);
+  padding: 14px;
+}
+
+.tt-miniTitle { font-size: 13px; font-weight: 650; }
+.tt-miniText { margin-top: 6px; font-size: 12px; color: rgba(255,255,255,0.68); line-height: 1.45; }
+
+.tt-toggleRow { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+.tt-switch {
+  width: 54px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  position: relative;
+  cursor: pointer;
+}
+
+.tt-switchOn {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.16);
+}
+
+.tt-knob {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.70);
+  transition: left 160ms ease, background 160ms ease;
+}
+
+.tt-knobOn {
+  left: 28px;
+  background: rgba(255,255,255,0.95);
+}
+
+.tt-chip {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.tt-chip:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.14);
+}
+
+.tt-chip:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.tt-chipActive {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.14);
+}
+
+.tt-chipTitle { font-size: 13px; font-weight: 650; }
+.tt-chipSub { margin-top: 6px; font-size: 12px; color: rgba(255,255,255,0.65); }
+
+.tt-rec {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.tt-rec:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); }
+.tt-rec:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.tt-recOn {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.28);
+}
+
+.tt-recTop { display: flex; justify-content: space-between; gap: 10px; }
+.tt-recTitle { font-size: 13px; font-weight: 650; }
+.tt-recLock { font-size: 11px; color: rgba(255,255,255,0.55); }
+.tt-recSub { margin-top: 6px; font-size: 12px; color: rgba(255,255,255,0.65); }
+
+.tt-preview {
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.26);
+  padding: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.tt-previewLabel { font-size: 11px; color: rgba(255,255,255,0.55); }
+.tt-previewSubject { margin-top: 6px; font-size: 13px; font-weight: 650; line-height: 1.35; white-space: pre-wrap; }
+.tt-previewBody { margin-top: 8px; font-size: 13px; color: rgba(255,255,255,0.78); line-height: 1.55; white-space: pre-wrap; }
+
+.tt-formStack { display: grid; gap: 12px; }
+
+.tt-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+}
+
+.tt-pillGood {
+  border-color: rgba(16,185,129,0.28);
+  background: rgba(16,185,129,0.12);
+  color: rgba(209,250,229,0.9);
+}
+
+.tt-pillWarn {
+  border-color: rgba(245,158,11,0.28);
+  background: rgba(245,158,11,0.12);
+  color: rgba(254,243,199,0.9);
+}
+
+.tt-emptyState {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.22);
+  padding: 14px;
+  color: rgba(255,255,255,0.70);
+}
+
+.tt-vars {
+  font-size: 12px;
+  color: rgba(255,255,255,0.60);
+}
+
+.tt-varsList {
+  color: rgba(255,255,255,0.80);
+}
+
+.tt-muted { color: rgba(255,255,255,0.62); }
+
+.tt-toastWrap {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 50;
+}
+
+.tt-toast {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.70);
+  backdrop-filter: blur(14px);
+  padding: 10px 12px;
+  color: rgba(255,255,255,0.92);
+  font-size: 13px;
+  box-shadow: 0 22px 70px rgba(0,0,0,0.45);
+}
+
+/* Desktop-first, but keep it from breaking hard if the window is smaller */
+@media (max-width: 1100px) {
+  .tt-grid3 { grid-template-columns: 1fr; }
+  .tt-grid2 { grid-template-columns: 1fr; }
+}
+`;
