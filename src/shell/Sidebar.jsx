@@ -1,12 +1,16 @@
+import { useState } from "react";
+
 const nav = [
-  { label: "Dashboard", icon: "▦" },
-  { label: "Clients", icon: "👥" },
-  { label: "Debit Orders", icon: "↻" },
-  { label: "Batches", icon: "⧉" },
-  { label: "Reports", icon: "📈" },
+  { key: "dashboard", label: "Dashboard", icon: "▦" },
+  { key: "clients", label: "Clients", icon: "👥" },
+  { key: "debitorders", label: "Debit Orders", icon: "↻" },
+  { key: "batches", label: "Batches", icon: "⧉" },
+  { key: "reports", label: "Reports", icon: "📈" },
 ];
 
 export default function Sidebar() {
+  const [activeKey, setActiveKey] = useState("dashboard");
+
   return (
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
@@ -21,15 +25,25 @@ export default function Sidebar() {
         <div className="tt-sidedivider" />
 
         <nav className="tt-sidenav" aria-label="Sidebar navigation">
-          {nav.map((item) => (
-            <button key={item.label} type="button" className="tt-sidenav-item">
-              <span className="tt-sidenav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span className="tt-sidenav-label">{item.label}</span>
-              <span className="tt-sidenav-pill" aria-hidden="true" />
-            </button>
-          ))}
+          {nav.map((item) => {
+            const isActive = item.key === activeKey;
+
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={`tt-sidenav-item ${isActive ? "is-active" : ""}`}
+                onClick={() => setActiveKey(item.key)}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <span className="tt-sidenav-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+                <span className="tt-sidenav-label">{item.label}</span>
+                <span className="tt-sidenav-pill" aria-hidden="true" />
+              </button>
+            );
+          })}
         </nav>
 
         <div className="tt-sidespacer" />
