@@ -17,7 +17,6 @@ export default function Clients() {
         industry: "Commercial",
         risk: "Low",
         status: "Active",
-
         debit: {
           billingCycle: "Monthly - 25th",
           nextChargeDate: "2026-02-25",
@@ -32,7 +31,6 @@ export default function Clients() {
           lastTransactionReference: "PAY-DO-778122",
           failureReason: "",
         },
-
         updatedAt: "2026-02-08T20:26:00.000Z",
         notes: "High volume accounts. Prefers batch notifications by email.",
       },
@@ -50,7 +48,6 @@ export default function Clients() {
         industry: "Property",
         risk: "High",
         status: "Risk",
-
         debit: {
           billingCycle: "Monthly - 25th",
           nextChargeDate: "2026-02-25",
@@ -65,7 +62,6 @@ export default function Clients() {
           lastTransactionReference: "PAY-DO-781991",
           failureReason: "Insufficient funds",
         },
-
         updatedAt: "2026-02-08T18:03:00.000Z",
         notes: "Recent reversals. Monitor retry count and mandate activity.",
       },
@@ -83,7 +79,6 @@ export default function Clients() {
         industry: "Healthcare",
         risk: "Medium",
         status: "Active",
-
         debit: {
           billingCycle: "Monthly - 25th",
           nextChargeDate: "2026-02-25",
@@ -98,7 +93,6 @@ export default function Clients() {
           lastTransactionReference: "PAY-DO-770004",
           failureReason: "",
         },
-
         updatedAt: "2026-02-08T12:11:00.000Z",
         notes: "Multiple branches. Standard debit schedule.",
       },
@@ -116,7 +110,6 @@ export default function Clients() {
         industry: "Education",
         risk: "Low",
         status: "Paused",
-
         debit: {
           billingCycle: "Monthly - 25th",
           nextChargeDate: "2026-03-25",
@@ -131,7 +124,6 @@ export default function Clients() {
           lastTransactionReference: "",
           failureReason: "",
         },
-
         updatedAt: "2026-02-08T09:42:00.000Z",
         notes: "Manual capture while CRM sync is pending. Link to Zoho when record exists.",
       },
@@ -154,8 +146,7 @@ export default function Clients() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [sourceFilter, setSourceFilter] = useState("All"); // All | Zoho | Manual
 
-  // UI-only "integration state" for header context
-  const [zohoCrmStatus] = useState("Connected"); // Connected | Not connected
+  const [zohoCrmStatus] = useState("Connected"); // UI-only
 
   const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
 
@@ -188,7 +179,6 @@ export default function Clients() {
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [clients, query, statusFilter, sourceFilter]);
 
-  // Manual create modal
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: "",
@@ -213,18 +203,9 @@ export default function Clients() {
     const name = createForm.name.trim();
     const email = createForm.email.trim();
 
-    if (!name) {
-      showToast("Client name is required.");
-      return;
-    }
-    if (!email) {
-      showToast("Email is required.");
-      return;
-    }
-    if (createDuplicate) {
-      showToast("Duplicate detected. Use the existing client or link to Zoho.");
-      return;
-    }
+    if (!name) return showToast("Client name is required.");
+    if (!email) return showToast("Email is required.");
+    if (createDuplicate) return showToast("Duplicate detected. Use the existing client or link to Zoho.");
 
     const id = nextClientId(clients);
     const nowIso = new Date().toISOString();
@@ -268,7 +249,6 @@ export default function Clients() {
     showToast("Client created (manual, UI-only).");
   }
 
-  // Edit modal (lightweight, focused on manual-safe fields)
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
 
@@ -293,21 +273,12 @@ export default function Clients() {
     const name = (editForm.name || "").trim();
     const primaryEmail = (editForm.primaryEmail || "").trim();
 
-    if (!name) {
-      showToast("Client name is required.");
-      return;
-    }
-    if (!primaryEmail) {
-      showToast("Email is required.");
-      return;
-    }
+    if (!name) return showToast("Client name is required.");
+    if (!primaryEmail) return showToast("Email is required.");
 
     setClients((prev) =>
       prev.map((c) => {
         if (c.id !== editForm.id) return c;
-
-        // Synced records are typically source of truth from CRM, but you can still allow notes.
-        // UI-only approach: allow editing visible fields, but show a hint for Zoho-synced.
         return {
           ...c,
           name,
@@ -327,13 +298,9 @@ export default function Clients() {
     showToast("Client updated (UI-only).");
   }
 
-  // "Link to Zoho" simulation for manual clients
   function linkToZoho() {
     if (!selected) return;
-    if (selected.source === "zoho") {
-      showToast("Already linked to Zoho CRM.");
-      return;
-    }
+    if (selected.source === "zoho") return showToast("Already linked to Zoho CRM.");
 
     setClients((prev) =>
       prev.map((c) => {
@@ -351,7 +318,6 @@ export default function Clients() {
     showToast("Linked to Zoho CRM (UI-only).");
   }
 
-  // Disable client (UI-only)
   function disableClient() {
     if (!selected) return;
     setClients((prev) =>
@@ -439,25 +405,46 @@ export default function Clients() {
     transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
   }
   .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
-  .tt-chipActive {
-    border-color: rgba(124,58,237,0.55);
-    background: rgba(124,58,237,0.16);
-    color: rgba(255,255,255,0.92);
-  }
+  .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
 
+  /* Purple premium dropdown */
   .tt-select {
     height: 34px;
     border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(255,255,255,0.05);
-    color: rgba(255,255,255,0.82);
-    padding: 0 12px;
+    border: 1px solid rgba(124,58,237,0.38);
+    background: rgba(124,58,237,0.12);
+    color: rgba(255,255,255,0.92);
+    padding: 0 38px 0 12px;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 900;
     outline: none;
     cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.75) 50%),
+      linear-gradient(135deg, rgba(255,255,255,0.75) 50%, transparent 50%),
+      linear-gradient(to right, transparent, transparent);
+    background-position:
+      calc(100% - 18px) 52%,
+      calc(100% - 12px) 52%,
+      100% 0;
+    background-size: 6px 6px, 6px 6px, 2.5em 2.5em;
+    background-repeat: no-repeat;
   }
-  .tt-select:focus { border-color: rgba(124,58,237,0.45); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
+  .tt-select:hover {
+    transform: translateY(-1px);
+    border-color: rgba(124,58,237,0.55);
+    background: rgba(124,58,237,0.16);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+  }
+  .tt-select:focus { border-color: rgba(124,58,237,0.70); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
+  .tt-select option { background: #0b1020; color: rgba(255,255,255,0.92); }
 
   .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .tt-tableScroll { overflow: auto; height: 100%; }
@@ -486,7 +473,7 @@ export default function Clients() {
   .tt-trHover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); background: rgba(255,255,255,0.04); }
   .tt-trActive { background: rgba(124,58,237,0.14); }
 
-  .tt-nameRow { display: flex; align-items: center; gap: 10px; }
+  .tt-nameRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .tt-name { font-weight: 900; color: rgba(255,255,255,0.90); }
   .tt-subId { font-size: 12px; color: rgba(255,255,255,0.55); }
 
@@ -567,16 +554,14 @@ export default function Clients() {
   .tt-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
 
   .tt-btnPrimary {
-    background: var(--purple);
+    background: linear-gradient(135deg, rgba(124,58,237,0.95), rgba(168,85,247,0.95));
     border-color: rgba(124,58,237,0.55);
     box-shadow: 0 14px 34px rgba(124,58,237,0.28);
     color: #fff;
   }
   .tt-btnPrimary:hover { filter: brightness(1.06); }
-  .tt-btnDanger {
-    background: rgba(239,68,68,0.14);
-    border-color: rgba(239,68,68,0.35);
-  }
+
+  .tt-btnDanger { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.35); }
 
   .tt-muted { color: rgba(255,255,255,0.62); }
 
@@ -616,6 +601,7 @@ export default function Clients() {
   .tt-formGrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .tt-field { display: grid; gap: 6px; }
   .tt-label { font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.72); }
+
   .tt-text {
     height: 42px;
     border-radius: 14px;
@@ -628,6 +614,7 @@ export default function Clients() {
     font-weight: 700;
   }
   .tt-text:focus { border-color: rgba(124,58,237,0.45); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
+
   .tt-area {
     border-radius: 14px;
     border: 1px solid rgba(255,255,255,0.12);
@@ -705,7 +692,6 @@ export default function Clients() {
         </div>
 
         <div className="tt-grid">
-          {/* LEFT: LIST */}
           <div className="tt-glass tt-tableWrap">
             <div className="tt-panelHeader">
               <div className="tt-phLeft">
@@ -716,12 +702,7 @@ export default function Clients() {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <select
-                  className="tt-select"
-                  value={sourceFilter}
-                  onChange={(e) => setSourceFilter(e.target.value)}
-                  aria-label="Source filter"
-                >
+                <select className="tt-select" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} aria-label="Source filter">
                   <option value="All">All sync</option>
                   <option value="Zoho">Zoho CRM</option>
                   <option value="Manual">Manual</option>
@@ -738,13 +719,7 @@ export default function Clients() {
                 <span className="tt-inputIcon">
                   <IconSearch />
                 </span>
-                <input
-                  className="tt-input"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by name, id, email, or Zoho id"
-                  aria-label="Search clients"
-                />
+                <input className="tt-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, id, email, or Zoho id" aria-label="Search clients" />
               </div>
 
               <div className="tt-chipRow">
@@ -787,13 +762,7 @@ export default function Clients() {
                     const isActive = c.id === selectedId;
                     const isHover = hoverId === c.id;
 
-                    const trClass = [
-                      "tt-tr",
-                      isActive ? "tt-trActive" : "",
-                      isHover ? "tt-trHover" : "",
-                    ]
-                      .join(" ")
-                      .trim();
+                    const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
 
                     return (
                       <tr
@@ -810,9 +779,7 @@ export default function Clients() {
                               <span className="tt-subId">{c.id}</span>
                               <span className={statusBadgeClass(c.status)}>{c.status}</span>
                             </div>
-                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>
-                              {c.primaryEmail}
-                            </span>
+                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
                           </div>
                         </td>
 
@@ -855,7 +822,6 @@ export default function Clients() {
             </div>
           </div>
 
-          {/* RIGHT: DETAILS */}
           <div className="tt-glass" style={{ display: "flex", flexDirection: "column" }}>
             <div className="tt-panelHeader">
               <div className="tt-phLeft">
@@ -902,9 +868,7 @@ export default function Clients() {
                       <div className="tt-v">{selected.id}</div>
 
                       <div className="tt-k">Source</div>
-                      <div className="tt-v">
-                        {selected.source === "zoho" ? "Zoho CRM sync" : "Manual"}
-                      </div>
+                      <div className="tt-v">{selected.source === "zoho" ? "Zoho CRM sync" : "Manual"}</div>
 
                       <div className="tt-k">Primary email</div>
                       <div className="tt-v">{selected.primaryEmail || "Not set"}</div>
@@ -934,18 +898,10 @@ export default function Clients() {
                     <div className="tt-divider" />
 
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className="tt-btn"
-                        onClick={() => showToast("View debit orders is UI-only placeholder.")}
-                      >
+                      <button type="button" className="tt-btn" onClick={() => showToast("View debit orders is UI-only placeholder.")}>
                         View debit orders
                       </button>
-                      <button
-                        type="button"
-                        className="tt-btn"
-                        onClick={() => showToast("View batches is UI-only placeholder.")}
-                      >
+                      <button type="button" className="tt-btn" onClick={() => showToast("View batches is UI-only placeholder.")}>
                         View batches
                       </button>
 
@@ -954,11 +910,7 @@ export default function Clients() {
                           Link to Zoho
                         </button>
                       ) : (
-                        <button
-                          type="button"
-                          className="tt-btn"
-                          onClick={() => showToast("Open in Zoho is UI-only placeholder.")}
-                        >
+                        <button type="button" className="tt-btn" onClick={() => showToast("Open in Zoho is UI-only placeholder.")}>
                           Open in Zoho
                         </button>
                       )}
@@ -1040,7 +992,6 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* Create modal */}
         {createOpen && (
           <div className="tt-modalOverlay" role="dialog" aria-modal="true" aria-label="Add client manually">
             <div className="tt-modal">
@@ -1080,80 +1031,45 @@ export default function Clients() {
                 <div className="tt-formGrid2">
                   <div className="tt-field">
                     <div className="tt-label">Client name</div>
-                    <input
-                      className="tt-text"
-                      value={createForm.name}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
-                      placeholder="Example: Mokoena Interiors"
-                    />
+                    <input className="tt-text" value={createForm.name} onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))} placeholder="Example: Mokoena Interiors" />
                   </div>
 
                   <div className="tt-field">
                     <div className="tt-label">Email</div>
-                    <input
-                      className="tt-text"
-                      value={createForm.email}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
-                      placeholder="Example: accounts@example.co.za"
-                    />
+                    <input className="tt-text" value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} placeholder="Example: accounts@example.co.za" />
                   </div>
 
                   <div className="tt-field">
                     <div className="tt-label">Phone (optional)</div>
-                    <input
-                      className="tt-text"
-                      value={createForm.phone}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
-                      placeholder="Example: 010 446 5754"
-                    />
+                    <input className="tt-text" value={createForm.phone} onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))} placeholder="Example: 010 446 5754" />
                   </div>
 
                   <div className="tt-field">
                     <div className="tt-label">Industry (optional)</div>
-                    <input
-                      className="tt-text"
-                      value={createForm.industry}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, industry: e.target.value }))}
-                      placeholder="Example: Property"
-                    />
+                    <input className="tt-text" value={createForm.industry} onChange={(e) => setCreateForm((p) => ({ ...p, industry: e.target.value }))} placeholder="Example: Property" />
                   </div>
                 </div>
 
                 <div className="tt-field">
                   <div className="tt-label">Notes (optional)</div>
-                  <textarea
-                    className="tt-area"
-                    value={createForm.notes}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, notes: e.target.value }))}
-                    placeholder="Add any operational notes for onboarding and risk context."
-                  />
+                  <textarea className="tt-area" value={createForm.notes} onChange={(e) => setCreateForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Add any operational notes for onboarding and risk context." />
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Edit modal */}
         {editOpen && editForm && (
           <div className="tt-modalOverlay" role="dialog" aria-modal="true" aria-label="Edit client">
             <div className="tt-modal">
               <div className="tt-modalHead">
                 <div>
                   <h2 className="tt-modalTitle">Edit client</h2>
-                  <div className="tt-modalHint">
-                    For Zoho-synced clients, treat CRM as the source of truth. In a two-way sync, avoid conflicting edits.
-                  </div>
+                  <div className="tt-modalHint">For Zoho-synced clients, treat CRM as the source of truth. In a two-way sync, avoid conflicting edits.</div>
                 </div>
 
                 <div className="tt-modalActions">
-                  <button
-                    type="button"
-                    className="tt-btn"
-                    onClick={() => {
-                      setEditOpen(false);
-                      setEditForm(null);
-                    }}
-                  >
+                  <button type="button" className="tt-btn" onClick={() => { setEditOpen(false); setEditForm(null); }}>
                     Close
                   </button>
                   <button type="button" className="tt-btn tt-btnPrimary" onClick={saveEdit}>
@@ -1166,47 +1082,27 @@ export default function Clients() {
                 <div className="tt-formGrid2">
                   <div className="tt-field">
                     <div className="tt-label">Client name</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.name}
-                      onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
-                    />
+                    <input className="tt-text" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} />
                   </div>
 
                   <div className="tt-field">
                     <div className="tt-label">Primary email</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.primaryEmail}
-                      onChange={(e) => setEditForm((p) => ({ ...p, primaryEmail: e.target.value }))}
-                    />
+                    <input className="tt-text" value={editForm.primaryEmail} onChange={(e) => setEditForm((p) => ({ ...p, primaryEmail: e.target.value }))} />
                   </div>
 
                   <div className="tt-field">
                     <div className="tt-label">Secondary email</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.secondaryEmail}
-                      onChange={(e) => setEditForm((p) => ({ ...p, secondaryEmail: e.target.value }))}
-                    />
+                    <input className="tt-text" value={editForm.secondaryEmail} onChange={(e) => setEditForm((p) => ({ ...p, secondaryEmail: e.target.value }))} />
                   </div>
 
                   <div className="tt-field">
                     <div className="tt-label">Phone</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.phone}
-                      onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
-                    />
+                    <input className="tt-text" value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} />
                   </div>
 
                   <div className="tt-field">
                     <div className="tt-label">Industry</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.industry}
-                      onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))}
-                    />
+                    <input className="tt-text" value={editForm.industry} onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))} />
                   </div>
 
                   <div className="tt-field">
@@ -1225,18 +1121,13 @@ export default function Clients() {
 
                 <div className="tt-field">
                   <div className="tt-label">Notes</div>
-                  <textarea
-                    className="tt-area"
-                    value={editForm.notes}
-                    onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-                  />
+                  <textarea className="tt-area" value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))} />
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Toast */}
         {toast ? (
           <div className="tt-toastWrap">
             <div className="tt-toast">{toast}</div>
@@ -1246,10 +1137,6 @@ export default function Clients() {
     </div>
   );
 }
-
-/* ---------------------------
-   Small UI bits
----------------------------- */
 
 function Dot() {
   return (
@@ -1270,17 +1157,8 @@ function Dot() {
 function IconSearch({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-        stroke="rgba(255,255,255,0.75)"
-        strokeWidth="2"
-      />
-      <path
-        d="M16.2 16.2 21 21"
-        stroke="rgba(255,255,255,0.75)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
+      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -1292,10 +1170,6 @@ function IconPlus({ size = 16 }) {
     </svg>
   );
 }
-
-/* ---------------------------
-   Helpers
----------------------------- */
 
 function currencyZar(n) {
   const val = Number(n || 0);
@@ -1332,3 +1206,4 @@ function statusBadgeClass(status) {
   if (status === "Risk") return "tt-badge tt-bRisk";
   return "tt-badge tt-bNew";
 }
+s
