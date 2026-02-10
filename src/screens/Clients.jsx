@@ -426,6 +426,17 @@ export default function Clients() {
 .tt-select:focus {
   border-color: rgba(124,58,237,0.75);
   box-shadow: 0 0 0 6px rgba(124,58,237,0.22);
+  
+}
+.tt-select option {
+  background: #0b0b12;
+  color: rgba(168,85,247,0.95);
+  font-weight: 700;
+}
+
+.tt-select option:checked {
+  background: rgba(124,58,237,0.30);
+  color: #ffffff;
 }
 
   .tt-select:hover { transform: translateY(-1px); border-color: rgba(124,58,237,0.60); background: rgba(124,58,237,0.18); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
