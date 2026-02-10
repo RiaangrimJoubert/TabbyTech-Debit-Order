@@ -407,19 +407,27 @@ export default function Clients() {
   .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
 
   /* Purple dropdown (safe, no custom arrow tricks) */
-  .tt-select {
-    height: 34px;
-    border-radius: 999px;
-    border: 1px solid rgba(124,58,237,0.40);
-    background: rgba(124,58,237,0.14);
-    color: rgba(255,255,255,0.92);
-    padding: 0 12px;
-    font-size: 12px;
-    font-weight: 900;
-    outline: none;
-    cursor: pointer;
-    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
-  }
+ .tt-select {
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(124,58,237,0.45);
+  background: rgba(0,0,0,0.85);
+  color: rgba(168,85,247,0.95);
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 800;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.tt-select:focus {
+  border-color: rgba(124,58,237,0.75);
+  box-shadow: 0 0 0 6px rgba(124,58,237,0.22);
+}
+
   .tt-select:hover { transform: translateY(-1px); border-color: rgba(124,58,237,0.60); background: rgba(124,58,237,0.18); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-select:focus { border-color: rgba(124,58,237,0.70); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
 
