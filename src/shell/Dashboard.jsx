@@ -1,19 +1,19 @@
 // Dashboard.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /*
   TabbyTech Dashboard (UI-only)
-  Fixes requested:
-  1) Remove the duplicate inner header bar (Dashboard.jsx should NOT render a page header)
-     Your AppShell already provides the premium top header.
-  2) Match the premium purple glass styling from the sidebar across the dashboard.
-  3) Subscription tracking: keep filters perfectly aligned, and move anything that was behind/overlapping
-     (chips, Paystack button) underneath the filters inside the same container.
-  4) Persist key UI state to localStorage.
+  Premium fixes:
+  - NO duplicate header rendered here (AppShell keeps the premium top header)
+  - Replace ALL native <select> with a custom premium dropdown
+    so there is no browser blue highlight and no ugly default menu
+  - Match sidebar styling: dark glass surfaces + subtle purple glow, not flat purple blocks
+  - Subscription tracking: filters row clean, chips and Paystack row underneath (no overlap)
+  - Persist key UI state to localStorage
 */
 
 const LS = {
-  search: "tabbytech.dashboard.search", // kept for in-page filtering (batches) only
+  search: "tabbytech.dashboard.search",
   range: "tabbytech.dashboard.range",
   subView: "tabbytech.dashboard.subView",
   metric: "tabbytech.dashboard.metric",
@@ -74,36 +74,6 @@ function Pill({ children, tone = "purple" }) {
   return <span className={cx("ttd-pill", `ttd-pill--${tone}`)}>{children}</span>;
 }
 
-function Select({ value, onChange, options, ariaLabel, className = "" }) {
-  return (
-    <div className={cx("ttd-selectWrap", className)}>
-      <select
-        className="ttd-select"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={ariaLabel}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <span className="ttd-selectChevron" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M7 10l5 5 5-5"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-    </div>
-  );
-}
-
 function Progress({ value }) {
   const pct = clamp(value, 0, 100);
   return (
@@ -113,8 +83,80 @@ function Progress({ value }) {
   );
 }
 
+/* Premium dropdown (replaces native select) */
+function PremiumSelect({ value, onChange, options, ariaLabel, className = "" }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  const selected = useMemo(() => {
+    return options.find((o) => o.value === value) || options[0];
+  }, [options, value]);
+
+  useEffect(() => {
+    function onDocDown(e) {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    function onEsc(e) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, []);
+
+  return (
+    <div ref={wrapRef} className={cx("ttd-psWrap", className)} aria-label={ariaLabel}>
+      <button
+        type="button"
+        className={cx("ttd-psBtn", open && "ttd-psBtn--open")}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="ttd-psText">{selected?.label}</span>
+        <span className="ttd-psChevron" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M7 10l5 5 5-5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+
+      {open && (
+        <div className="ttd-psMenu" role="listbox">
+          {options.map((o) => {
+            const active = o.value === value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                className={cx("ttd-psItem", active && "ttd-psItem--active")}
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+              >
+                <span className="ttd-psItemLabel">{o.label}</span>
+                {active && <span className="ttd-psCheck">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
-  // Note: AppShell header search is separate. This search is for local filtering inside dashboard widgets only.
   const [search, setSearch] = useLocalStorageState(LS.search, "");
   const [range, setRange] = useLocalStorageState(LS.range, "90d");
   const [subView, setSubView] = useLocalStorageState(LS.subView, "monthly"); // all | monthly | annual
@@ -122,7 +164,6 @@ export default function Dashboard() {
   const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "FEB-03-PM");
 
   const data = useMemo(() => {
-    // UI-only mock data, shaped to swap later with Zoho CRM / Zoho Subscriptions
     const monthlyActive = 86;
     const annualActive = 19;
 
@@ -172,27 +213,12 @@ export default function Dashboard() {
 
   const scope = useMemo(() => {
     if (subView === "monthly") {
-      return {
-        label: "Monthly subscriptions",
-        active: data.monthlyActive,
-        mrr: data.monthlyMRR,
-        arr: data.monthlyMRR * 12,
-      };
+      return { label: "Monthly subscriptions", active: data.monthlyActive, mrr: data.monthlyMRR, arr: data.monthlyMRR * 12 };
     }
     if (subView === "annual") {
-      return {
-        label: "Annual subscriptions",
-        active: data.annualActive,
-        mrr: data.annualARR / 12,
-        arr: data.annualARR,
-      };
+      return { label: "Annual subscriptions", active: data.annualActive, mrr: data.annualARR / 12, arr: data.annualARR };
     }
-    return {
-      label: "All subscriptions",
-      active: data.monthlyActive + data.annualActive,
-      mrr: data.totalMRR,
-      arr: data.totalARR,
-    };
+    return { label: "All subscriptions", active: data.monthlyActive + data.annualActive, mrr: data.totalMRR, arr: data.totalARR };
   }, [data, subView]);
 
   const controlChips = useMemo(() => {
@@ -217,9 +243,7 @@ export default function Dashboard() {
 
   const breakdown = useMemo(() => {
     const rows = data.planMix.map((p) => {
-      const count =
-        subView === "monthly" ? p.monthlyCount : subView === "annual" ? p.annualCount : p.monthlyCount + p.annualCount;
-
+      const count = subView === "monthly" ? p.monthlyCount : subView === "annual" ? p.annualCount : p.monthlyCount + p.annualCount;
       const mrr =
         subView === "monthly"
           ? p.monthlyMRR
@@ -235,11 +259,7 @@ export default function Dashboard() {
     return rows
       .map((r) => {
         const basis = metric === "revenue" ? r.mrr : r.count;
-        return {
-          label: r.label,
-          pct: (basis / denom) * 100,
-          value: metric === "revenue" ? formatZAR(r.mrr) : String(r.count),
-        };
+        return { label: r.label, pct: (basis / denom) * 100, value: metric === "revenue" ? formatZAR(r.mrr) : String(r.count) };
       })
       .sort((a, b) => b.pct - a.pct);
   }, [data, subView, metric]);
@@ -247,47 +267,43 @@ export default function Dashboard() {
   const filteredBatches = useMemo(() => {
     const q = (search || "").trim().toLowerCase();
     if (!q) return data.recentBatches;
-    return data.recentBatches.filter(
-      (b) => b.batch.toLowerCase().includes(q) || b.status.toLowerCase().includes(q)
-    );
+    return data.recentBatches.filter((b) => b.batch.toLowerCase().includes(q) || b.status.toLowerCase().includes(q));
   }, [data, search]);
 
   return (
     <div className="ttd-page">
       <style>{css}</style>
 
-      {/* Dashboard content ONLY. AppShell already renders the premium top header. */}
+      {/* AppShell renders the premium header. Dashboard renders content only. */}
       <div className="ttd-wrap">
-        {/* Top stat grid */}
         <div className="ttd-grid ttd-grid--hero">
-          <Card className="ttd-stat ttd-accent">
+          <Card className="ttd-stat ttd-card--accent">
             <div className="ttd-statLabel">Active Debit Orders</div>
             <div className="ttd-statValue">{data.top.activeDebitOrders.toLocaleString("en-ZA")}</div>
             <div className="ttd-statSub">Currently running</div>
           </Card>
 
-          <Card className="ttd-stat ttd-accent">
+          <Card className="ttd-stat ttd-card--accent">
             <div className="ttd-statLabel">Next Run</div>
             <div className="ttd-statValue">{data.top.nextRun}</div>
             <div className="ttd-statSub">{data.top.queued} items queued</div>
           </Card>
 
-          <Card className="ttd-stat ttd-accent">
+          <Card className="ttd-stat ttd-card--accent">
             <div className="ttd-statLabel">Exceptions</div>
             <div className="ttd-statValue">{data.top.exceptions}</div>
             <div className="ttd-statSub">Needs attention</div>
           </Card>
 
-          <Card className="ttd-stat ttd-accent">
+          <Card className="ttd-stat ttd-card--accent">
             <div className="ttd-statLabel">Collections (MTD)</div>
             <div className="ttd-statValue">{formatZAR(data.top.collectionsMTD)}</div>
             <div className="ttd-statSub">Scheduled total</div>
           </Card>
         </div>
 
-        {/* Monthly + annual cards */}
         <div className="ttd-grid ttd-grid--subsummary">
-          <Card className="ttd-subCard ttd-accent">
+          <Card className="ttd-subCard ttd-card--accent">
             <div className="ttd-subTop">
               <div>
                 <div className="ttd-subTitle">Monthly Subscriptions</div>
@@ -305,7 +321,7 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          <Card className="ttd-subCard ttd-accent">
+          <Card className="ttd-subCard ttd-card--accent">
             <div className="ttd-subTop">
               <div>
                 <div className="ttd-subTitle">Annual Subscriptions</div>
@@ -324,13 +340,11 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Bottom grid */}
         <div className="ttd-grid ttd-grid--bottom">
-          {/* Left column */}
-          <Card className="ttd-panel ttd-accent">
+          <Card className="ttd-panel ttd-card--accent">
             <div className="ttd-panelHeader">
               <div className="ttd-panelTitle">Today’s Workflow</div>
-              <Select
+              <PremiumSelect
                 ariaLabel="Workflow selector"
                 value="subscription-tracking"
                 onChange={() => {}}
@@ -370,21 +384,18 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Subscription tracking */}
             <div className="ttd-subTrack">
               <div className="ttd-subTrackTitle">Subscription tracking</div>
               <div className="ttd-subTrackDesc">
-                This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down
-                edits to reduce risk.
+                This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.
               </div>
 
-              {/* Box with premium styling */}
               <div className="ttd-subBox">
-                {/* Row 1: Filters only (clean) */}
+                {/* Row 1: filters only */}
                 <div className="ttd-filterRow">
                   <div className="ttd-control">
                     <div className="ttd-controlLabel">View</div>
-                    <Select
+                    <PremiumSelect
                       ariaLabel="Subscription view"
                       value={subView}
                       onChange={setSubView}
@@ -398,7 +409,7 @@ export default function Dashboard() {
 
                   <div className="ttd-control">
                     <div className="ttd-controlLabel">Range</div>
-                    <Select
+                    <PremiumSelect
                       ariaLabel="Range"
                       value={range}
                       onChange={setRange}
@@ -413,7 +424,7 @@ export default function Dashboard() {
 
                   <div className="ttd-control">
                     <div className="ttd-controlLabel">Breakdown</div>
-                    <Select
+                    <PremiumSelect
                       ariaLabel="Breakdown metric"
                       value={metric}
                       onChange={setMetric}
@@ -425,7 +436,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Row 2: Anything that used to sit behind the filters goes underneath */}
+                {/* Row 2: chips + Paystack underneath (no overlap, no ugly behind-items) */}
                 <div className="ttd-underRow">
                   <div className="ttd-chipRail">
                     {controlChips.map((c) => (
@@ -459,7 +470,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="ttd-breakdown ttd-accentInner">
+              <div className="ttd-breakdown">
                 <div className="ttd-breakHeader">
                   <div>
                     <div className="ttd-breakTitle">Breakdown</div>
@@ -490,18 +501,16 @@ export default function Dashboard() {
               <div className="ttd-note">
                 <div className="ttd-noteTitle">Next wiring later</div>
                 <div className="ttd-noteText">
-                  We will fetch subscription plan and billing cadence from the Zoho CRM custom module. Paystack keys will be
-                  managed in Settings and applied to webhook verification.
+                  We will fetch subscription plan and billing cadence from the Zoho CRM custom module. Paystack keys will be managed in Settings and applied to webhook verification.
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* Right column */}
-          <Card className="ttd-panel ttd-accent">
+          <Card className="ttd-panel ttd-card--accent">
             <div className="ttd-panelHeader">
               <div className="ttd-panelTitle">Recent Batches</div>
-              <Select
+              <PremiumSelect
                 ariaLabel="Batch selector"
                 value={selectedBatch}
                 onChange={setSelectedBatch}
@@ -561,7 +570,6 @@ export default function Dashboard() {
 
 const css = `
   :root{
-    --bg: #060710;
     --stroke: rgba(255,255,255,0.10);
     --stroke2: rgba(255,255,255,0.08);
     --text: rgba(255,255,255,0.92);
@@ -570,9 +578,8 @@ const css = `
 
     --purple: #a855f7;
     --purple2:#8b5cf6;
-    --purpleGlow: rgba(168,85,247,0.30);
 
-    --shadow: 0 22px 80px rgba(0,0,0,0.58);
+    --shadow: 0 18px 70px rgba(0,0,0,0.58);
     --inner: inset 0 0 0 1px rgba(0,0,0,0.28);
 
     --r1: 20px;
@@ -582,8 +589,8 @@ const css = `
   *{ box-sizing:border-box; }
 
   .ttd-page{
-    color: var(--text);
     width: 100%;
+    color: var(--text);
   }
 
   .ttd-wrap{
@@ -591,35 +598,30 @@ const css = `
     padding: 14px 18px 24px;
   }
 
-  /* Cards match sidebar vibe: deep glass + purple bloom */
+  /* Match sidebar: dark glass + subtle purple bloom, not flat purple blocks */
   .ttd-card{
     border: 1px solid var(--stroke);
     border-radius: var(--r1);
-    background: rgba(255,255,255,0.055);
+    background:
+      radial-gradient(900px 560px at 14% 8%, rgba(168,85,247,0.12), transparent 55%),
+      rgba(255,255,255,0.045);
     backdrop-filter: blur(18px);
     box-shadow: var(--shadow);
     position: relative;
     overflow: hidden;
   }
 
-  .ttd-accent::before{
-    content: "";
-    position: absolute;
-    inset: -2px;
-    pointer-events: none;
+  .ttd-card--accent::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
     background:
-      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.26), transparent 55%),
-      radial-gradient(900px 560px at 92% 18%, rgba(168,85,247,0.12), transparent 60%),
-      radial-gradient(900px 600px at 30% 115%, rgba(255,255,255,0.05), transparent 62%);
-    opacity: 0.95;
+      radial-gradient(900px 520px at 12% 10%, rgba(168,85,247,0.16), transparent 55%),
+      radial-gradient(900px 520px at 92% 20%, rgba(168,85,247,0.07), transparent 62%);
+    opacity: 1;
   }
-  .ttd-accent > *{ position: relative; z-index: 1; }
-
-  .ttd-accentInner{
-    background:
-      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.18), transparent 55%),
-      rgba(0,0,0,0.18);
-  }
+  .ttd-card > *{ position: relative; z-index: 1; }
 
   .ttd-grid{ display:grid; gap: 12px; }
   .ttd-grid--hero{ grid-template-columns: 2fr 2fr 1fr 1fr; }
@@ -641,7 +643,7 @@ const css = `
   .ttd-panel{ padding: 16px; }
   .ttd-panelHeader{ display:flex; align-items:center; justify-content:space-between; gap: 12px; }
   .ttd-panelTitle{ font-size: 16px; font-weight: 980; letter-spacing: -0.02em; }
-  .ttd-panelSelect{ width: 220px; }
+  .ttd-panelSelect{ width: 240px; }
 
   .ttd-workList{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
   .ttd-workItem{
@@ -667,13 +669,12 @@ const css = `
     border-radius: var(--r2);
     border: 1px solid rgba(255,255,255,0.10);
     background:
-      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.18), transparent 55%),
-      rgba(0,0,0,0.22);
+      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.12), transparent 55%),
+      rgba(0,0,0,0.20);
     box-shadow: var(--inner);
     padding: 14px;
   }
 
-  /* Row 1: filters only */
   .ttd-filterRow{
     display:grid;
     grid-template-columns: 260px 260px 260px;
@@ -681,7 +682,6 @@ const css = `
     align-items:end;
   }
 
-  /* Row 2: chips + Paystack below filters */
   .ttd-underRow{
     margin-top: 12px;
     display:flex;
@@ -692,13 +692,7 @@ const css = `
     padding-top: 12px;
   }
 
-  .ttd-chipRail{
-    display:flex;
-    align-items:center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
+  .ttd-chipRail{ display:flex; align-items:center; gap: 8px; flex-wrap: wrap; }
   .ttd-paystackBtn{ white-space: nowrap; }
 
   .ttd-controlLabel{
@@ -719,7 +713,7 @@ const css = `
     border-radius: var(--r2);
     border: 1px solid var(--stroke2);
     background:
-      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.12), transparent 55%),
+      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.10), transparent 55%),
       rgba(0,0,0,0.18);
     box-shadow: var(--inner);
     padding: 14px;
@@ -732,6 +726,7 @@ const css = `
     margin-top: 12px;
     border-radius: var(--r2);
     border: 1px solid var(--stroke2);
+    background: rgba(0,0,0,0.18);
     box-shadow: var(--inner);
     padding: 14px;
   }
@@ -756,7 +751,7 @@ const css = `
     height: 100%;
     border-radius: 999px;
     background: linear-gradient(90deg, rgba(168,85,247,0.22), rgba(168,85,247,0.95));
-    box-shadow: 0 0 26px rgba(168,85,247,0.35);
+    box-shadow: 0 0 26px rgba(168,85,247,0.28);
   }
 
   .ttd-note{
@@ -781,13 +776,12 @@ const css = `
   }
 
   .ttd-batchList{ margin-top: 10px; display:flex; flex-direction:column; gap: 10px; }
+
   .ttd-batchRow{
     width: 100%;
     border-radius: var(--r2);
     border: 1px solid var(--stroke2);
-    background:
-      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.12), transparent 60%),
-      rgba(0,0,0,0.18);
+    background: rgba(0,0,0,0.18);
     box-shadow: var(--inner);
     padding: 14px;
     display:grid;
@@ -798,7 +792,7 @@ const css = `
     text-align:left;
     color: inherit;
   }
-  .ttd-batchRow:hover{ background: rgba(0,0,0,0.34); }
+  .ttd-batchRow:hover{ background: rgba(0,0,0,0.30); }
   .ttd-batchRow--active{ outline: 2px solid rgba(168,85,247,0.22); }
 
   .ttd-batchName{ font-weight: 980; }
@@ -856,26 +850,28 @@ const css = `
     height: 40px;
     padding: 0 14px;
     border-radius: 14px;
-    border: 1px solid var(--stroke2);
+    border: 1px solid rgba(255,255,255,0.10);
     font-weight: 980;
     font-size: 13px;
     cursor:pointer;
     transition: transform 120ms ease, background 120ms ease, border 120ms ease;
+    box-shadow: var(--inner);
   }
   .ttd-btn:active{ transform: scale(0.99); }
+
   .ttd-btn--primary{
     border-color: rgba(168,85,247,0.30);
     background: linear-gradient(180deg, rgba(168,85,247,0.95), rgba(139,92,246,0.88));
     color: white;
-    box-shadow: 0 14px 42px rgba(168,85,247,0.28);
+    box-shadow: 0 14px 42px rgba(168,85,247,0.22);
   }
   .ttd-btn--primary:hover{
     background: linear-gradient(180deg, rgba(168,85,247,1), rgba(139,92,246,0.95));
   }
+
   .ttd-btn--dark{
     background: rgba(0,0,0,0.30);
     color: rgba(255,255,255,0.86);
-    box-shadow: var(--inner);
   }
   .ttd-btn--dark:hover{ background: rgba(0,0,0,0.42); }
 
@@ -902,9 +898,9 @@ const css = `
     color: rgba(253,164,175,0.95);
   }
 
-  /* Premium dropdown: black surface + purple accents */
-  .ttd-selectWrap{ position: relative; }
-  .ttd-select{
+  /* PremiumSelect */
+  .ttd-psWrap{ position: relative; width: 100%; }
+  .ttd-psBtn{
     width: 100%;
     height: 40px;
     border-radius: 14px;
@@ -913,29 +909,58 @@ const css = `
     color: rgba(220,190,255,0.92);
     font-weight: 950;
     font-size: 13px;
-    padding: 0 36px 0 12px;
-    outline: none;
+    padding: 0 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 10px;
+    cursor:pointer;
     box-shadow: var(--inner);
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
   }
-  .ttd-select:focus{
-    border-color: rgba(168,85,247,0.35);
+  .ttd-psBtn:hover{ background: rgba(0,0,0,0.64); }
+  .ttd-psBtn--open{
+    border-color: rgba(168,85,247,0.38);
     box-shadow: var(--inner), 0 0 0 3px rgba(168,85,247,0.16);
   }
-  .ttd-select option{
-    background: #000;
-    color: rgba(220,190,255,0.92);
-    font-weight: 850;
-  }
-  .ttd-selectChevron{
+  .ttd-psText{ overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ttd-psChevron{ color: rgba(220,190,255,0.86); display:flex; }
+
+  .ttd-psMenu{
     position:absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: rgba(220,190,255,0.82);
-    pointer-events:none;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    border-radius: 14px;
+    border: 1px solid rgba(168,85,247,0.22);
+    background: rgba(0,0,0,0.92);
+    box-shadow: 0 18px 60px rgba(0,0,0,0.70);
+    overflow:hidden;
+    z-index: 50;
+  }
+
+  .ttd-psItem{
+    width:100%;
+    border:0;
+    background: transparent;
+    color: rgba(220,190,255,0.90);
+    padding: 10px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    cursor:pointer;
+    font-weight: 900;
+    font-size: 13px;
+  }
+  .ttd-psItem:hover{
+    background: rgba(168,85,247,0.14);
+  }
+  .ttd-psItem--active{
+    background: rgba(168,85,247,0.22);
+    color: rgba(255,255,255,0.95);
+  }
+  .ttd-psCheck{
+    color: rgba(255,255,255,0.90);
+    font-weight: 950;
   }
 
   @media (max-width: 1280px){
