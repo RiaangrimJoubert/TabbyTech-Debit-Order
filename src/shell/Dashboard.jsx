@@ -3,10 +3,11 @@ import React, { useEffect, useMemo, useState } from "react";
 
 /*
   TabbyTech Dashboard (UI-only)
-  - Premium dark glass UI (self-contained CSS, no Tailwind required)
-  - Subscription tracking: monthly vs annual, counts, MRR, ARR, breakdown widget
-  - Persist key UI state to localStorage (search, selected batch, subscription view, range, breakdown metric)
-  - Dropdowns: black background with purple text accents
+  Focus:
+  - Premium purple glass tone consistent with sidebar
+  - Subscription tracking control bar aligned and tidy (no side-floating chips)
+  - Dropdowns: black background + purple accents
+  - localStorage persistence for key UI state
 */
 
 const LS = {
@@ -87,9 +88,15 @@ function IconBell() {
   );
 }
 
-function Button({ variant = "primary", children, onClick, type = "button", title, style }) {
+function Button({ variant = "primary", children, onClick, type = "button", title, className, style }) {
   return (
-    <button type={type} className={cx("tt-btn", `tt-btn--${variant}`)} onClick={onClick} title={title} style={style}>
+    <button
+      type={type}
+      className={cx("tt-btn", `tt-btn--${variant}`, className)}
+      onClick={onClick}
+      title={title}
+      style={style}
+    >
       {children}
     </button>
   );
@@ -99,9 +106,9 @@ function Pill({ children, tone = "purple" }) {
   return <span className={cx("tt-pill", `tt-pill--${tone}`)}>{children}</span>;
 }
 
-function Card({ children, className, style }) {
+function Card({ children, className, accent = false, style }) {
   return (
-    <div className={cx("tt-card", className)} style={style}>
+    <div className={cx("tt-card", accent && "tt-card--accent", className)} style={style}>
       {children}
     </div>
   );
@@ -110,12 +117,7 @@ function Card({ children, className, style }) {
 function Select({ value, onChange, options, ariaLabel, className }) {
   return (
     <div className={cx("tt-selectWrap", className)}>
-      <select
-        className="tt-select"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={ariaLabel}
-      >
+      <select className="tt-select" value={value} onChange={(e) => onChange(e.target.value)} aria-label={ariaLabel}>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -148,12 +150,12 @@ function Progress({ value }) {
 
 export default function Dashboard() {
   const [search, setSearch] = useLocalStorageState(LS.search, "");
-  const [range, setRange] = useLocalStorageState(LS.range, "30d");
-  const [subView, setSubView] = useLocalStorageState(LS.subView, "all"); // all | monthly | annual
+  const [range, setRange] = useLocalStorageState(LS.range, "90d");
+  const [subView, setSubView] = useLocalStorageState(LS.subView, "monthly"); // all | monthly | annual
   const [metric, setMetric] = useLocalStorageState(LS.metric, "revenue"); // revenue | counts
-  const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "FEB-05-AM");
+  const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "FEB-03-PM");
 
-  // UI-only mock data, structured for later Zoho CRM sync
+  // UI-only mock data shaped for future Zoho CRM sync
   const data = useMemo(() => {
     const monthlyActive = 86;
     const annualActive = 19;
@@ -204,21 +206,46 @@ export default function Dashboard() {
 
   const scope = useMemo(() => {
     if (subView === "monthly") {
-      return { label: "Monthly subscriptions", active: data.monthlyActive, mrr: data.monthlyMRR, arr: data.monthlyMRR * 12 };
+      return {
+        label: "Monthly subscriptions",
+        active: data.monthlyActive,
+        mrr: data.monthlyMRR,
+        arr: data.monthlyMRR * 12,
+      };
     }
     if (subView === "annual") {
-      return { label: "Annual subscriptions", active: data.annualActive, mrr: data.annualARR / 12, arr: data.annualARR };
+      return {
+        label: "Annual subscriptions",
+        active: data.annualActive,
+        mrr: data.annualARR / 12,
+        arr: data.annualARR,
+      };
     }
-    return { label: "All subscriptions", active: data.monthlyActive + data.annualActive, mrr: data.totalMRR, arr: data.totalARR };
+    return {
+      label: "All subscriptions",
+      active: data.monthlyActive + data.annualActive,
+      mrr: data.totalMRR,
+      arr: data.totalARR,
+    };
   }, [data, subView]);
 
-  const chips = useMemo(() => {
-    if (subView === "monthly") return [<Pill key="m1">New 7d: {data.health.monthly.new7d}</Pill>, <Pill key="m2" tone="danger">Churn 7d: {data.health.monthly.churn7d}</Pill>];
-    if (subView === "annual") return [<Pill key="a1">Renewals 30d: {data.health.annual.renew30d}</Pill>, <Pill key="a2" tone="neutral">New 30d: {data.health.annual.new30d}</Pill>];
+  const controlChips = useMemo(() => {
+    if (subView === "monthly") {
+      return [
+        { text: `New 7d: ${data.health.monthly.new7d}`, tone: "purple" },
+        { text: `Churn 7d: ${data.health.monthly.churn7d}`, tone: "danger" },
+      ];
+    }
+    if (subView === "annual") {
+      return [
+        { text: `Renewals 30d: ${data.health.annual.renew30d}`, tone: "purple" },
+        { text: `New 30d: ${data.health.annual.new30d}`, tone: "neutral" },
+      ];
+    }
     return [
-      <Pill key="x1">New 7d: {data.health.all.new7d}</Pill>,
-      <Pill key="x2" tone="neutral">At risk 14d: {data.health.all.risk14d}</Pill>,
-      <Pill key="x3" tone="danger">Churn 7d: {data.health.all.churn7d}</Pill>,
+      { text: `New 7d: ${data.health.all.new7d}`, tone: "purple" },
+      { text: `At risk 14d: ${data.health.all.risk14d}`, tone: "neutral" },
+      { text: `Churn 7d: ${data.health.all.churn7d}`, tone: "danger" },
     ];
   }, [data, subView]);
 
@@ -260,12 +287,11 @@ export default function Dashboard() {
   return (
     <div className="tt-page">
       <style>{css}</style>
-
       <div className="tt-bg" aria-hidden="true" />
 
       <div className="tt-container">
         {/* Top bar */}
-        <Card className="tt-topbar">
+        <Card className="tt-topbar" accent>
           <div className="tt-topbarLeft">
             <div className="tt-brandTiny">TabbyTech</div>
             <div className="tt-title">Dashboard</div>
@@ -284,7 +310,7 @@ export default function Dashboard() {
               />
             </div>
 
-            <button className="tt-iconBtn" title="Notifications">
+            <button className="tt-iconBtn" title="Notifications" type="button">
               <IconBell />
             </button>
 
@@ -302,25 +328,25 @@ export default function Dashboard() {
         <div className="tt-shell">
           {/* Hero stats */}
           <div className="tt-grid tt-grid--hero">
-            <Card className="tt-stat">
+            <Card className="tt-stat" accent>
               <div className="tt-statLabel">Active Debit Orders</div>
               <div className="tt-statValue">{data.top.activeDebitOrders.toLocaleString("en-ZA")}</div>
               <div className="tt-statSub">Currently running</div>
             </Card>
 
-            <Card className="tt-stat">
+            <Card className="tt-stat" accent>
               <div className="tt-statLabel">Next Run</div>
               <div className="tt-statValue">{data.top.nextRun}</div>
               <div className="tt-statSub">{data.top.queued} items queued</div>
             </Card>
 
-            <Card className="tt-stat">
+            <Card className="tt-stat" accent>
               <div className="tt-statLabel">Exceptions</div>
               <div className="tt-statValue">{data.top.exceptions}</div>
               <div className="tt-statSub">Needs attention</div>
             </Card>
 
-            <Card className="tt-stat">
+            <Card className="tt-stat" accent>
               <div className="tt-statLabel">Collections (MTD)</div>
               <div className="tt-statValue">{formatZAR(data.top.collectionsMTD)}</div>
               <div className="tt-statSub">Scheduled total</div>
@@ -329,7 +355,7 @@ export default function Dashboard() {
 
           {/* Monthly and annual summary cards */}
           <div className="tt-grid tt-grid--subsummary">
-            <Card className="tt-subCard">
+            <Card className="tt-subCard" accent>
               <div className="tt-subHeader">
                 <div>
                   <div className="tt-subTitle">Monthly Subscriptions</div>
@@ -341,11 +367,13 @@ export default function Dashboard() {
                     <Pill tone="danger">Churn 7d: {data.health.monthly.churn7d}</Pill>
                   </div>
                 </div>
-                <Button variant="primary" onClick={() => setSubView("monthly")}>Open</Button>
+                <Button variant="primary" onClick={() => setSubView("monthly")}>
+                  Open
+                </Button>
               </div>
             </Card>
 
-            <Card className="tt-subCard">
+            <Card className="tt-subCard" accent>
               <div className="tt-subHeader">
                 <div>
                   <div className="tt-subTitle">Annual Subscriptions</div>
@@ -357,7 +385,9 @@ export default function Dashboard() {
                     <Pill tone="neutral">New 30d: {data.health.annual.new30d}</Pill>
                   </div>
                 </div>
-                <Button variant="primary" onClick={() => setSubView("annual")}>Open</Button>
+                <Button variant="primary" onClick={() => setSubView("annual")}>
+                  Open
+                </Button>
               </div>
             </Card>
           </div>
@@ -365,11 +395,9 @@ export default function Dashboard() {
           {/* Bottom grid */}
           <div className="tt-grid tt-grid--bottom">
             {/* Left column */}
-            <Card className="tt-panel">
+            <Card className="tt-panel" accent>
               <div className="tt-panelHeader">
-                <div>
-                  <div className="tt-panelTitle">Today’s Workflow</div>
-                </div>
+                <div className="tt-panelTitle">Today’s Workflow</div>
                 <Select
                   ariaLabel="Workflow selector"
                   value={"subscription-tracking"}
@@ -417,7 +445,8 @@ export default function Dashboard() {
                   This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.
                 </div>
 
-                <div className="tt-controls">
+                {/* Clean single-line control bar (no side-floating anything) */}
+                <div className="tt-controlsLine">
                   <div className="tt-control">
                     <div className="tt-controlLabel">View</div>
                     <Select
@@ -425,7 +454,7 @@ export default function Dashboard() {
                       value={subView}
                       onChange={setSubView}
                       options={[
-                        { value: "all", label: "All subscriptions" },
+                        { value: "all", label: "All" },
                         { value: "monthly", label: "Monthly only" },
                         { value: "annual", label: "Annual only" },
                       ]}
@@ -460,10 +489,19 @@ export default function Dashboard() {
                     />
                   </div>
 
-                  <div className="tt-actionsRight">
-                    <div className="tt-chipRow">{chips}</div>
+                  {/* Right side stays inside the box, aligned, tidy */}
+                  <div className="tt-controlRight">
+                    <div className="tt-chipRail">
+                      {controlChips.map((c) => (
+                        <Pill key={c.text} tone={c.tone}>
+                          {c.text}
+                        </Pill>
+                      ))}
+                    </div>
+
                     <Button
                       variant="dark"
+                      className="tt-paystackBtn"
                       onClick={() => alert("UI-only: This will open Settings > Paystack to paste API keys later.")}
                       title="Planned Settings integration for Paystack keys"
                     >
@@ -485,7 +523,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="tt-breakdown">
+                <div className="tt-breakdown" data-accent="true">
                   <div className="tt-breakHeader">
                     <div>
                       <div className="tt-breakTitle">Breakdown</div>
@@ -523,11 +561,9 @@ export default function Dashboard() {
             </Card>
 
             {/* Right column */}
-            <Card className="tt-panel">
+            <Card className="tt-panel" accent>
               <div className="tt-panelHeader">
-                <div>
-                  <div className="tt-panelTitle">Recent Batches</div>
-                </div>
+                <div className="tt-panelTitle">Recent Batches</div>
                 <Select
                   ariaLabel="Batch selector"
                   value={selectedBatch}
@@ -579,22 +615,25 @@ export default function Dashboard() {
 const css = `
   :root{
     --bg:#05060a;
-    --panel: rgba(255,255,255,0.06);
-    --panel2: rgba(0,0,0,0.35);
     --stroke: rgba(255,255,255,0.10);
     --stroke2: rgba(255,255,255,0.08);
     --text: rgba(255,255,255,0.92);
     --muted: rgba(255,255,255,0.62);
     --muted2: rgba(255,255,255,0.48);
+
     --purple: #a855f7;
     --purple2:#8b5cf6;
-    --shadow: 0 20px 70px rgba(0,0,0,0.55);
+    --purpleGlow: rgba(168,85,247,0.24);
+
+    --shadow: 0 22px 80px rgba(0,0,0,0.58);
     --inner: inset 0 0 0 1px rgba(0,0,0,0.25);
+
     --radius: 20px;
     --radius2: 16px;
   }
 
   *{ box-sizing:border-box; }
+
   .tt-page{
     min-height:100vh;
     background: var(--bg);
@@ -606,10 +645,10 @@ const css = `
     position: fixed;
     inset: 0;
     pointer-events: none;
-    opacity: 0.85;
+    opacity: 0.9;
     background:
-      radial-gradient(900px 520px at 16% 14%, rgba(168,85,247,0.25), transparent 60%),
-      radial-gradient(900px 520px at 78% 18%, rgba(168,85,247,0.14), transparent 62%),
+      radial-gradient(1100px 620px at 16% 12%, rgba(168,85,247,0.30), transparent 60%),
+      radial-gradient(980px 560px at 76% 16%, rgba(168,85,247,0.16), transparent 62%),
       radial-gradient(900px 700px at 50% 110%, rgba(255,255,255,0.05), transparent 55%);
   }
 
@@ -621,15 +660,22 @@ const css = `
     padding: 14px 20px 26px;
   }
 
+  /* Premium card base plus sidebar-like glow when accent=true */
   .tt-card{
     border: 1px solid var(--stroke);
     border-radius: var(--radius);
     background:
-      radial-gradient(1200px 600px at 30% -20%, rgba(168,85,247,0.18), transparent 55%),
-      radial-gradient(900px 500px at 120% 10%, rgba(168,85,247,0.10), transparent 60%),
-      var(--panel);
+      radial-gradient(900px 520px at 10% -10%, rgba(255,255,255,0.06), transparent 55%),
+      rgba(255,255,255,0.06);
     backdrop-filter: blur(18px);
     box-shadow: var(--shadow);
+  }
+  .tt-card--accent{
+    background:
+      radial-gradient(1100px 640px at 0% 0%, rgba(168,85,247,0.26), transparent 55%),
+      radial-gradient(900px 520px at 105% 12%, rgba(168,85,247,0.10), transparent 58%),
+      radial-gradient(900px 520px at 20% 115%, rgba(255,255,255,0.05), transparent 62%),
+      rgba(255,255,255,0.06);
   }
 
   .tt-topbar{
@@ -641,8 +687,8 @@ const css = `
   }
 
   .tt-topbarLeft{ display:flex; flex-direction:column; gap:2px; }
-  .tt-brandTiny{ font-size:12px; font-weight:700; color: var(--muted); }
-  .tt-title{ font-size:20px; font-weight:900; letter-spacing:-0.02em; }
+  .tt-brandTiny{ font-size:12px; font-weight:800; color: var(--muted); }
+  .tt-title{ font-size:20px; font-weight:950; letter-spacing:-0.02em; }
 
   .tt-topbarRight{
     display:flex;
@@ -658,7 +704,7 @@ const css = `
     height: 40px;
     border-radius: 14px;
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.30);
+    background: rgba(0,0,0,0.28);
     box-shadow: var(--inner);
     display:flex;
     align-items:center;
@@ -677,7 +723,7 @@ const css = `
     border: 0;
     outline: none;
     background: transparent;
-    color: rgba(255,255,255,0.88);
+    color: rgba(255,255,255,0.90);
     font-size: 13px;
     padding-right: 12px;
   }
@@ -688,7 +734,7 @@ const css = `
     width: 40px;
     border-radius: 14px;
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.30);
+    background: rgba(0,0,0,0.28);
     box-shadow: var(--inner);
     color: rgba(255,255,255,0.78);
     display:flex;
@@ -696,7 +742,7 @@ const css = `
     justify-content:center;
     cursor:pointer;
   }
-  .tt-iconBtn:hover{ background: rgba(0,0,0,0.42); }
+  .tt-iconBtn:hover{ background: rgba(0,0,0,0.40); }
 
   .tt-user{
     display:flex;
@@ -705,7 +751,7 @@ const css = `
     padding: 8px 10px;
     border-radius: 16px;
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.24);
+    background: rgba(0,0,0,0.22);
   }
   .tt-avatar{
     height: 34px;
@@ -716,10 +762,10 @@ const css = `
     display:flex;
     align-items:center;
     justify-content:center;
-    font-weight: 900;
+    font-weight: 950;
     letter-spacing: -0.02em;
   }
-  .tt-userName{ font-weight: 900; font-size: 13px; line-height: 1.1; }
+  .tt-userName{ font-weight: 950; font-size: 13px; line-height: 1.1; }
   .tt-userRole{ font-size: 11px; color: var(--muted2); margin-top: 2px; }
 
   .tt-shell{
@@ -736,28 +782,27 @@ const css = `
   .tt-grid--bottom{ grid-template-columns: 1.2fr 0.8fr; margin-top: 12px; align-items: start; }
 
   .tt-stat{ padding: 16px; }
-  .tt-statLabel{ font-size: 13px; font-weight: 800; color: var(--muted); }
-  .tt-statValue{ margin-top: 10px; font-size: 32px; font-weight: 950; letter-spacing: -0.03em; }
+  .tt-statLabel{ font-size: 13px; font-weight: 850; color: var(--muted); }
+  .tt-statValue{ margin-top: 10px; font-size: 32px; font-weight: 980; letter-spacing: -0.03em; }
   .tt-statSub{ margin-top: 4px; font-size: 13px; color: var(--muted2); }
 
   .tt-subCard{ padding: 16px; }
   .tt-subHeader{ display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
-  .tt-subTitle{ font-size: 13px; font-weight: 800; color: var(--muted); }
-  .tt-subValue{ margin-top: 6px; font-size: 24px; font-weight: 950; letter-spacing: -0.02em; }
+  .tt-subTitle{ font-size: 13px; font-weight: 850; color: var(--muted); }
+  .tt-subValue{ margin-top: 6px; font-size: 24px; font-weight: 980; letter-spacing: -0.02em; }
   .tt-dot{ color: rgba(255,255,255,0.40); padding: 0 6px; }
   .tt-chipRow{ margin-top: 12px; display:flex; gap: 8px; flex-wrap: wrap; }
 
   .tt-panel{ padding: 16px; }
   .tt-panelHeader{ display:flex; align-items:center; justify-content:space-between; gap: 12px; }
-  .tt-panelTitle{ font-size: 16px; font-weight: 950; letter-spacing: -0.02em; }
-
+  .tt-panelTitle{ font-size: 16px; font-weight: 980; letter-spacing: -0.02em; }
   .tt-panelSelect{ width: 220px; }
 
   .tt-workList{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
   .tt-workItem{
     border-radius: var(--radius2);
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.26);
+    background: rgba(0,0,0,0.22);
     box-shadow: var(--inner);
     padding: 14px;
     display:flex;
@@ -765,33 +810,55 @@ const css = `
     justify-content:space-between;
     gap: 12px;
   }
-  .tt-workTitle{ font-weight: 950; font-size: 14px; }
+  .tt-workTitle{ font-weight: 980; font-size: 14px; }
   .tt-workSub{ margin-top: 4px; font-size: 12px; color: var(--muted2); }
 
   .tt-subTrack{ margin-top: 16px; }
-  .tt-subTrackTitle{ font-size: 14px; font-weight: 950; }
+  .tt-subTrackTitle{ font-size: 14px; font-weight: 980; }
   .tt-subTrackDesc{ margin-top: 6px; font-size: 13px; color: var(--muted2); }
 
-  .tt-controls{
+  /* Subscription tracking tidy control bar */
+  .tt-controlsLine{
     margin-top: 14px;
     border-radius: var(--radius2);
-    border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.26);
+    border: 1px solid rgba(255,255,255,0.10);
+    background:
+      radial-gradient(900px 520px at 0% 0%, rgba(168,85,247,0.18), transparent 55%),
+      rgba(0,0,0,0.22);
     box-shadow: var(--inner);
     padding: 14px;
-    display:grid;
+    display: grid;
     grid-template-columns: 220px 220px 220px 1fr;
     gap: 12px;
-    align-items:end;
+    align-items: end;
   }
-  .tt-controlLabel{ font-size: 11px; font-weight: 800; color: var(--muted2); margin-bottom: 6px; }
 
-  .tt-actionsRight{
+  .tt-controlLabel{
+    font-size: 11px;
+    font-weight: 850;
+    color: var(--muted2);
+    margin-bottom: 6px;
+  }
+
+  .tt-controlRight{
+    display:flex;
+    align-items:flex-end;
+    justify-content:flex-end;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .tt-chipRail{
     display:flex;
     align-items:center;
     justify-content:flex-end;
-    gap: 10px;
-    flex-wrap: wrap;
+    gap: 8px;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .tt-paystackBtn{
+    white-space: nowrap;
   }
 
   .tt-metrics{
@@ -803,31 +870,35 @@ const css = `
   .tt-mini{
     border-radius: var(--radius2);
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.22);
+    background:
+      radial-gradient(900px 520px at 0% 0%, rgba(168,85,247,0.10), transparent 58%),
+      rgba(0,0,0,0.20);
     box-shadow: var(--inner);
     padding: 14px;
   }
-  .tt-miniLabel{ font-size: 11px; font-weight: 800; color: var(--muted2); }
-  .tt-miniValue{ margin-top: 10px; font-size: 22px; font-weight: 950; letter-spacing: -0.02em; }
+  .tt-miniLabel{ font-size: 11px; font-weight: 850; color: var(--muted2); }
+  .tt-miniValue{ margin-top: 10px; font-size: 22px; font-weight: 980; letter-spacing: -0.02em; }
   .tt-miniSub{ margin-top: 6px; font-size: 12px; color: var(--muted2); }
 
   .tt-breakdown{
     margin-top: 12px;
     border-radius: var(--radius2);
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.22);
+    background:
+      radial-gradient(1100px 640px at 0% 0%, rgba(168,85,247,0.16), transparent 55%),
+      rgba(0,0,0,0.20);
     box-shadow: var(--inner);
     padding: 14px;
   }
   .tt-breakHeader{ display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
-  .tt-breakTitle{ font-size: 14px; font-weight: 950; }
+  .tt-breakTitle{ font-size: 14px; font-weight: 980; }
   .tt-breakSub{ margin-top: 4px; font-size: 12px; color: var(--muted2); }
   .tt-breakBadges{ display:flex; gap: 8px; flex-wrap: wrap; justify-content:flex-end; }
   .tt-breakRows{ margin-top: 12px; display:flex; flex-direction:column; gap: 12px; }
   .tt-breakRowTop{ display:flex; align-items:center; justify-content:space-between; gap: 10px; }
-  .tt-breakRowLabel{ font-size: 13px; font-weight: 900; color: rgba(255,255,255,0.86); }
+  .tt-breakRowLabel{ font-size: 13px; font-weight: 950; color: rgba(255,255,255,0.86); }
   .tt-breakRowRight{ display:flex; align-items:center; gap: 10px; }
-  .tt-breakRowValue{ font-weight: 950; font-size: 13px; }
+  .tt-breakRowValue{ font-weight: 980; font-size: 13px; }
 
   .tt-progress{
     margin-top: 10px;
@@ -839,7 +910,7 @@ const css = `
   .tt-progressBar{
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, rgba(168,85,247,0.18), rgba(168,85,247,0.95));
+    background: linear-gradient(90deg, rgba(168,85,247,0.22), rgba(168,85,247,0.95));
     box-shadow: 0 0 26px rgba(168,85,247,0.35);
   }
 
@@ -850,7 +921,7 @@ const css = `
     background: rgba(255,255,255,0.05);
     padding: 12px 14px;
   }
-  .tt-noteTitle{ font-weight: 900; font-size: 13px; }
+  .tt-noteTitle{ font-weight: 950; font-size: 13px; }
   .tt-noteText{ margin-top: 6px; font-size: 13px; color: var(--muted2); }
 
   .tt-tableHead{
@@ -860,7 +931,7 @@ const css = `
     gap: 10px;
     padding: 0 6px;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 850;
     color: var(--muted2);
   }
 
@@ -869,7 +940,9 @@ const css = `
     width: 100%;
     border-radius: var(--radius2);
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.24);
+    background:
+      radial-gradient(900px 520px at 0% 0%, rgba(168,85,247,0.10), transparent 62%),
+      rgba(0,0,0,0.20);
     box-shadow: var(--inner);
     padding: 14px;
     display:grid;
@@ -883,7 +956,7 @@ const css = `
   .tt-batchRow:hover{ background: rgba(0,0,0,0.34); }
   .tt-batchRow--active{ outline: 2px solid rgba(168,85,247,0.22); }
 
-  .tt-batchName{ font-weight: 950; }
+  .tt-batchName{ font-weight: 980; }
   .tt-batchStatus{
     justify-self:start;
     display:inline-flex;
@@ -895,10 +968,10 @@ const css = `
     background: rgba(168,85,247,0.10);
     color: rgba(220,190,255,0.92);
     font-size: 12px;
-    font-weight: 950;
+    font-weight: 980;
     width: fit-content;
   }
-  .tt-batchItems{ justify-self:end; font-weight: 950; }
+  .tt-batchItems{ justify-self:end; font-weight: 980; }
 
   .tt-batchFooter{
     margin-top: 12px;
@@ -911,7 +984,7 @@ const css = `
     justify-content:space-between;
     gap: 12px;
   }
-  .tt-batchFooterTitle{ font-weight: 950; }
+  .tt-batchFooterTitle{ font-weight: 980; }
   .tt-batchFooterSub{ margin-top: 4px; font-size: 12px; color: var(--muted2); }
   .tt-batchFooterBtns{ display:flex; gap: 10px; }
 
@@ -920,7 +993,7 @@ const css = `
     padding: 0 14px;
     border-radius: 14px;
     border: 1px solid var(--stroke2);
-    font-weight: 950;
+    font-weight: 980;
     font-size: 13px;
     cursor:pointer;
     transition: transform 120ms ease, background 120ms ease, border 120ms ease;
@@ -945,14 +1018,14 @@ const css = `
   .tt-pill{
     display:inline-flex;
     align-items:center;
-    gap: 8px;
     padding: 6px 10px;
     border-radius: 999px;
     border: 1px solid rgba(168,85,247,0.22);
     background: rgba(168,85,247,0.10);
     color: rgba(220,190,255,0.92);
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 950;
+    white-space: nowrap;
   }
   .tt-pill--neutral{
     border-color: rgba(255,255,255,0.12);
@@ -972,9 +1045,9 @@ const css = `
     height: 40px;
     border-radius: 14px;
     border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(0,0,0,0.55);
+    background: rgba(0,0,0,0.58);
     color: rgba(220,190,255,0.92);
-    font-weight: 900;
+    font-weight: 950;
     font-size: 13px;
     padding: 0 36px 0 12px;
     outline: none;
@@ -990,7 +1063,7 @@ const css = `
   .tt-select option{
     background: #000;
     color: rgba(220,190,255,0.92);
-    font-weight: 800;
+    font-weight: 850;
   }
   .tt-selectChevron{
     position:absolute;
@@ -1001,12 +1074,24 @@ const css = `
     pointer-events:none;
   }
 
-  /* Desktop-first sizing */
+  /* Responsiveness */
   @media (max-width: 1200px){
     .tt-grid--hero{ grid-template-columns: 1fr 1fr; }
     .tt-grid--subsummary{ grid-template-columns: 1fr; }
     .tt-grid--bottom{ grid-template-columns: 1fr; }
-    .tt-controls{ grid-template-columns: 1fr; }
     .tt-panelSelect{ width: 100%; }
+
+    .tt-controlsLine{
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+    .tt-controlRight{
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .tt-chipRail{
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
   }
 `;
