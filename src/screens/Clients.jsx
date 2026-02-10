@@ -428,12 +428,14 @@ export default function Clients() {
   box-shadow: 0 0 0 6px rgba(124,58,237,0.22);
   
 }
+/* Dropdown list (opened options only) */
 .tt-select option {
   background: #0b0b12;
   color: rgba(168,85,247,0.95);
   font-weight: 700;
 }
 
+/* Selected option */
 .tt-select option:checked {
   background: rgba(124,58,237,0.30);
   color: #ffffff;
