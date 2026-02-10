@@ -138,14 +138,13 @@ export default function Clients() {
   const [toast, setToast] = useState("");
   function showToast(msg) {
     setToast(msg);
-    window.clearTimeout(showToast._t);
+    if (showToast._t) window.clearTimeout(showToast._t);
     showToast._t = window.setTimeout(() => setToast(""), 2200);
   }
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sourceFilter, setSourceFilter] = useState("All"); // All | Zoho | Manual
-
   const [zohoCrmStatus] = useState("Connected"); // UI-only
 
   const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
@@ -179,20 +178,14 @@ export default function Clients() {
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [clients, query, statusFilter, sourceFilter]);
 
+  // Create modal
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    industry: "",
-    notes: "",
-  });
+  const [createForm, setCreateForm] = useState({ name: "", email: "", phone: "", industry: "", notes: "" });
 
   const createDuplicate = useMemo(() => {
     const email = (createForm.email || "").trim().toLowerCase();
     if (!email) return null;
-    const hit = clients.find((c) => (c.primaryEmail || "").trim().toLowerCase() === email);
-    return hit || null;
+    return clients.find((c) => (c.primaryEmail || "").trim().toLowerCase() === email) || null;
   }, [createForm.email, clients]);
 
   function resetCreate() {
@@ -202,7 +195,6 @@ export default function Clients() {
   function createClient() {
     const name = createForm.name.trim();
     const email = createForm.email.trim();
-
     if (!name) return showToast("Client name is required.");
     if (!email) return showToast("Email is required.");
     if (createDuplicate) return showToast("Duplicate detected. Use the existing client or link to Zoho.");
@@ -249,6 +241,7 @@ export default function Clients() {
     showToast("Client created (manual, UI-only).");
   }
 
+  // Edit modal
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
 
@@ -272,7 +265,6 @@ export default function Clients() {
 
     const name = (editForm.name || "").trim();
     const primaryEmail = (editForm.primaryEmail || "").trim();
-
     if (!name) return showToast("Client name is required.");
     if (!primaryEmail) return showToast("Email is required.");
 
@@ -327,6 +319,11 @@ export default function Clients() {
   }
 
   const css = `
+  :root{
+    --tt-purple-1: rgba(124,58,237,0.95);
+    --tt-purple-2: rgba(168,85,247,0.95);
+  }
+
   .tt-clients { width: 100%; height: 100%; color: rgba(255,255,255,0.92); }
   .tt-clientsWrap { height: 100%; display: flex; flex-direction: column; gap: 16px; }
 
@@ -338,6 +335,7 @@ export default function Clients() {
   .tt-actionsRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 
   .tt-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; min-height: 0; flex: 1; }
+
   .tt-glass {
     border-radius: 18px;
     border: 1px solid rgba(255,255,255,0.10);
@@ -373,6 +371,7 @@ export default function Clients() {
 
   .tt-inputWrap { position: relative; flex: 1 1 320px; max-width: 560px; }
   .tt-inputIcon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.75; }
+
   .tt-input {
     width: 100%;
     height: 38px;
@@ -407,48 +406,27 @@ export default function Clients() {
   .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
 
-  /* Purple premium dropdown */
+  /* Purple dropdown (safe, no custom arrow tricks) */
   .tt-select {
     height: 34px;
     border-radius: 999px;
-    border: 1px solid rgba(124,58,237,0.38);
-    background: rgba(124,58,237,0.12);
+    border: 1px solid rgba(124,58,237,0.40);
+    background: rgba(124,58,237,0.14);
     color: rgba(255,255,255,0.92);
-    padding: 0 38px 0 12px;
+    padding: 0 12px;
     font-size: 12px;
     font-weight: 900;
     outline: none;
     cursor: pointer;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
     transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
-
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-
-    background-image:
-      linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.75) 50%),
-      linear-gradient(135deg, rgba(255,255,255,0.75) 50%, transparent 50%),
-      linear-gradient(to right, transparent, transparent);
-    background-position:
-      calc(100% - 18px) 52%,
-      calc(100% - 12px) 52%,
-      100% 0;
-    background-size: 6px 6px, 6px 6px, 2.5em 2.5em;
-    background-repeat: no-repeat;
   }
-  .tt-select:hover {
-    transform: translateY(-1px);
-    border-color: rgba(124,58,237,0.55);
-    background: rgba(124,58,237,0.16);
-    box-shadow: 0 10px 24px rgba(0,0,0,0.28);
-  }
+  .tt-select:hover { transform: translateY(-1px); border-color: rgba(124,58,237,0.60); background: rgba(124,58,237,0.18); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-select:focus { border-color: rgba(124,58,237,0.70); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
-  .tt-select option { background: #0b1020; color: rgba(255,255,255,0.92); }
 
   .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .tt-tableScroll { overflow: auto; height: 100%; }
   .tt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+
   .tt-th {
     position: sticky;
     top: 0;
@@ -463,12 +441,14 @@ export default function Clients() {
     border-bottom: 1px solid rgba(255,255,255,0.08);
     backdrop-filter: blur(10px);
   }
+
   .tt-td {
     padding: 12px 14px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     color: rgba(255,255,255,0.78);
     white-space: nowrap;
   }
+
   .tt-tr { cursor: pointer; transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease; }
   .tt-trHover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); background: rgba(255,255,255,0.04); }
   .tt-trActive { background: rgba(124,58,237,0.14); }
@@ -526,6 +506,7 @@ export default function Clients() {
     letter-spacing: 0.2px;
     text-transform: uppercase;
   }
+
   .tt-kv { display: grid; grid-template-columns: 170px 1fr; gap: 10px; margin-top: 10px; }
   .tt-k { font-size: 12px; color: rgba(255,255,255,0.55); }
   .tt-v { font-size: 13px; color: rgba(255,255,255,0.84); overflow: hidden; text-overflow: ellipsis; }
@@ -550,11 +531,10 @@ export default function Clients() {
     letter-spacing: 0.2px;
   }
   .tt-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.14); }
-  .tt-btn:active { transform: translateY(0px); }
   .tt-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
 
   .tt-btnPrimary {
-    background: linear-gradient(135deg, rgba(124,58,237,0.95), rgba(168,85,247,0.95));
+    background: linear-gradient(135deg, var(--tt-purple-1), var(--tt-purple-2));
     border-color: rgba(124,58,237,0.55);
     box-shadow: 0 14px 34px rgba(124,58,237,0.28);
     color: #fff;
@@ -562,8 +542,6 @@ export default function Clients() {
   .tt-btnPrimary:hover { filter: brightness(1.06); }
 
   .tt-btnDanger { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.35); }
-
-  .tt-muted { color: rgba(255,255,255,0.62); }
 
   /* Modal */
   .tt-modalOverlay {
@@ -761,7 +739,6 @@ export default function Clients() {
                   {filtered.map((c) => {
                     const isActive = c.id === selectedId;
                     const isHover = hoverId === c.id;
-
                     const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
 
                     return (
@@ -786,13 +763,11 @@ export default function Clients() {
                         <td className="tt-td">
                           {c.source === "zoho" ? (
                             <span className="tt-pill tt-pillZoho">
-                              <Dot />
-                              Zoho
+                              <Dot /> Zoho
                             </span>
                           ) : (
                             <span className="tt-pill tt-pillManual">
-                              <Dot />
-                              Manual
+                              <Dot /> Manual
                             </span>
                           )}
                         </td>
@@ -1138,6 +1113,7 @@ export default function Clients() {
   );
 }
 
+/* UI bits */
 function Dot() {
   return (
     <span
@@ -1171,6 +1147,7 @@ function IconPlus({ size = 16 }) {
   );
 }
 
+/* Helpers */
 function currencyZar(n) {
   const val = Number(n || 0);
   return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
@@ -1206,4 +1183,3 @@ function statusBadgeClass(status) {
   if (status === "Risk") return "tt-badge tt-bRisk";
   return "tt-badge tt-bNew";
 }
-s
