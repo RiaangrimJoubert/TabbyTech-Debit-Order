@@ -2,14 +2,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /*
-  TabbyTech Dashboard (UI-only)
-  Premium fixes:
-  - NO duplicate header rendered here (AppShell keeps the premium top header)
-  - Replace ALL native <select> with a custom premium dropdown
-    so there is no browser blue highlight and no ugly default menu
-  - Match sidebar styling: dark glass surfaces + subtle purple glow, not flat purple blocks
-  - Subscription tracking: filters row clean, chips and Paystack row underneath (no overlap)
-  - Persist key UI state to localStorage
+  Fixes in this version:
+  - Subscription tracking: Breakdown dropdown cannot overflow its block (minmax grid + min-width:0)
+  - Premium dropdowns: menu is SOLID black with high contrast text (no washed background)
+  - Visual tone: dashboard glass matches sidebar vibe (dark, crisp, controlled purple glow)
+  - No duplicate header in Dashboard (AppShell owns top header)
+  - localStorage persistence for key UI state
 */
 
 const LS = {
@@ -83,7 +81,7 @@ function Progress({ value }) {
   );
 }
 
-/* Premium dropdown (replaces native select) */
+/* Premium dropdown (no native select, solid black menu) */
 function PremiumSelect({ value, onChange, options, ariaLabel, className = "" }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -243,7 +241,9 @@ export default function Dashboard() {
 
   const breakdown = useMemo(() => {
     const rows = data.planMix.map((p) => {
-      const count = subView === "monthly" ? p.monthlyCount : subView === "annual" ? p.annualCount : p.monthlyCount + p.annualCount;
+      const count =
+        subView === "monthly" ? p.monthlyCount : subView === "annual" ? p.annualCount : p.monthlyCount + p.annualCount;
+
       const mrr =
         subView === "monthly"
           ? p.monthlyMRR
@@ -259,7 +259,11 @@ export default function Dashboard() {
     return rows
       .map((r) => {
         const basis = metric === "revenue" ? r.mrr : r.count;
-        return { label: r.label, pct: (basis / denom) * 100, value: metric === "revenue" ? formatZAR(r.mrr) : String(r.count) };
+        return {
+          label: r.label,
+          pct: (basis / denom) * 100,
+          value: metric === "revenue" ? formatZAR(r.mrr) : String(r.count),
+        };
       })
       .sort((a, b) => b.pct - a.pct);
   }, [data, subView, metric]);
@@ -274,7 +278,6 @@ export default function Dashboard() {
     <div className="ttd-page">
       <style>{css}</style>
 
-      {/* AppShell renders the premium header. Dashboard renders content only. */}
       <div className="ttd-wrap">
         <div className="ttd-grid ttd-grid--hero">
           <Card className="ttd-stat ttd-card--accent">
@@ -391,7 +394,6 @@ export default function Dashboard() {
               </div>
 
               <div className="ttd-subBox">
-                {/* Row 1: filters only */}
                 <div className="ttd-filterRow">
                   <div className="ttd-control">
                     <div className="ttd-controlLabel">View</div>
@@ -436,7 +438,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Row 2: chips + Paystack underneath (no overlap, no ugly behind-items) */}
                 <div className="ttd-underRow">
                   <div className="ttd-chipRail">
                     {controlChips.map((c) => (
@@ -470,7 +471,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="ttd-breakdown">
+              <div className="ttd-breakdownCard">
                 <div className="ttd-breakHeader">
                   <div>
                     <div className="ttd-breakTitle">Breakdown</div>
@@ -570,55 +571,51 @@ export default function Dashboard() {
 
 const css = `
   :root{
-    --stroke: rgba(255,255,255,0.10);
-    --stroke2: rgba(255,255,255,0.08);
     --text: rgba(255,255,255,0.92);
     --muted: rgba(255,255,255,0.62);
     --muted2: rgba(255,255,255,0.48);
 
-    --purple: #a855f7;
-    --purple2:#8b5cf6;
+    --stroke: rgba(255,255,255,0.10);
+    --stroke2: rgba(255,255,255,0.08);
 
-    --shadow: 0 18px 70px rgba(0,0,0,0.58);
-    --inner: inset 0 0 0 1px rgba(0,0,0,0.28);
+    --black0: #05050A;
+    --black1: rgba(0,0,0,0.65);
+    --black2: rgba(0,0,0,0.42);
+
+    --purple: #a855f7;
+    --purple2: #8b5cf6;
 
     --r1: 20px;
     --r2: 16px;
+
+    --shadow: 0 18px 70px rgba(0,0,0,0.62);
+    --inner: inset 0 0 0 1px rgba(0,0,0,0.30);
   }
 
-  *{ box-sizing:border-box; }
+  *{ box-sizing: border-box; }
 
-  .ttd-page{
-    width: 100%;
-    color: var(--text);
-  }
+  .ttd-page{ width: 100%; color: var(--text); }
+  .ttd-wrap{ width: 100%; padding: 14px 18px 24px; }
 
-  .ttd-wrap{
-    width: 100%;
-    padding: 14px 18px 24px;
-  }
-
-  /* Match sidebar: dark glass + subtle purple bloom, not flat purple blocks */
+  /* PREMIUM GLASS like sidebar: dark, crisp, controlled purple glow */
   .ttd-card{
     border: 1px solid var(--stroke);
     border-radius: var(--r1);
-    background:
-      radial-gradient(900px 560px at 14% 8%, rgba(168,85,247,0.12), transparent 55%),
-      rgba(255,255,255,0.045);
+    background: rgba(255,255,255,0.045);
     backdrop-filter: blur(18px);
     box-shadow: var(--shadow);
     position: relative;
     overflow: hidden;
   }
-
-  .ttd-card--accent::after{
+  .ttd-card--accent::before{
     content:"";
     position:absolute;
-    inset:0;
+    inset:-2px;
     pointer-events:none;
     background:
-      radial-gradient(900px 520px at 12% 10%, rgba(168,85,247,0.16), transparent 55%),
-      radial-gradient(900px 520px at 92% 20%, rgba(168,85,247,0.07), transparent 62%);
+      radial-gradient(780px 520px at 18% 8%, rgba(168,85,247,0.18), transparent 55%),
+      radial-gradient(720px 520px at 92% 18%, rgba(168,85,247,0.08), transparent 60%),
+      linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.22));
     opacity: 1;
   }
   .ttd-card > *{ position: relative; z-index: 1; }
@@ -643,7 +640,7 @@ const css = `
   .ttd-panel{ padding: 16px; }
   .ttd-panelHeader{ display:flex; align-items:center; justify-content:space-between; gap: 12px; }
   .ttd-panelTitle{ font-size: 16px; font-weight: 980; letter-spacing: -0.02em; }
-  .ttd-panelSelect{ width: 240px; }
+  .ttd-panelSelect{ width: 240px; min-width: 0; }
 
   .ttd-workList{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
   .ttd-workItem{
@@ -668,18 +665,25 @@ const css = `
     margin-top: 14px;
     border-radius: var(--r2);
     border: 1px solid rgba(255,255,255,0.10);
-    background:
-      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.12), transparent 55%),
-      rgba(0,0,0,0.20);
+    background: rgba(0,0,0,0.18);
     box-shadow: var(--inner);
     padding: 14px;
+    overflow: visible;
   }
 
+  /* IMPORTANT: prevents dropdown going past block */
   .ttd-filterRow{
     display:grid;
-    grid-template-columns: 260px 260px 260px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
     align-items:end;
+  }
+  .ttd-control{ min-width: 0; }
+  .ttd-controlLabel{
+    font-size: 11px;
+    font-weight: 850;
+    color: var(--muted2);
+    margin-bottom: 6px;
   }
 
   .ttd-underRow{
@@ -691,16 +695,8 @@ const css = `
     border-top: 1px solid rgba(255,255,255,0.08);
     padding-top: 12px;
   }
-
   .ttd-chipRail{ display:flex; align-items:center; gap: 8px; flex-wrap: wrap; }
   .ttd-paystackBtn{ white-space: nowrap; }
-
-  .ttd-controlLabel{
-    font-size: 11px;
-    font-weight: 850;
-    color: var(--muted2);
-    margin-bottom: 6px;
-  }
 
   .ttd-metrics{
     margin-top: 12px;
@@ -708,13 +704,10 @@ const css = `
     grid-template-columns: 1fr 1fr;
     gap: 12px;
   }
-
   .ttd-mini{
     border-radius: var(--r2);
     border: 1px solid var(--stroke2);
-    background:
-      radial-gradient(900px 560px at 14% 10%, rgba(168,85,247,0.10), transparent 55%),
-      rgba(0,0,0,0.18);
+    background: rgba(0,0,0,0.20);
     box-shadow: var(--inner);
     padding: 14px;
   }
@@ -722,11 +715,11 @@ const css = `
   .ttd-miniValue{ margin-top: 10px; font-size: 22px; font-weight: 980; letter-spacing: -0.02em; }
   .ttd-miniSub{ margin-top: 6px; font-size: 12px; color: var(--muted2); }
 
-  .ttd-breakdown{
+  .ttd-breakdownCard{
     margin-top: 12px;
     border-radius: var(--r2);
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.18);
+    background: rgba(0,0,0,0.20);
     box-shadow: var(--inner);
     padding: 14px;
   }
@@ -751,7 +744,7 @@ const css = `
     height: 100%;
     border-radius: 999px;
     background: linear-gradient(90deg, rgba(168,85,247,0.22), rgba(168,85,247,0.95));
-    box-shadow: 0 0 26px rgba(168,85,247,0.28);
+    box-shadow: 0 0 26px rgba(168,85,247,0.26);
   }
 
   .ttd-note{
@@ -774,14 +767,13 @@ const css = `
     font-weight: 850;
     color: var(--muted2);
   }
-
   .ttd-batchList{ margin-top: 10px; display:flex; flex-direction:column; gap: 10px; }
 
   .ttd-batchRow{
     width: 100%;
     border-radius: var(--r2);
     border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.18);
+    background: rgba(0,0,0,0.20);
     box-shadow: var(--inner);
     padding: 14px;
     display:grid;
@@ -805,7 +797,7 @@ const css = `
     border-radius: 999px;
     border: 1px solid rgba(168,85,247,0.22);
     background: rgba(168,85,247,0.10);
-    color: rgba(220,190,255,0.92);
+    color: rgba(235,220,255,0.92);
     font-size: 12px;
     font-weight: 980;
     width: fit-content;
@@ -834,8 +826,8 @@ const css = `
     height: 38px;
     border-radius: 14px;
     border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(0,0,0,0.45);
-    color: rgba(255,255,255,0.86);
+    background: rgba(0,0,0,0.55);
+    color: rgba(255,255,255,0.90);
     outline: none;
     padding: 0 12px;
     box-shadow: var(--inner);
@@ -861,19 +853,19 @@ const css = `
 
   .ttd-btn--primary{
     border-color: rgba(168,85,247,0.30);
-    background: linear-gradient(180deg, rgba(168,85,247,0.95), rgba(139,92,246,0.88));
+    background: linear-gradient(180deg, rgba(168,85,247,0.98), rgba(139,92,246,0.86));
     color: white;
     box-shadow: 0 14px 42px rgba(168,85,247,0.22);
   }
   .ttd-btn--primary:hover{
-    background: linear-gradient(180deg, rgba(168,85,247,1), rgba(139,92,246,0.95));
+    background: linear-gradient(180deg, rgba(168,85,247,1), rgba(139,92,246,0.92));
   }
 
   .ttd-btn--dark{
-    background: rgba(0,0,0,0.30);
-    color: rgba(255,255,255,0.86);
+    background: rgba(0,0,0,0.34);
+    color: rgba(255,255,255,0.90);
   }
-  .ttd-btn--dark:hover{ background: rgba(0,0,0,0.42); }
+  .ttd-btn--dark:hover{ background: rgba(0,0,0,0.46); }
 
   .ttd-pill{
     display:inline-flex;
@@ -882,7 +874,7 @@ const css = `
     border-radius: 999px;
     border: 1px solid rgba(168,85,247,0.22);
     background: rgba(168,85,247,0.10);
-    color: rgba(220,190,255,0.92);
+    color: rgba(235,220,255,0.92);
     font-size: 12px;
     font-weight: 950;
     white-space: nowrap;
@@ -890,7 +882,7 @@ const css = `
   .ttd-pill--neutral{
     border-color: rgba(255,255,255,0.12);
     background: rgba(255,255,255,0.06);
-    color: rgba(255,255,255,0.75);
+    color: rgba(255,255,255,0.78);
   }
   .ttd-pill--danger{
     border-color: rgba(244,63,94,0.22);
@@ -898,15 +890,15 @@ const css = `
     color: rgba(253,164,175,0.95);
   }
 
-  /* PremiumSelect */
-  .ttd-psWrap{ position: relative; width: 100%; }
+  /* PremiumSelect (SOLID BLACK MENU) */
+  .ttd-psWrap{ position: relative; width: 100%; min-width: 0; }
   .ttd-psBtn{
     width: 100%;
     height: 40px;
     border-radius: 14px;
     border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(0,0,0,0.58);
-    color: rgba(220,190,255,0.92);
+    background: rgba(0,0,0,0.70);
+    color: rgba(235,220,255,0.95);
     font-weight: 950;
     font-size: 13px;
     padding: 0 12px;
@@ -916,14 +908,15 @@ const css = `
     gap: 10px;
     cursor:pointer;
     box-shadow: var(--inner);
+    min-width: 0;
   }
-  .ttd-psBtn:hover{ background: rgba(0,0,0,0.64); }
+  .ttd-psBtn:hover{ background: rgba(0,0,0,0.78); }
   .ttd-psBtn--open{
     border-color: rgba(168,85,247,0.38);
     box-shadow: var(--inner), 0 0 0 3px rgba(168,85,247,0.16);
   }
   .ttd-psText{ overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ttd-psChevron{ color: rgba(220,190,255,0.86); display:flex; }
+  .ttd-psChevron{ color: rgba(235,220,255,0.88); display:flex; }
 
   .ttd-psMenu{
     position:absolute;
@@ -932,17 +925,18 @@ const css = `
     right: 0;
     border-radius: 14px;
     border: 1px solid rgba(168,85,247,0.22);
-    background: rgba(0,0,0,0.92);
-    box-shadow: 0 18px 60px rgba(0,0,0,0.70);
-    overflow:hidden;
-    z-index: 50;
+    background: var(--black0);
+    box-shadow: 0 18px 60px rgba(0,0,0,0.78);
+    overflow: hidden;
+    z-index: 999;
+    max-width: 100%;
   }
 
   .ttd-psItem{
     width:100%;
     border:0;
     background: transparent;
-    color: rgba(220,190,255,0.90);
+    color: rgba(255,255,255,0.92);
     padding: 10px 12px;
     display:flex;
     align-items:center;
@@ -950,18 +944,14 @@ const css = `
     cursor:pointer;
     font-weight: 900;
     font-size: 13px;
+    text-align:left;
   }
-  .ttd-psItem:hover{
-    background: rgba(168,85,247,0.14);
-  }
+  .ttd-psItem:hover{ background: rgba(168,85,247,0.16); }
   .ttd-psItem--active{
-    background: rgba(168,85,247,0.22);
-    color: rgba(255,255,255,0.95);
+    background: rgba(168,85,247,0.24);
+    color: rgba(255,255,255,0.98);
   }
-  .ttd-psCheck{
-    color: rgba(255,255,255,0.90);
-    font-weight: 950;
-  }
+  .ttd-psCheck{ color: rgba(255,255,255,0.95); font-weight: 950; }
 
   @media (max-width: 1280px){
     .ttd-grid--hero{ grid-template-columns: 1fr 1fr; }
