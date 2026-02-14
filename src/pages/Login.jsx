@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+const API_BASE =
+  "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
+
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
@@ -18,7 +21,7 @@ export default function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -29,18 +32,22 @@ export default function Login({ onLogin }) {
         })
       });
 
-      const data = await response.json();
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
-      if (!response.ok || !data.ok) {
-        setError(data?.message || "Login failed. Please try again.");
-        setLoading(false);
+      if (!response.ok || !data || !data.ok) {
+        const msg =
+          (data && data.message) ||
+          `Login failed. Please try again.`;
+        setError(msg);
         return;
       }
 
-      // Basic session storage for now (we will upgrade to JWT next)
       localStorage.setItem("tt_user", JSON.stringify(data.user));
-
-      // Notify parent to switch screens
       onLogin?.(data.user);
     } catch (e) {
       setError("Network error. Please try again.");
@@ -59,23 +66,17 @@ export default function Login({ onLogin }) {
   return (
     <div className="tt-login">
       <div className="tt-login-wrap">
-
-        {/* Brand */}
         <div className="tt-login-brand">
           <img
             src="/tabbytech-logo.png"
             alt="TabbyTech"
             className="tt-login-logo"
           />
-          <div className="tt-login-title">
-            WELCOME TO TABBYTECH
-          </div>
+          <div className="tt-login-title">WELCOME TO TABBYTECH</div>
         </div>
 
-        {/* Login Card */}
         <div className="tt-login-card">
           <div className="tt-login-form-inner">
-
             <input
               className="tt-input"
               value={email}
@@ -132,14 +133,10 @@ export default function Login({ onLogin }) {
                 Forgot password?
               </a>
 
-              <div className="tt-login-tag">
-                TabbyTech Debit Orders
-              </div>
+              <div className="tt-login-tag">TabbyTech Debit Orders</div>
             </div>
-
           </div>
         </div>
-
       </div>
     </div>
   );
