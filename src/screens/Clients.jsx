@@ -1,8 +1,6 @@
-// src/screens/Clients.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 export default function Clients() {
-  // Manual clients are UI-only. Zoho clients are fetched from /api/clients.
   const [clients, setClients] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [hoverId, setHoverId] = useState("");
@@ -18,7 +16,6 @@ export default function Clients() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [sourceFilter, setSourceFilter] = useState("All"); // All | Zoho | Manual
 
-  // CRM sync states
   const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
@@ -58,7 +55,6 @@ export default function Clients() {
   }, [clients, query, statusFilter, sourceFilter]);
 
   async function syncFromZoho({ silent = false } = {}) {
-    // Cancel any prior in-flight request
     if (inFlight.current) {
       try {
         inFlight.current.abort();
@@ -77,7 +73,7 @@ export default function Clients() {
       setSyncing(true);
       setZohoCrmStatus("Loading");
 
-      const { clients: zohoClients } = await fetchLiveClients({
+      const { clients: zohoClients, meta } = await fetchLiveClients({
         signal: controller.signal,
         page: 1,
         perPage: 200,
@@ -87,7 +83,6 @@ export default function Clients() {
         const manual = prev.filter((c) => c.source === "manual");
         const next = [...zohoClients, ...manual];
 
-        // Keep selection stable if possible
         const stillExists = next.some((c) => c.id === selectedId);
         if (!stillExists) {
           const first = next[0]?.id || "";
@@ -96,6 +91,11 @@ export default function Clients() {
 
         return next;
       });
+
+      // If meta indicates success but no items, surface a subtle professional hint
+      if (zohoClients.length === 0 && meta?.hint) {
+        setSyncError(meta.hint);
+      }
 
       setZohoCrmStatus("Connected");
       if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
@@ -113,7 +113,6 @@ export default function Clients() {
     }
   }
 
-  // Load once on mount
   useEffect(() => {
     syncFromZoho({ silent: true });
     return () => {
@@ -526,7 +525,6 @@ export default function Clients() {
     max-width: 420px;
   }
 
-  /* Premium loading skeletons (additive only, does not alter existing layout) */
   .tt-skelRow {
     height: 14px;
     border-radius: 999px;
@@ -688,8 +686,8 @@ export default function Clients() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                           <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>Unable to load clients</div>
                           <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                            We could not fetch live client records from the API. Verify that <b>/api/clients</b> is reachable from the browser and that
-                            your Catalyst proxy routes are correct.
+                            We could not fetch live client records from the API. Verify that <b>/api/clients</b> or <b>/crm_api/api/clients</b> is
+                            reachable from the browser and that your Catalyst proxy routes are correct.
                           </div>
                           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                             <button type="button" className="tt-btn tt-btnPrimary" onClick={() => syncFromZoho()}>
@@ -698,7 +696,7 @@ export default function Clients() {
                             <button
                               type="button"
                               className="tt-btn"
-                              onClick={() => showToast("Tip: Open DevTools, Network tab, then refresh Clients to inspect /api/clients.")}
+                              onClick={() => showToast("Tip: Open DevTools Network tab, inspect response keys: items, clients, data, records.")}
                             >
                               Troubleshoot
                             </button>
@@ -1040,9 +1038,7 @@ export default function Clients() {
               <div className="tt-modalHead">
                 <div>
                   <h2 className="tt-modalTitle">Edit client</h2>
-                  <div className="tt-modalHint">
-                    Editing is UI-only for now. Zoho synced records should be edited in CRM. This will be wired later.
-                  </div>
+                  <div className="tt-modalHint">Editing is UI-only for now. Zoho synced records should be edited in CRM. This will be wired later.</div>
                 </div>
 
                 <div className="tt-modalActions">
@@ -1066,11 +1062,7 @@ export default function Clients() {
                 <div className="tt-formGrid2">
                   <div className="tt-field">
                     <div className="tt-label">Client name</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.name}
-                      onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
-                    />
+                    <input className="tt-text" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} />
                   </div>
 
                   <div className="tt-field">
@@ -1098,11 +1090,7 @@ export default function Clients() {
 
                   <div className="tt-field">
                     <div className="tt-label">Industry</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.industry}
-                      onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))}
-                    />
+                    <input className="tt-text" value={editForm.industry} onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))} />
                   </div>
 
                   <div className="tt-field">
@@ -1120,11 +1108,7 @@ export default function Clients() {
 
                 <div className="tt-field">
                   <div className="tt-label">Notes</div>
-                  <textarea
-                    className="tt-area"
-                    value={editForm.notes}
-                    onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-                  />
+                  <textarea className="tt-area" value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))} />
                 </div>
               </div>
             </div>
@@ -1169,10 +1153,29 @@ async function httpGetJson(url, { signal } = {}) {
   return json;
 }
 
+function extractItems(data) {
+  if (!data) return [];
+
+  if (Array.isArray(data)) return data;
+
+  const directKeys = ["items", "clients", "data", "records", "result"];
+  for (const k of directKeys) {
+    const v = data[k];
+    if (Array.isArray(v)) return v;
+
+    // Nested common patterns
+    if (v && typeof v === "object") {
+      if (Array.isArray(v.items)) return v.items;
+      if (Array.isArray(v.clients)) return v.clients;
+      if (Array.isArray(v.data)) return v.data;
+      if (Array.isArray(v.records)) return v.records;
+    }
+  }
+
+  return [];
+}
+
 function mapApiItemToClient(item) {
-  // Supports:
-  // 1) Already-normalized shape from backend
-  // 2) { raw: <zoho record> } fallback
   const safe = item || {};
   const raw = safe.raw || safe || {};
 
@@ -1235,23 +1238,62 @@ function mapApiItemToClient(item) {
 }
 
 async function fetchLiveClients({ page = 1, perPage = 50, signal } = {}) {
-  // Primary contract: GET /api/clients
-  // Supports either:
-  // - { items: [...] }
-  // - { clients: [...] }
-  // - [ ... ]
-  const url = `/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
-  const data = await httpGetJson(url, { signal });
+  // Try /api first, then fallback to /crm_api if needed
+  const candidates = [
+    `/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`,
+    `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`,
+  ];
 
-  const items = Array.isArray(data) ? data : Array.isArray(data.items) ? data.items : Array.isArray(data.clients) ? data.clients : [];
-  const mapped = items.map(mapApiItemToClient);
+  let lastData = null;
+
+  for (let i = 0; i < candidates.length; i++) {
+    const url = candidates[i];
+    const data = await httpGetJson(url, { signal });
+    lastData = data;
+
+    const items = extractItems(data);
+    const mapped = items.map(mapApiItemToClient);
+
+    // If we got records, return immediately
+    if (mapped.length > 0) {
+      return {
+        page: data.page || page,
+        perPage: data.perPage || perPage,
+        count: data.count ?? mapped.length,
+        clients: mapped,
+        raw: data,
+        meta: { usedUrl: url },
+      };
+    }
+
+    // If API explicitly says count 0, do not fallback
+    const explicitCount = typeof data?.count === "number" ? data.count : null;
+    if (explicitCount === 0) {
+      return {
+        page: data.page || page,
+        perPage: data.perPage || perPage,
+        count: 0,
+        clients: [],
+        raw: data,
+        meta: { usedUrl: url, hint: "API returned count 0. If you expect 1 record, verify the backend module and filters." },
+      };
+    }
+
+    // Otherwise, continue to fallback candidate
+  }
+
+  // If we reach here, we got no items from either endpoint
+  const hint = lastData
+    ? "API response did not include an array under items, clients, data, or records. Inspect the Network response JSON keys."
+    : "No response from API candidates.";
 
   return {
-    page: data.page || page,
-    perPage: data.perPage || perPage,
-    count: data.count ?? mapped.length,
-    clients: mapped,
-    raw: data,
+    page,
+    perPage,
+    count: 0,
+    clients: [],
+    raw: lastData,
+    meta: { hint },
   };
 }
 
