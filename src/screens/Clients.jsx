@@ -1,49 +1,49 @@
 // src/screens/Clients.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
 export default function Clients() {
-  // Keep the manual seed for UI-only manual creation paths.
-  // Zoho data will overwrite the zoho portion on first sync.
+  // Keep seed only for manual add patterns and shape reference, but do not mount UI with it.
   const seed = useMemo(
     () => [
       {
-        id: "CL-10024",
-        source: "manual",
-        zohoClientId: "",
-        zohoDebitOrderId: "",
-        name: "Kopano Tutors",
-        primaryEmail: "admin@kopanotutors.co.za",
+        id: "CL-10021",
+        source: "zoho",
+        zohoClientId: "642901000001234567",
+        zohoDebitOrderId: "642901000009876543",
+        name: "Mkhize Holdings",
+        primaryEmail: "finance@mkhize.co.za",
         secondaryEmail: "",
         emailOptOut: false,
         owner: "Ops",
-        phone: "021 110 0081",
-        industry: "Education",
+        phone: "010 446 5754",
+        industry: "Commercial",
         risk: "Low",
-        status: "Paused",
+        status: "Active",
         debit: {
           billingCycle: "Monthly - 25th",
-          nextChargeDate: "2026-03-25",
-          amountZar: 12000,
-          debitStatus: "Notified",
-          paystackCustomerCode: "",
-          paystackAuthorizationCode: "",
-          booksInvoiceId: "",
+          nextChargeDate: "2026-02-25",
+          amountZar: 245000,
+          debitStatus: "Scheduled",
+          paystackCustomerCode: "CUS_f4v3u1n0b7",
+          paystackAuthorizationCode: "AUTH_9q8w7e6r5t",
+          booksInvoiceId: "INV-000184",
           retryCount: 0,
-          debitRunBatchId: "",
-          lastAttemptDate: "",
-          lastTransactionReference: "",
+          debitRunBatchId: "BATCH-2401",
+          lastAttemptDate: "2026-02-06T22:00:00.000Z",
+          lastTransactionReference: "PAY-DO-778122",
           failureReason: "",
         },
-        updatedAt: "2026-02-08T09:42:00.000Z",
-        notes: "Manual capture while CRM sync is pending. Link to Zoho when record exists.",
+        updatedAt: "2026-02-08T20:26:00.000Z",
+        notes: "High volume accounts. Prefers batch notifications by email.",
       },
     ],
     []
   );
 
-  const [clients, setClients] = useState(seed);
-  const [selectedId, setSelectedId] = useState(seed[0]?.id || "");
+  // Live data only
+  const [clients, setClients] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
   const [hoverId, setHoverId] = useState("");
 
   const [toast, setToast] = useState("");
@@ -60,7 +60,9 @@ export default function Clients() {
   const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
-  const lastRequestUrlRef = useRef("");
+  const [lastRequestUrl, setLastRequestUrl] = useState("");
+
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const selected = useMemo(
     () => clients.find((c) => c.id === selectedId) || null,
@@ -102,15 +104,16 @@ export default function Clients() {
       setSyncing(true);
       setZohoCrmStatus("Loading");
 
-      // Fetch live data
       const resp = await fetchZohoClients({ page: 1, perPage: 200 });
+      setLastRequestUrl(resp.requestUrl || "");
 
-      // Store request URL for debugging without changing UI layout
-      lastRequestUrlRef.current = resp?._requestUrl || "";
+      if (!resp.ok) {
+        const msg = resp?.raw?.error || resp?.raw?.message || "Zoho sync failed.";
+        throw new Error(msg);
+      }
 
       const zohoClients = Array.isArray(resp.clients) ? resp.clients : [];
 
-      // Merge: Zoho replaces Zoho section, keep manual entries
       setClients((prev) => {
         const manual = prev.filter((c) => c.source === "manual");
         const next = [...zohoClients, ...manual];
@@ -121,6 +124,10 @@ export default function Clients() {
           setSelectedId(first);
         }
 
+        if (!selectedId && next[0]?.id) {
+          setSelectedId(next[0].id);
+        }
+
         return next;
       });
 
@@ -129,25 +136,18 @@ export default function Clients() {
     } catch (e) {
       const msg = e?.message || String(e);
 
-      // If we got HTML, we are hitting the wrong URL (usually missing leading slash or SPA fallback)
-      // Keep the error professional and actionable.
-      const hint =
-        msg.includes("Unexpected HTML response")
-          ? "The browser hit a frontend route instead of the CRM API. This is usually caused by a missing leading slash or an incorrect base URL. The API path must be /crm_api/api/clients."
-          : "";
+      // Attach URL if available for instant diagnosis
+      const urlNote = lastRequestUrl ? ` Request: ${lastRequestUrl}` : "";
+      setSyncError(`${msg}${urlNote}`.trim());
 
-      const reqUrl = lastRequestUrlRef.current ? ` Request: ${lastRequestUrlRef.current}` : "";
-      const fullMsg = `${msg}${hint ? " " + hint : ""}${reqUrl}`;
-
-      setSyncError(fullMsg);
       setZohoCrmStatus("Error");
       if (!silent) showToast(`Sync failed: ${msg}`);
     } finally {
       setSyncing(false);
+      setInitialLoading(false);
     }
   }
 
-  // Load once on mount
   useEffect(() => {
     syncFromZoho({ silent: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,7 +182,7 @@ export default function Clients() {
     if (!email) return showToast("Email is required.");
     if (createDuplicate) return showToast("Duplicate detected. Use the existing client or link to Zoho.");
 
-    const id = nextClientId(clients);
+    const id = nextClientId(clients.length ? clients : seed);
     const nowIso = new Date().toISOString();
 
     const next = {
@@ -660,54 +660,68 @@ export default function Clients() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c) => {
-                    const isActive = c.id === selectedId;
-                    const isHover = hoverId === c.id;
-
-                    const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
-
-                    return (
-                      <tr
-                        key={c.id}
-                        className={trClass}
-                        onMouseEnter={() => setHoverId(c.id)}
-                        onMouseLeave={() => setHoverId("")}
-                        onClick={() => setSelectedId(c.id)}
-                      >
-                        <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            <div className="tt-nameRow">
-                              <span className="tt-name">{c.name}</span>
-                              <span className="tt-subId">{c.id}</span>
-                              <span className={statusBadgeClass(c.status)}>{c.status}</span>
-                            </div>
-                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
+                  {initialLoading && (
+                    <tr>
+                      <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>Loading clients</div>
+                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
+                            Syncing from Zoho CRM API.
                           </div>
-                        </td>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
 
-                        <td className="tt-td">
-                          {c.source === "zoho" ? (
-                            <span className="tt-pill tt-pillZoho">
-                              <Dot />
-                              Zoho
-                            </span>
-                          ) : (
-                            <span className="tt-pill tt-pillManual">
-                              <Dot />
-                              Manual
-                            </span>
-                          )}
-                        </td>
+                  {!initialLoading &&
+                    filtered.map((c) => {
+                      const isActive = c.id === selectedId;
+                      const isHover = hoverId === c.id;
 
-                        <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
-                        <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
-                        <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
-                        <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
-                      </tr>
-                    );
-                  })}
+                      const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
 
-                  {filtered.length === 0 && (
+                      return (
+                        <tr
+                          key={c.id}
+                          className={trClass}
+                          onMouseEnter={() => setHoverId(c.id)}
+                          onMouseLeave={() => setHoverId("")}
+                          onClick={() => setSelectedId(c.id)}
+                        >
+                          <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <div className="tt-nameRow">
+                                <span className="tt-name">{c.name}</span>
+                                <span className="tt-subId">{c.id}</span>
+                                <span className={statusBadgeClass(c.status)}>{c.status}</span>
+                              </div>
+                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
+                            </div>
+                          </td>
+
+                          <td className="tt-td">
+                            {c.source === "zoho" ? (
+                              <span className="tt-pill tt-pillZoho">
+                                <Dot />
+                                Zoho
+                              </span>
+                            ) : (
+                              <span className="tt-pill tt-pillManual">
+                                <Dot />
+                                Manual
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
+                          <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
+                          <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
+                          <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
+                        </tr>
+                      );
+                    })}
+
+                  {!initialLoading && filtered.length === 0 && (
                     <tr>
                       <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1033,7 +1047,7 @@ function currencyZar(n) {
 }
 
 function fmtDateShort(yyyyMmDd) {
-  const d = new Date(String(yyyyMmDd).slice(0, 10) + "T00:00:00.000Z");
+  const d = new Date(yyyyMmDd + "T00:00:00.000Z");
   return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
 }
 
