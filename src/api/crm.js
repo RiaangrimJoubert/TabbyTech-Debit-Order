@@ -2,37 +2,30 @@
 "use strict";
 
 /**
- * Production rule:
- * We do NOT use relative URLs for CRM API calls because the UI and Catalyst serverless
- * can be hosted on different origins. We always call the Catalyst serverless origin
- * via VITE_CRM_API_BASE.
- *
- * Set in your frontend environment (Slate build env):
+ * FRONTEND build-time env var (Slate):
  * VITE_CRM_API_BASE = https://tabbytechdebitorder-913617844.development.catalystserverless.com
- *
  * No trailing slash.
  */
-
 const API_BASE = String(import.meta?.env?.VITE_CRM_API_BASE || "")
   .trim()
   .replace(/\/+$/, "");
 
 if (!API_BASE) {
   throw new Error(
-    "VITE_CRM_API_BASE is not defined. Set it in the frontend environment variables and redeploy."
+    "VITE_CRM_API_BASE is missing in the FRONTEND build. Set it in Slate hosting env vars and redeploy."
   );
 }
 
-function buildUrl(path) {
-  if (!path.startsWith("/")) path = "/" + path;
-  return `${API_BASE}${path}`;
+function candidates({ page, perPage }) {
+  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}&_ts=${Date.now()}`;
+  return [
+    `${API_BASE}/crm_api/api/clients?${qs}`,
+    `${API_BASE}/server/crm_api/api/clients?${qs}`, // Catalyst sometimes mounts under /server
+  ];
 }
 
 async function httpGetJson(url, { signal } = {}) {
-  const u = new URL(url);
-  u.searchParams.set("_ts", String(Date.now())); // cache-buster
-
-  const res = await fetch(u.toString(), {
+  const res = await fetch(url, {
     method: "GET",
     headers: {
       Accept: "application/json",
@@ -45,6 +38,7 @@ async function httpGetJson(url, { signal } = {}) {
   });
 
   const text = await res.text();
+
   let json;
   try {
     json = JSON.parse(text);
@@ -56,7 +50,7 @@ async function httpGetJson(url, { signal } = {}) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
-    err.url = u.toString();
+    err.url = url;
     err.payload = json;
     throw err;
   }
@@ -68,7 +62,11 @@ function extractItems(data) {
   if (!data) return [];
   if (Array.isArray(data)) return data;
 
+  // Your backend contract:
+  // { ok:true, page, perPage, count, items:[...] }
   if (Array.isArray(data.items)) return data.items;
+
+  // Extra tolerance (should not be needed but safe)
   if (Array.isArray(data.clients)) return data.clients;
   if (Array.isArray(data.data)) return data.data;
   if (Array.isArray(data.records)) return data.records;
@@ -143,28 +141,47 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50, signal } = {}) {
-  const url = buildUrl(
-    `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(
-      perPage
-    )}`
-  );
+  const urls = candidates({ page, perPage });
 
-  const data = await httpGetJson(url, { signal });
-  const items = extractItems(data);
+  let lastErr = null;
 
-  if (!items.length) {
-    const keys = data && typeof data === "object" ? Object.keys(data).join(", ") : "n/a";
-    throw new Error(
-      `API response did not include an array under items, clients, data, or records. Keys received: ${keys}`
-    );
+  for (const url of urls) {
+    try {
+      const data = await httpGetJson(url, { signal });
+      const items = extractItems(data);
+
+      if (!items.length) {
+        const keys = data && typeof data === "object" ? Object.keys(data).join(", ") : "n/a";
+        const sample =
+          data && typeof data === "object" && typeof data.raw === "string"
+            ? data.raw.slice(0, 120).replace(/\s+/g, " ").trim()
+            : "";
+        throw new Error(
+          `Clients API returned no items array. URL=${url} Keys=[${keys}]${sample ? ` RawStart="${sample}"` : ""}`
+        );
+      }
+
+      return {
+        page: data.page || page,
+        perPage: data.perPage || perPage,
+        count: data.count ?? items.length,
+        clients: items.map(mapApiItemToClient),
+        raw: data,
+        meta: { usedUrl: url, apiBase: API_BASE },
+      };
+    } catch (e) {
+      lastErr = e;
+    }
   }
 
-  return {
-    page: data.page || page,
-    perPage: data.perPage || perPage,
-    count: data.count ?? items.length,
-    clients: items.map(mapApiItemToClient),
-    raw: data,
-    meta: { usedUrl: url, apiBase: API_BASE },
-  };
+  const status = lastErr?.status ? `HTTP ${lastErr.status}` : "HTTP ?";
+  const tried = urls.join(" | ");
+  const rawStart =
+    lastErr?.payload?.raw && typeof lastErr.payload.raw === "string"
+      ? lastErr.payload.raw.slice(0, 140).replace(/\s+/g, " ").trim()
+      : "";
+
+  throw new Error(
+    `Failed to fetch clients (${status}). Tried: ${tried}. ${lastErr?.message || ""}${rawStart ? ` RawStart="${rawStart}"` : ""}`
+  );
 }
