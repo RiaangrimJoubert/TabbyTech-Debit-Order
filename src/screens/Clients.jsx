@@ -1,6 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// src/screens/Clients.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { fetchZohoClients } from "../api/crm";
 
 export default function Clients() {
+  // Live data replaces mock seed.
+  // We still allow "manual" clients created in UI to exist alongside Zoho.
   const [clients, setClients] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [hoverId, setHoverId] = useState("");
@@ -19,11 +23,12 @@ export default function Clients() {
   const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
-  const [initialLoad, setInitialLoad] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const inFlight = useRef(null);
-
-  const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
+  const selected = useMemo(
+    () => clients.find((c) => c.id === selectedId) || null,
+    [clients, selectedId]
+  );
 
   const counts = useMemo(() => {
     const base = { All: clients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
@@ -44,46 +49,33 @@ export default function Clients() {
       .filter((c) => {
         if (!q) return true;
         return (
-          (c.name || "").toLowerCase().includes(q) ||
-          (c.id || "").toLowerCase().includes(q) ||
-          (c.primaryEmail || "").toLowerCase().includes(q) ||
-          (c.secondaryEmail || "").toLowerCase().includes(q) ||
-          (c.zohoClientId || "").toLowerCase().includes(q)
+          String(c.name || "").toLowerCase().includes(q) ||
+          String(c.id || "").toLowerCase().includes(q) ||
+          String(c.primaryEmail || "").toLowerCase().includes(q) ||
+          String(c.secondaryEmail || "").toLowerCase().includes(q) ||
+          String(c.zohoClientId || "").toLowerCase().includes(q)
         );
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [clients, query, statusFilter, sourceFilter]);
 
   async function syncFromZoho({ silent = false } = {}) {
-    if (inFlight.current) {
-      try {
-        inFlight.current.abort();
-      } catch {
-        // ignore
-      }
-    }
-
-    const controller = new AbortController();
-    inFlight.current = controller;
-
-    const isFirst = initialLoad;
-
     try {
       setSyncError("");
       setSyncing(true);
       setZohoCrmStatus("Loading");
 
-      const { clients: zohoClients, meta } = await fetchLiveClients({
-        signal: controller.signal,
-        page: 1,
-        perPage: 200,
-      });
+      const result = await fetchZohoClients({ page: 1, perPage: 200 });
+      const zohoClients = Array.isArray(result?.clients) ? result.clients : [];
 
+      // If Zoho API returns 0 items, we still consider it connected but show 0.
+      // If the fetch helper throws, we go to Error state.
       setClients((prev) => {
         const manual = prev.filter((c) => c.source === "manual");
         const next = [...zohoClients, ...manual];
 
-        const stillExists = next.some((c) => c.id === selectedId);
+        // Keep selection stable if possible
+        const stillExists = selectedId && next.some((c) => c.id === selectedId);
         if (!stillExists) {
           const first = next[0]?.id || "";
           setSelectedId(first);
@@ -92,38 +84,23 @@ export default function Clients() {
         return next;
       });
 
-      // If meta indicates success but no items, surface a subtle professional hint
-      if (zohoClients.length === 0 && meta?.hint) {
-        setSyncError(meta.hint);
-      }
-
       setZohoCrmStatus("Connected");
+
       if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
     } catch (e) {
-      if (e?.name === "AbortError") return;
-
       const msg = e?.message || String(e);
       setSyncError(msg);
       setZohoCrmStatus("Error");
       if (!silent) showToast(`Sync failed: ${msg}`);
     } finally {
       setSyncing(false);
-      if (isFirst) setInitialLoad(false);
-      if (inFlight.current === controller) inFlight.current = null;
+      setInitialLoading(false);
     }
   }
 
+  // Load once on mount
   useEffect(() => {
     syncFromZoho({ silent: true });
-    return () => {
-      if (inFlight.current) {
-        try {
-          inFlight.current.abort();
-        } catch {
-          // ignore
-        }
-      }
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -525,17 +502,13 @@ export default function Clients() {
     max-width: 420px;
   }
 
-  .tt-skelRow {
-    height: 14px;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.14), rgba(255,255,255,0.06));
-    background-size: 220% 100%;
-    animation: ttShimmer 1.1s ease-in-out infinite;
+  .tt-loadingCell {
+    padding: 22px 14px;
+    color: rgba(255,255,255,0.72);
+    white-space: normal;
   }
-  @keyframes ttShimmer {
-    0% { background-position: 0% 50%; }
-    100% { background-position: 100% 50%; }
-  }
+  .tt-loadingTitle { font-weight: 900; color: rgba(255,255,255,0.90); margin-bottom: 6px; }
+  .tt-loadingSub { font-size: 13px; color: rgba(255,255,255,0.62); line-height: 1.4; }
 
   @media (max-width: 1100px) {
     .tt-grid { grid-template-columns: 1fr; }
@@ -543,9 +516,6 @@ export default function Clients() {
     .tt-split { grid-template-columns: 1fr; }
   }
   `;
-
-  const showTableLoading = initialLoad && syncing && clients.length === 0;
-  const showTableError = !showTableLoading && zohoCrmStatus === "Error" && clients.length === 0;
 
   return (
     <div className="tt-clients">
@@ -649,123 +619,75 @@ export default function Clients() {
                   </tr>
                 </thead>
                 <tbody>
-                  {showTableLoading &&
-                    Array.from({ length: 8 }).map((_, idx) => (
-                      <tr key={`sk-${idx}`} className="tt-tr">
-                        <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                              <div className="tt-skelRow" style={{ width: 180 }} />
-                              <div className="tt-skelRow" style={{ width: 80, opacity: 0.7 }} />
-                              <div className="tt-skelRow" style={{ width: 70, opacity: 0.55 }} />
-                            </div>
-                            <div className="tt-skelRow" style={{ width: 220, opacity: 0.6 }} />
-                          </div>
-                        </td>
-                        <td className="tt-td">
-                          <div className="tt-skelRow" style={{ width: 76, opacity: 0.55 }} />
-                        </td>
-                        <td className="tt-td">
-                          <div className="tt-skelRow" style={{ width: 92, opacity: 0.55 }} />
-                        </td>
-                        <td className="tt-td">
-                          <div className="tt-skelRow" style={{ width: 92, opacity: 0.55 }} />
-                        </td>
-                        <td className="tt-td">
-                          <div className="tt-skelRow" style={{ width: 92, opacity: 0.55 }} />
-                        </td>
-                        <td className="tt-td">
-                          <div className="tt-skelRow" style={{ width: 92, opacity: 0.55 }} />
-                        </td>
-                      </tr>
-                    ))}
-
-                  {showTableError && (
+                  {initialLoading ? (
                     <tr>
-                      <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>Unable to load clients</div>
-                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                            We could not fetch live client records from the API. Verify that <b>/api/clients</b> or <b>/crm_api/api/clients</b> is
-                            reachable from the browser and that your Catalyst proxy routes are correct.
-                          </div>
-                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                            <button type="button" className="tt-btn tt-btnPrimary" onClick={() => syncFromZoho()}>
-                              Retry
-                            </button>
-                            <button
-                              type="button"
-                              className="tt-btn"
-                              onClick={() => showToast("Tip: Open DevTools Network tab, inspect response keys: items, clients, data, records.")}
-                            >
-                              Troubleshoot
-                            </button>
-                          </div>
-                        </div>
+                      <td className="tt-td tt-loadingCell" colSpan={6}>
+                        <div className="tt-loadingTitle">Loading clients</div>
+                        <div className="tt-loadingSub">Syncing the latest records from Zoho CRM.</div>
                       </td>
                     </tr>
-                  )}
+                  ) : (
+                    <>
+                      {filtered.map((c) => {
+                        const isActive = c.id === selectedId;
+                        const isHover = hoverId === c.id;
 
-                  {!showTableLoading &&
-                    !showTableError &&
-                    filtered.map((c) => {
-                      const isActive = c.id === selectedId;
-                      const isHover = hoverId === c.id;
+                        const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
 
-                      const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
-
-                      return (
-                        <tr
-                          key={c.id}
-                          className={trClass}
-                          onMouseEnter={() => setHoverId(c.id)}
-                          onMouseLeave={() => setHoverId("")}
-                          onClick={() => setSelectedId(c.id)}
-                        >
-                          <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                              <div className="tt-nameRow">
-                                <span className="tt-name">{c.name}</span>
-                                <span className="tt-subId">{c.id}</span>
-                                <span className={statusBadgeClass(c.status)}>{c.status}</span>
+                        return (
+                          <tr
+                            key={c.id}
+                            className={trClass}
+                            onMouseEnter={() => setHoverId(c.id)}
+                            onMouseLeave={() => setHoverId("")}
+                            onClick={() => setSelectedId(c.id)}
+                          >
+                            <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <div className="tt-nameRow">
+                                  <span className="tt-name">{c.name}</span>
+                                  <span className="tt-subId">{c.id}</span>
+                                  <span className={statusBadgeClass(c.status)}>{c.status}</span>
+                                </div>
+                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
                               </div>
-                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
+                            </td>
+
+                            <td className="tt-td">
+                              {c.source === "zoho" ? (
+                                <span className="tt-pill tt-pillZoho">
+                                  <Dot />
+                                  Zoho
+                                </span>
+                              ) : (
+                                <span className="tt-pill tt-pillManual">
+                                  <Dot />
+                                  Manual
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
+                            <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
+                            <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
+                            <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
+                          </tr>
+                        );
+                      })}
+
+                      {filtered.length === 0 && (
+                        <tr>
+                          <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>No clients found</div>
+                              <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
+                                Try a different search term, adjust filters, or switch source.
+                              </div>
                             </div>
                           </td>
-
-                          <td className="tt-td">
-                            {c.source === "zoho" ? (
-                              <span className="tt-pill tt-pillZoho">
-                                <Dot />
-                                Zoho
-                              </span>
-                            ) : (
-                              <span className="tt-pill tt-pillManual">
-                                <Dot />
-                                Manual
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
-                          <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
-                          <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
-                          <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
                         </tr>
-                      );
-                    })}
-
-                  {!showTableLoading && !showTableError && filtered.length === 0 && (
-                    <tr>
-                      <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>No clients found</div>
-                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                            Try a different search term, adjust filters, or switch source.
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+                      )}
+                    </>
                   )}
                 </tbody>
               </table>
@@ -792,15 +714,7 @@ export default function Clients() {
             <div className="tt-right">
               {!selected ? (
                 <div className="tt-section" style={{ color: "rgba(255,255,255,0.70)" }}>
-                  {showTableLoading ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      <div className="tt-skelRow" style={{ width: 240 }} />
-                      <div className="tt-skelRow" style={{ width: 280, opacity: 0.7 }} />
-                      <div className="tt-skelRow" style={{ width: 220, opacity: 0.55 }} />
-                    </div>
-                  ) : (
-                    "Select a client to view details."
-                  )}
+                  Select a client to view details.
                 </div>
               ) : (
                 <>
@@ -971,8 +885,8 @@ export default function Clients() {
               <div className="tt-modalBody">
                 {createDuplicate ? (
                   <div className="tt-warn">
-                    Duplicate detected: <b>{createDuplicate.name}</b> already uses <b>{createDuplicate.primaryEmail}</b>. Create manually only when CRM
-                    does not have the record.
+                    Duplicate detected: <b>{createDuplicate.name}</b> already uses <b>{createDuplicate.primaryEmail}</b>.
+                    Create manually only when CRM does not have the record.
                   </div>
                 ) : null}
 
@@ -1038,7 +952,7 @@ export default function Clients() {
               <div className="tt-modalHead">
                 <div>
                   <h2 className="tt-modalTitle">Edit client</h2>
-                  <div className="tt-modalHint">Editing is UI-only for now. Zoho synced records should be edited in CRM. This will be wired later.</div>
+                  <div className="tt-modalHint">Edits are UI-only for now. Zoho sync remains read-only in this phase.</div>
                 </div>
 
                 <div className="tt-modalActions">
@@ -1062,7 +976,11 @@ export default function Clients() {
                 <div className="tt-formGrid2">
                   <div className="tt-field">
                     <div className="tt-label">Client name</div>
-                    <input className="tt-text" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} />
+                    <input
+                      className="tt-text"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+                    />
                   </div>
 
                   <div className="tt-field">
@@ -1090,18 +1008,22 @@ export default function Clients() {
 
                   <div className="tt-field">
                     <div className="tt-label">Industry</div>
-                    <input className="tt-text" value={editForm.industry} onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))} />
+                    <input
+                      className="tt-text"
+                      value={editForm.industry}
+                      onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))}
+                    />
                   </div>
 
                   <div className="tt-field">
                     <div className="tt-label">Email opt out</div>
                     <select
-                      className="tt-select"
-                      value={editForm.emailOptOut ? "Yes" : "No"}
-                      onChange={(e) => setEditForm((p) => ({ ...p, emailOptOut: e.target.value === "Yes" }))}
+                      className="tt-text"
+                      value={editForm.emailOptOut ? "yes" : "no"}
+                      onChange={(e) => setEditForm((p) => ({ ...p, emailOptOut: e.target.value === "yes" }))}
                     >
-                      <option value="No">No</option>
-                      <option value="Yes">Yes</option>
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
                     </select>
                   </div>
                 </div>
@@ -1123,178 +1045,6 @@ export default function Clients() {
       </div>
     </div>
   );
-}
-
-/* ---------------------------
-   Live API (GET /api/clients)
----------------------------- */
-
-async function httpGetJson(url, { signal } = {}) {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    signal,
-    credentials: "include",
-  });
-
-  const text = await res.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    json = { raw: text };
-  }
-
-  if (!res.ok) {
-    const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-
-  return json;
-}
-
-function extractItems(data) {
-  if (!data) return [];
-
-  if (Array.isArray(data)) return data;
-
-  const directKeys = ["items", "clients", "data", "records", "result"];
-  for (const k of directKeys) {
-    const v = data[k];
-    if (Array.isArray(v)) return v;
-
-    // Nested common patterns
-    if (v && typeof v === "object") {
-      if (Array.isArray(v.items)) return v.items;
-      if (Array.isArray(v.clients)) return v.clients;
-      if (Array.isArray(v.data)) return v.data;
-      if (Array.isArray(v.records)) return v.records;
-    }
-  }
-
-  return [];
-}
-
-function mapApiItemToClient(item) {
-  const safe = item || {};
-  const raw = safe.raw || safe || {};
-
-  const ownerName =
-    raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || raw.Owner.full_name || "" : safe.owner || "";
-
-  const debitStatus = safe.status || safe.debitStatus || raw.Status || raw.Debit_Status || "Unknown";
-
-  const derivedStatus =
-    safe.uiStatus ||
-    safe.clientStatus ||
-    safe.statusUi ||
-    (debitStatus === "Scheduled" ? "Active" : debitStatus === "Failed" ? "Risk" : "Active");
-
-  const debit = safe.debit && typeof safe.debit === "object" ? safe.debit : null;
-
-  return {
-    id: safe.id || raw.id || `ZOHO-${Math.random().toString(16).slice(2)}`,
-    source: (safe.source || "zoho").toLowerCase() === "manual" ? "manual" : "zoho",
-
-    zohoClientId: safe.zohoClientId || raw?.Client?.id || raw?.Client_ID || raw?.ClientId || "",
-    zohoDebitOrderId: safe.zohoDebitOrderId || safe.id || raw.id || "",
-
-    name: safe.name || safe.clientName || raw.Name || raw.Client_Name || "Client",
-    primaryEmail: safe.primaryEmail || safe.email || raw.Email || raw.Primary_Email || "",
-    secondaryEmail: safe.secondaryEmail || raw.Secondary_Email || raw.SecondaryEmail || "",
-    emailOptOut: !!(safe.emailOptOut ?? raw.Email_Opt_Out),
-
-    owner: safe.owner || ownerName || "Ops",
-    phone: safe.phone || raw.Phone || "",
-    industry: safe.industry || raw.Industry || "",
-    risk: safe.risk || raw.Risk || "Low",
-
-    status: derivedStatus,
-
-    debit: {
-      billingCycle:
-        (debit && debit.billingCycle) ||
-        safe.billingCycle ||
-        raw.Billing_Cycle_25th_retry_1st ||
-        raw.Billing_Cycle ||
-        "",
-      nextChargeDate: (debit && debit.nextChargeDate) || safe.nextChargeDate || raw.Next_Charge_Date || "",
-      amountZar: Number((debit && debit.amountZar) ?? safe.amount ?? safe.amountZar ?? raw.Amount ?? 0),
-      debitStatus: (debit && debit.debitStatus) || debitStatus,
-      paystackCustomerCode: (debit && debit.paystackCustomerCode) || raw.Paystack_Customer_Code || "",
-      paystackAuthorizationCode: (debit && debit.paystackAuthorizationCode) || raw.Paystack_Authorization_Code || "",
-      booksInvoiceId: (debit && debit.booksInvoiceId) || raw.Books_Invoice_ID || "",
-      retryCount: (debit && debit.retryCount) ?? raw.Retry_Count ?? 0,
-      debitRunBatchId: (debit && debit.debitRunBatchId) || raw.Debit_Run_Batch_ID || "",
-      lastAttemptDate: (debit && debit.lastAttemptDate) || safe.lastAttemptDate || raw.Last_Attempt_Date || "",
-      lastTransactionReference:
-        (debit && debit.lastTransactionReference) || safe.lastTransactionReference || raw.Last_Transaction_Reference || "",
-      failureReason: (debit && debit.failureReason) || safe.failureReason || raw.Failure_Reason || "",
-    },
-
-    updatedAt: safe.updatedAt || safe.updated || raw.Modified_Time || raw.Created_Time || new Date().toISOString(),
-    notes: safe.notes || raw.Notes || "",
-  };
-}
-
-async function fetchLiveClients({ page = 1, perPage = 50, signal } = {}) {
-  // Try /api first, then fallback to /crm_api if needed
-  const candidates = [
-    `/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`,
-    `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`,
-  ];
-
-  let lastData = null;
-
-  for (let i = 0; i < candidates.length; i++) {
-    const url = candidates[i];
-    const data = await httpGetJson(url, { signal });
-    lastData = data;
-
-    const items = extractItems(data);
-    const mapped = items.map(mapApiItemToClient);
-
-    // If we got records, return immediately
-    if (mapped.length > 0) {
-      return {
-        page: data.page || page,
-        perPage: data.perPage || perPage,
-        count: data.count ?? mapped.length,
-        clients: mapped,
-        raw: data,
-        meta: { usedUrl: url },
-      };
-    }
-
-    // If API explicitly says count 0, do not fallback
-    const explicitCount = typeof data?.count === "number" ? data.count : null;
-    if (explicitCount === 0) {
-      return {
-        page: data.page || page,
-        perPage: data.perPage || perPage,
-        count: 0,
-        clients: [],
-        raw: data,
-        meta: { usedUrl: url, hint: "API returned count 0. If you expect 1 record, verify the backend module and filters." },
-      };
-    }
-
-    // Otherwise, continue to fallback candidate
-  }
-
-  // If we reach here, we got no items from either endpoint
-  const hint = lastData
-    ? "API response did not include an array under items, clients, data, or records. Inspect the Network response JSON keys."
-    : "No response from API candidates.";
-
-  return {
-    page,
-    perPage,
-    count: 0,
-    clients: [],
-    raw: lastData,
-    meta: { hint },
-  };
 }
 
 /* ---------------------------
