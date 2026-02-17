@@ -2,15 +2,38 @@
 "use strict";
 
 /**
- * IMPORTANT:
- * Catalyst API Gateway exposes the function at:
- *   /crm_api/{path}
+ * Robust API URL builder for Catalyst + Vite.
  *
- * The function container itself runs under:
- *   /server/crm_api/{path}
+ * - If VITE_CRM_API_BASE is set at build time, we call the API as an absolute URL:
+ *     ${VITE_CRM_API_BASE}/crm_api/api/clients
  *
- * Frontend MUST call the gateway path, NOT /server/.
+ * - Otherwise we fall back to same-origin absolute path:
+ *     /crm_api/api/clients
+ *
+ * This avoids SPA route fallbacks returning index.html.
  */
+
+function getApiBase() {
+  // Vite injects VITE_* at build time. If not injected, this will be undefined.
+  try {
+    const v = import.meta?.env?.VITE_CRM_API_BASE;
+    if (v && typeof v === "string" && v.trim()) return v.trim();
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+function joinUrl(base, path) {
+  const b = (base || "").trim();
+  const p = (path || "").trim();
+
+  if (!b) return p.startsWith("/") ? p : `/${p}`;
+
+  const b2 = b.endsWith("/") ? b.slice(0, -1) : b;
+  const p2 = p.startsWith("/") ? p : `/${p}`;
+  return `${b2}${p2}`;
+}
 
 async function httpGetJson(url) {
   const res = await fetch(url, {
@@ -22,12 +45,15 @@ async function httpGetJson(url) {
   const contentType = (res.headers.get("content-type") || "").toLowerCase();
   const text = await res.text();
 
-  // If we ever receive HTML, it means routing is wrong.
-  if (contentType.includes("text/html") || /^\s*</.test(text)) {
+  // SPA fallback returns HTML (index.html). Detect deterministically.
+  const looksLikeHtml = contentType.includes("text/html") || /^\s*</.test(text);
+  if (looksLikeHtml) {
     const err = new Error(
-      `Unexpected HTML response. Wrong API path used: ${url}`
+      `Unexpected HTML response. API call resolved to HTML (likely routed to frontend). URL: ${url}`
     );
     err.name = "UnexpectedHtmlResponse";
+    err.url = url;
+    err.contentType = contentType;
     throw err;
   }
 
@@ -40,20 +66,24 @@ async function httpGetJson(url) {
 
   if (!res.ok) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.name = "HttpError";
+    err.status = res.status;
+    err.url = url;
+    throw err;
   }
 
   return json;
 }
 
 function mapApiItemToClient(item) {
+  // item is your backend normalized shape:
+  // { id, clientName, name, status, billingCycle, nextChargeDate, amount, email, secondaryEmail, ... }
   const safe = item || {};
   const raw = safe.raw || {};
 
   const ownerName =
-    raw?.Owner && typeof raw.Owner === "object"
-      ? raw.Owner.name || ""
-      : "";
+    raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || "" : "";
 
   const debitStatus = safe.status || raw.Status || "Unknown";
 
@@ -74,6 +104,7 @@ function mapApiItemToClient(item) {
     industry: raw.Industry || "",
     risk: raw.Risk || "Low",
 
+    // Derive UI status from debit status
     status:
       debitStatus === "Scheduled"
         ? "Active"
@@ -97,11 +128,8 @@ function mapApiItemToClient(item) {
       debitRunBatchId: raw.Debit_Run_Batch_ID || "",
       lastAttemptDate: safe.lastAttemptDate || raw.Last_Attempt_Date || "",
       lastTransactionReference:
-        safe.lastTransactionReference ||
-        raw.Last_Transaction_Reference ||
-        "",
-      failureReason:
-        safe.failureReason || raw.Failure_Reason || "",
+        safe.lastTransactionReference || raw.Last_Transaction_Reference || "",
+      failureReason: safe.failureReason || raw.Failure_Reason || "",
     },
 
     updatedAt:
@@ -115,10 +143,14 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
-  // FORCE gateway route (never /server/)
-  const url = `/crm_api/api/clients?page=${encodeURIComponent(
+  const base = getApiBase();
+
+  // Always call the gateway route
+  const path = `/crm_api/api/clients?page=${encodeURIComponent(
     page
   )}&perPage=${encodeURIComponent(perPage)}`;
+
+  const url = joinUrl(base, path);
 
   const data = await httpGetJson(url);
 
@@ -131,5 +163,7 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
     count: data.count ?? items.length,
     clients: items.map(mapApiItemToClient),
     raw: data,
+    requestUrl: url,
+    usingBase: !!base,
   };
 }
