@@ -2,17 +2,14 @@
 "use strict";
 
 function getApiBase() {
-  // Optional: set this in your Vite env if you want a full domain base.
-  // Example:
-  // VITE_CRM_API_BASE=https://tabbytechdebitorder-913617844.development.catalystserverless.com
+  // If you are hosting frontend and /crm_api on the same domain (Catalyst typical),
+  // leave VITE_CRM_API_BASE empty and this will use same-origin.
   const raw = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
-
-  if (!raw) return ""; // same-origin
+  if (!raw) return "";
   return raw.endsWith("/") ? raw.slice(0, -1) : raw;
 }
 
 function joinUrl(base, path) {
-  // base may be "" meaning same-origin
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }
@@ -21,16 +18,21 @@ async function httpGetJson(url) {
   const res = await fetch(url, {
     method: "GET",
     headers: { Accept: "application/json" },
+    cache: "no-store",
   });
 
   const contentType = (res.headers.get("content-type") || "").toLowerCase();
   const text = await res.text();
 
-  // If we hit the SPA fallback, we usually get HTML
-  if (contentType.includes("text/html") || /^\s*</.test(text)) {
-    throw new Error(
-      "Unexpected HTML response. Frontend likely hit the wrong CRM API URL."
+  // SPA fallback usually returns HTML (index.html)
+  const looksLikeHtml = contentType.includes("text/html") || /^\s*</.test(text);
+  if (looksLikeHtml) {
+    const err = new Error(
+      "Unexpected HTML response. Frontend likely hit the wrong CRM API URL. The API path must be /crm_api/api/clients."
     );
+    err.name = "UnexpectedHtmlResponse";
+    err.url = url;
+    throw err;
   }
 
   let json;
@@ -42,7 +44,11 @@ async function httpGetJson(url) {
 
   if (!res.ok) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.name = "HttpError";
+    err.status = res.status;
+    err.url = url;
+    throw err;
   }
 
   return json;
@@ -113,22 +119,24 @@ function mapApiItemToClient(item) {
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
   const base = getApiBase();
 
-  // Always use an absolute API path
+  // Always absolute API path
   const path = `/crm_api/api/clients?page=${encodeURIComponent(
     page
   )}&perPage=${encodeURIComponent(perPage)}`;
 
   const url = joinUrl(base, path);
-
   const data = await httpGetJson(url);
 
+  // Your backend returns: { ok, page, perPage, count, items: [...] }
   const items = Array.isArray(data.items) ? data.items : [];
+
   return {
+    ok: data.ok !== false,
     page: data.page || page,
     perPage: data.perPage || perPage,
     count: data.count ?? items.length,
     clients: items.map(mapApiItemToClient),
     raw: data,
-    _requestUrl: url, // useful for debugging in UI
+    requestUrl: url,
   };
 }
