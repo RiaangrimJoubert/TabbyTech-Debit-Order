@@ -1,239 +1,142 @@
-// src/screens/Clients.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { fetchZohoClients } from "../api/crm";
+// src/api/crm.js
+"use strict";
 
-/**
- * Generates a simple incrementing ID for manual clients.
- */
-function nextClientId(currentClients) {
-  const manualCount = currentClients.filter(c => c.source === "manual").length;
-  return `MAN-${1000 + manualCount + 1}`;
+function getApiBase() {
+  // If you are hosting frontend and /crm_api on the same domain (Catalyst typical),
+  // leave VITE_CRM_API_BASE empty and this will use same-origin.
+  const raw = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
+  if (!raw) return "";
+  return raw.endsWith("/") ? raw.slice(0, -1) : raw;
 }
 
-export default function Clients() {
-  // Live data only
-  const [clients, setClients] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
-  const [hoverId, setHoverId] = useState("");
+function joinUrl(base, path) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${p}`;
+}
 
-  const [toast, setToast] = useState("");
-  function showToast(msg) {
-    setToast(msg);
-    window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(() => setToast(""), 2200);
-  }
-
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [sourceFilter, setSourceFilter] = useState("All"); // All | Zoho | Manual
-
-  const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
-  const [syncing, setSyncing] = useState(false);
-  const [syncError, setSyncError] = useState("");
-  const [lastRequestUrl, setLastRequestUrl] = useState("");
-
-  const [initialLoading, setInitialLoading] = useState(true);
-
-  // Memoized Selections and Filtering
-  const selected = useMemo(
-    () => clients.find((c) => c.id === selectedId) || null,
-    [clients, selectedId]
-  );
-
-  const counts = useMemo(() => {
-    const base = { All: clients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
-    for (const c of clients) {
-      if (base[c.status] !== undefined) base[c.status]++;
-    }
-    return base;
-  }, [clients]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return clients
-      .filter((c) => (statusFilter === "All" ? true : c.status === statusFilter))
-      .filter((c) => {
-        if (sourceFilter === "All") return true;
-        if (sourceFilter === "Zoho") return c.source === "zoho";
-        if (sourceFilter === "Manual") return c.source === "manual";
-        return true;
-      })
-      .filter((c) => {
-        if (!q) return true;
-        return (
-          (c.name || "").toLowerCase().includes(q) ||
-          (c.id || "").toLowerCase().includes(q) ||
-          (c.primaryEmail || "").toLowerCase().includes(q) ||
-          (c.zohoClientId || "").toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [clients, query, statusFilter, sourceFilter]);
-
-  /**
-   * Main Sync Logic: Connects to the /crm_api/api/clients endpoint
-   */
-  async function syncFromZoho({ silent = false } = {}) {
-    try {
-      setSyncError("");
-      setSyncing(true);
-      setZohoCrmStatus("Loading");
-
-      const resp = await fetchZohoClients({ page: 1, perPage: 200 });
-      setLastRequestUrl(resp.requestUrl || "");
-
-      if (!resp.ok) {
-        throw new Error(resp?.raw?.error || "Zoho sync failed.");
-      }
-
-      const zohoClients = Array.isArray(resp.clients) ? resp.clients : [];
-
-      setClients((prev) => {
-        const manual = prev.filter((c) => c.source === "manual");
-        const next = [...zohoClients, ...manual];
-
-        // Maintain selection if it still exists
-        if (!selectedId && next[0]?.id) {
-          setSelectedId(next[0].id);
-        }
-        return next;
-      });
-
-      setZohoCrmStatus("Connected");
-      if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
-    } catch (e) {
-      const msg = e?.message || String(e);
-      setSyncError(msg);
-      setZohoCrmStatus("Error");
-      if (!silent) showToast(`Sync failed: ${msg}`);
-    } finally {
-      setSyncing(false);
-      setInitialLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    syncFromZoho({ silent: true });
-  }, []);
-
-  // Manual Create Logic
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    name: "", email: "", phone: "", industry: "", notes: "",
+async function httpGetJson(url) {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
   });
 
-  const createDuplicate = useMemo(() => {
-    const email = (createForm.email || "").trim().toLowerCase();
-    if (!email) return null;
-    return clients.find((c) => (c.primaryEmail || "").trim().toLowerCase() === email);
-  }, [createForm.email, clients]);
+  const contentType = (res.headers.get("content-type") || "").toLowerCase();
+  const text = await res.text();
 
-  function createClient() {
-    const name = createForm.name.trim();
-    const email = createForm.email.trim();
-
-    if (!name || !email) return showToast("Name and Email are required.");
-    if (createDuplicate) return showToast("A client with this email already exists.");
-
-    const next = {
-      id: nextClientId(clients),
-      source: "manual",
-      name,
-      primaryEmail: email,
-      phone: createForm.phone.trim(),
-      industry: createForm.industry.trim(),
-      status: "New",
-      debit: { amountZar: 0, debitStatus: "None" },
-      updatedAt: new Date().toISOString(),
-      notes: createForm.notes.trim(),
-    };
-
-    setClients((prev) => [next, ...prev]);
-    setSelectedId(next.id);
-    setCreateOpen(false);
-    setCreateForm({ name: "", email: "", phone: "", industry: "", notes: "" });
-    showToast("Client created locally.");
-  }
-
-  // Edit Logic
-  const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState(null);
-
-  function openEdit() {
-    if (!selected) return;
-    setEditForm({ ...selected });
-    setEditOpen(true);
-  }
-
-  function saveEdit() {
-    if (!editForm) return;
-    if (!editForm.name.trim() || !editForm.primaryEmail.trim()) {
-      return showToast("Name and Email are required.");
-    }
-
-    setClients((prev) =>
-      prev.map((c) => (c.id === editForm.id ? { ...editForm, updatedAt: new Date().toISOString() } : c))
+  // SPA fallback usually returns HTML (index.html)
+  const looksLikeHtml = contentType.includes("text/html") || /^\s*</.test(text);
+  if (looksLikeHtml) {
+    const err = new Error(
+      "Unexpected HTML response. Frontend likely hit the wrong CRM API URL. The API path must be /crm_api/api/clients."
     );
-    setEditOpen(false);
-    showToast("Changes saved.");
+    err.name = "UnexpectedHtmlResponse";
+    err.url = url;
+    throw err;
   }
 
-  return (
-    <div className="p-6">
-      {/* Header & Sync Status */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Clients</h1>
-        <div className="flex items-center gap-4">
-          {syncError && <span className="text-red-500 text-sm">Error: {syncError}</span>}
-          <button 
-            onClick={() => syncFromZoho()} 
-            disabled={syncing}
-            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-          >
-            {syncing ? "Syncing..." : "Sync Zoho CRM"}
-          </button>
-        </div>
-      </div>
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
 
-      {/* Main UI would go here (Filters, List, Detail View) */}
-      {initialLoading ? (
-        <p>Loading clients...</p>
-      ) : (
-        <div className="grid grid-cols-12 gap-6">
-           {/* Example of how to map the list */}
-           <div className="col-span-4 border rounded p-4">
-             {filtered.map(client => (
-               <div 
-                 key={client.id}
-                 onClick={() => setSelectedId(client.id)}
-                 className={`p-2 cursor-pointer ${selectedId === client.id ? 'bg-blue-100' : ''}`}
-               >
-                 {client.name}
-               </div>
-             ))}
-           </div>
-           
-           {/* Example detail view */}
-           <div className="col-span-8 border rounded p-4">
-             {selected ? (
-               <div>
-                 <h2 className="text-xl font-bold">{selected.name}</h2>
-                 <p>{selected.primaryEmail}</p>
-                 <button onClick={openEdit} className="mt-4 text-blue-600 underline">Edit Client</button>
-               </div>
-             ) : (
-               <p>Select a client to view details</p>
-             )}
-           </div>
-        </div>
-      )}
+  if (!res.ok) {
+    const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
+    const err = new Error(msg);
+    err.name = "HttpError";
+    err.status = res.status;
+    err.url = url;
+    throw err;
+  }
 
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg">
-          {toast}
-        </div>
-      )}
-    </div>
-  );
+  return json;
+}
+
+function mapApiItemToClient(item) {
+  const safe = item || {};
+  const raw = safe.raw || {};
+
+  const ownerName =
+    raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || "" : "";
+
+  const debitStatus = safe.status || raw.Status || "Unknown";
+
+  return {
+    id: safe.id || raw.id || `ZOHO-${Math.random().toString(16).slice(2)}`,
+    source: "zoho",
+
+    zohoClientId: raw?.Client?.id || "",
+    zohoDebitOrderId: safe.id || raw.id || "",
+
+    name: safe.name || raw.Name || safe.clientName || "Client",
+    primaryEmail: safe.email || raw.Email || "",
+    secondaryEmail: safe.secondaryEmail || raw.Secondary_Email || "",
+    emailOptOut: !!raw.Email_Opt_Out,
+
+    owner: ownerName || "Ops",
+    phone: raw.Phone || "",
+    industry: raw.Industry || "",
+    risk: raw.Risk || "Low",
+
+    status:
+      debitStatus === "Scheduled"
+        ? "Active"
+        : debitStatus === "Failed"
+        ? "Risk"
+        : "Active",
+
+    debit: {
+      billingCycle:
+        safe.billingCycle ||
+        raw.Billing_Cycle_25th_retry_1st ||
+        raw.Billing_Cycle ||
+        "",
+      nextChargeDate: safe.nextChargeDate || raw.Next_Charge_Date || "",
+      amountZar: Number(safe.amount ?? raw.Amount ?? 0),
+      debitStatus,
+      paystackCustomerCode: raw.Paystack_Customer_Code || "",
+      paystackAuthorizationCode: raw.Paystack_Authorization_Code || "",
+      booksInvoiceId: raw.Books_Invoice_ID || "",
+      retryCount: raw.Retry_Count ?? 0,
+      debitRunBatchId: raw.Debit_Run_Batch_ID || "",
+      lastAttemptDate: safe.lastAttemptDate || raw.Last_Attempt_Date || "",
+      lastTransactionReference:
+        safe.lastTransactionReference || raw.Last_Transaction_Reference || "",
+      failureReason: safe.failureReason || raw.Failure_Reason || "",
+    },
+
+    updatedAt:
+      safe.updated ||
+      raw.Modified_Time ||
+      raw.Created_Time ||
+      new Date().toISOString(),
+    notes: raw.Notes || "",
+  };
+}
+
+export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
+  const base = getApiBase();
+
+  // Always absolute API path
+  const path = `/crm_api/api/clients?page=${encodeURIComponent(
+    page
+  )}&perPage=${encodeURIComponent(perPage)}`;
+
+  const url = joinUrl(base, path);
+  const data = await httpGetJson(url);
+
+  // Your backend returns: { ok, page, perPage, count, items: [...] }
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  return {
+    ok: data.ok !== false,
+    page: data.page || page,
+    perPage: data.perPage || perPage,
+    count: data.count ?? items.length,
+    clients: items.map(mapApiItemToClient),
+    raw: data,
+    requestUrl: url,
+  };
 }
