@@ -1,12 +1,49 @@
 // src/screens/Clients.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
 export default function Clients() {
-  // Live data replaces mock seed.
-  // We still allow "manual" clients created in UI to exist alongside Zoho.
-  const [clients, setClients] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
+  // Keep the manual seed for UI-only manual creation paths.
+  // Zoho data will overwrite the zoho portion on first sync.
+  const seed = useMemo(
+    () => [
+      {
+        id: "CL-10024",
+        source: "manual",
+        zohoClientId: "",
+        zohoDebitOrderId: "",
+        name: "Kopano Tutors",
+        primaryEmail: "admin@kopanotutors.co.za",
+        secondaryEmail: "",
+        emailOptOut: false,
+        owner: "Ops",
+        phone: "021 110 0081",
+        industry: "Education",
+        risk: "Low",
+        status: "Paused",
+        debit: {
+          billingCycle: "Monthly - 25th",
+          nextChargeDate: "2026-03-25",
+          amountZar: 12000,
+          debitStatus: "Notified",
+          paystackCustomerCode: "",
+          paystackAuthorizationCode: "",
+          booksInvoiceId: "",
+          retryCount: 0,
+          debitRunBatchId: "",
+          lastAttemptDate: "",
+          lastTransactionReference: "",
+          failureReason: "",
+        },
+        updatedAt: "2026-02-08T09:42:00.000Z",
+        notes: "Manual capture while CRM sync is pending. Link to Zoho when record exists.",
+      },
+    ],
+    []
+  );
+
+  const [clients, setClients] = useState(seed);
+  const [selectedId, setSelectedId] = useState(seed[0]?.id || "");
   const [hoverId, setHoverId] = useState("");
 
   const [toast, setToast] = useState("");
@@ -23,7 +60,7 @@ export default function Clients() {
   const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
-  const [initialLoading, setInitialLoading] = useState(true);
+  const lastRequestUrlRef = useRef("");
 
   const selected = useMemo(
     () => clients.find((c) => c.id === selectedId) || null,
@@ -49,11 +86,11 @@ export default function Clients() {
       .filter((c) => {
         if (!q) return true;
         return (
-          String(c.name || "").toLowerCase().includes(q) ||
-          String(c.id || "").toLowerCase().includes(q) ||
-          String(c.primaryEmail || "").toLowerCase().includes(q) ||
-          String(c.secondaryEmail || "").toLowerCase().includes(q) ||
-          String(c.zohoClientId || "").toLowerCase().includes(q)
+          (c.name || "").toLowerCase().includes(q) ||
+          (c.id || "").toLowerCase().includes(q) ||
+          (c.primaryEmail || "").toLowerCase().includes(q) ||
+          (c.secondaryEmail || "").toLowerCase().includes(q) ||
+          (c.zohoClientId || "").toLowerCase().includes(q)
         );
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -65,17 +102,20 @@ export default function Clients() {
       setSyncing(true);
       setZohoCrmStatus("Loading");
 
-      const result = await fetchZohoClients({ page: 1, perPage: 200 });
-      const zohoClients = Array.isArray(result?.clients) ? result.clients : [];
+      // Fetch live data
+      const resp = await fetchZohoClients({ page: 1, perPage: 200 });
 
-      // If Zoho API returns 0 items, we still consider it connected but show 0.
-      // If the fetch helper throws, we go to Error state.
+      // Store request URL for debugging without changing UI layout
+      lastRequestUrlRef.current = resp?._requestUrl || "";
+
+      const zohoClients = Array.isArray(resp.clients) ? resp.clients : [];
+
+      // Merge: Zoho replaces Zoho section, keep manual entries
       setClients((prev) => {
         const manual = prev.filter((c) => c.source === "manual");
         const next = [...zohoClients, ...manual];
 
-        // Keep selection stable if possible
-        const stillExists = selectedId && next.some((c) => c.id === selectedId);
+        const stillExists = next.some((c) => c.id === selectedId);
         if (!stillExists) {
           const first = next[0]?.id || "";
           setSelectedId(first);
@@ -85,16 +125,25 @@ export default function Clients() {
       });
 
       setZohoCrmStatus("Connected");
-
       if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
     } catch (e) {
       const msg = e?.message || String(e);
-      setSyncError(msg);
+
+      // If we got HTML, we are hitting the wrong URL (usually missing leading slash or SPA fallback)
+      // Keep the error professional and actionable.
+      const hint =
+        msg.includes("Unexpected HTML response")
+          ? "The browser hit a frontend route instead of the CRM API. This is usually caused by a missing leading slash or an incorrect base URL. The API path must be /crm_api/api/clients."
+          : "";
+
+      const reqUrl = lastRequestUrlRef.current ? ` Request: ${lastRequestUrlRef.current}` : "";
+      const fullMsg = `${msg}${hint ? " " + hint : ""}${reqUrl}`;
+
+      setSyncError(fullMsg);
       setZohoCrmStatus("Error");
       if (!silent) showToast(`Sync failed: ${msg}`);
     } finally {
       setSyncing(false);
-      setInitialLoading(false);
     }
   }
 
@@ -502,14 +551,6 @@ export default function Clients() {
     max-width: 420px;
   }
 
-  .tt-loadingCell {
-    padding: 22px 14px;
-    color: rgba(255,255,255,0.72);
-    white-space: normal;
-  }
-  .tt-loadingTitle { font-weight: 900; color: rgba(255,255,255,0.90); margin-bottom: 6px; }
-  .tt-loadingSub { font-size: 13px; color: rgba(255,255,255,0.62); line-height: 1.4; }
-
   @media (max-width: 1100px) {
     .tt-grid { grid-template-columns: 1fr; }
     .tt-kv { grid-template-columns: 1fr; }
@@ -619,75 +660,64 @@ export default function Clients() {
                   </tr>
                 </thead>
                 <tbody>
-                  {initialLoading ? (
+                  {filtered.map((c) => {
+                    const isActive = c.id === selectedId;
+                    const isHover = hoverId === c.id;
+
+                    const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
+
+                    return (
+                      <tr
+                        key={c.id}
+                        className={trClass}
+                        onMouseEnter={() => setHoverId(c.id)}
+                        onMouseLeave={() => setHoverId("")}
+                        onClick={() => setSelectedId(c.id)}
+                      >
+                        <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <div className="tt-nameRow">
+                              <span className="tt-name">{c.name}</span>
+                              <span className="tt-subId">{c.id}</span>
+                              <span className={statusBadgeClass(c.status)}>{c.status}</span>
+                            </div>
+                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
+                          </div>
+                        </td>
+
+                        <td className="tt-td">
+                          {c.source === "zoho" ? (
+                            <span className="tt-pill tt-pillZoho">
+                              <Dot />
+                              Zoho
+                            </span>
+                          ) : (
+                            <span className="tt-pill tt-pillManual">
+                              <Dot />
+                              Manual
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
+                        <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
+                        <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
+                        <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
+                      </tr>
+                    );
+                  })}
+
+                  {filtered.length === 0 && (
                     <tr>
-                      <td className="tt-td tt-loadingCell" colSpan={6}>
-                        <div className="tt-loadingTitle">Loading clients</div>
-                        <div className="tt-loadingSub">Syncing the latest records from Zoho CRM.</div>
+                      <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>No clients found</div>
+                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
+                            Try a different search term, adjust filters, or switch source.
+                          </div>
+                        </div>
                       </td>
                     </tr>
-                  ) : (
-                    <>
-                      {filtered.map((c) => {
-                        const isActive = c.id === selectedId;
-                        const isHover = hoverId === c.id;
-
-                        const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
-
-                        return (
-                          <tr
-                            key={c.id}
-                            className={trClass}
-                            onMouseEnter={() => setHoverId(c.id)}
-                            onMouseLeave={() => setHoverId("")}
-                            onClick={() => setSelectedId(c.id)}
-                          >
-                            <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <div className="tt-nameRow">
-                                  <span className="tt-name">{c.name}</span>
-                                  <span className="tt-subId">{c.id}</span>
-                                  <span className={statusBadgeClass(c.status)}>{c.status}</span>
-                                </div>
-                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
-                              </div>
-                            </td>
-
-                            <td className="tt-td">
-                              {c.source === "zoho" ? (
-                                <span className="tt-pill tt-pillZoho">
-                                  <Dot />
-                                  Zoho
-                                </span>
-                              ) : (
-                                <span className="tt-pill tt-pillManual">
-                                  <Dot />
-                                  Manual
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
-                            <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
-                            <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
-                            <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
-                          </tr>
-                        );
-                      })}
-
-                      {filtered.length === 0 && (
-                        <tr>
-                          <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>No clients found</div>
-                              <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                                Try a different search term, adjust filters, or switch source.
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
                   )}
                 </tbody>
               </table>
@@ -946,97 +976,6 @@ export default function Clients() {
           </div>
         )}
 
-        {editOpen && editForm && (
-          <div className="tt-modalOverlay" role="dialog" aria-modal="true" aria-label="Edit client">
-            <div className="tt-modal">
-              <div className="tt-modalHead">
-                <div>
-                  <h2 className="tt-modalTitle">Edit client</h2>
-                  <div className="tt-modalHint">Edits are UI-only for now. Zoho sync remains read-only in this phase.</div>
-                </div>
-
-                <div className="tt-modalActions">
-                  <button
-                    type="button"
-                    className="tt-btn"
-                    onClick={() => {
-                      setEditOpen(false);
-                      setEditForm(null);
-                    }}
-                  >
-                    Close
-                  </button>
-                  <button type="button" className="tt-btn tt-btnPrimary" onClick={saveEdit}>
-                    Save
-                  </button>
-                </div>
-              </div>
-
-              <div className="tt-modalBody">
-                <div className="tt-formGrid2">
-                  <div className="tt-field">
-                    <div className="tt-label">Client name</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.name}
-                      onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Primary email</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.primaryEmail}
-                      onChange={(e) => setEditForm((p) => ({ ...p, primaryEmail: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Secondary email</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.secondaryEmail}
-                      onChange={(e) => setEditForm((p) => ({ ...p, secondaryEmail: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Phone</div>
-                    <input className="tt-text" value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Industry</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.industry}
-                      onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Email opt out</div>
-                    <select
-                      className="tt-text"
-                      value={editForm.emailOptOut ? "yes" : "no"}
-                      onChange={(e) => setEditForm((p) => ({ ...p, emailOptOut: e.target.value === "yes" }))}
-                    >
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="tt-field">
-                  <div className="tt-label">Notes</div>
-                  <textarea className="tt-area" value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {toast ? (
           <div className="tt-toastWrap">
             <div className="tt-toast">{toast}</div>
@@ -1094,7 +1033,7 @@ function currencyZar(n) {
 }
 
 function fmtDateShort(yyyyMmDd) {
-  const d = new Date(yyyyMmDd + "T00:00:00.000Z");
+  const d = new Date(String(yyyyMmDd).slice(0, 10) + "T00:00:00.000Z");
   return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
 }
 
