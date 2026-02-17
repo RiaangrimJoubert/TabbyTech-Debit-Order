@@ -2,43 +2,43 @@
 "use strict";
 
 /**
- * Vite build-time env (Slate):
+ * Slate / Vite build-time env:
  * VITE_CRM_API_BASE=https://tabbytechdebitorder-913617844.development.catalystserverless.com
+ *
+ * IMPORTANT:
+ * Do NOT include a trailing slash.
  */
 const API_BASE = String(import.meta?.env?.VITE_CRM_API_BASE || "")
   .trim()
   .replace(/\/+$/, "");
 
-function buildUrl(path) {
-  if (!path.startsWith("/")) path = "/" + path;
-  return API_BASE ? `${API_BASE}${path}` : path;
+function buildCandidates({ page, perPage }) {
+  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}&_ts=${Date.now()}`;
+
+  // If API_BASE is set, we prefer calling that origin directly.
+  // If not set, we fall back to same-origin.
+  const origin = API_BASE || window.location.origin;
+
+  return [
+    `${origin}/crm_api/api/clients?${qs}`,
+    `${origin}/server/crm_api/api/clients?${qs}`, // seen in your Catalyst dev logs
+    `/crm_api/api/clients?${qs}`,
+    `/server/crm_api/api/clients?${qs}`,
+  ];
 }
 
 async function httpGetJson(url, { signal } = {}) {
-  // Add a cache-buster to avoid 304 + empty body issues on some edge proxies
-  const u = new URL(url, window.location.origin);
-  u.searchParams.set("_ts", String(Date.now()));
-
-  const res = await fetch(u.toString(), {
+  const res = await fetch(url, {
     method: "GET",
     headers: {
       Accept: "application/json",
       "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
       Pragma: "no-cache",
     },
-    signal,
     cache: "no-store",
     credentials: "include",
+    signal,
   });
-
-  // If a proxy returns 304, we treat it as a hard error for API JSON reads.
-  // 304 frequently has no body, which breaks JSON parsing.
-  if (res.status === 304) {
-    const err = new Error("Clients API returned 304 (Not Modified). API responses must not be cached.");
-    err.status = 304;
-    err.url = u.toString();
-    throw err;
-  }
 
   const text = await res.text();
   let json;
@@ -52,7 +52,7 @@ async function httpGetJson(url, { signal } = {}) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
-    err.url = u.toString();
+    err.url = url;
     err.payload = json;
     throw err;
   }
@@ -136,28 +136,31 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50, signal } = {}) {
-  const url = buildUrl(
-    `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`
-  );
+  const candidates = buildCandidates({ page, perPage });
 
-  const data = await httpGetJson(url, { signal });
+  let lastErr = null;
+  for (const url of candidates) {
+    try {
+      const data = await httpGetJson(url, { signal });
+      const items = extractItems(data);
 
-  const items = extractItems(data);
-
-  if (!items.length) {
-    // Give a clean, useful error if backend returned ok but nothing usable
-    const keys = data && typeof data === "object" ? Object.keys(data).join(", ") : "n/a";
-    throw new Error(
-      `Clients API returned no items array. Keys received: ${keys}`
-    );
+      return {
+        page: data.page || page,
+        perPage: data.perPage || perPage,
+        count: data.count ?? items.length,
+        clients: items.map(mapApiItemToClient),
+        raw: data,
+        meta: { usedUrl: url, apiBase: API_BASE || "same-origin" },
+      };
+    } catch (e) {
+      lastErr = e;
+      // Try next candidate
+    }
   }
 
-  return {
-    page: data.page || page,
-    perPage: data.perPage || perPage,
-    count: data.count ?? items.length,
-    clients: items.map(mapApiItemToClient),
-    raw: data,
-    meta: { usedUrl: url, apiBase: API_BASE || "same-origin" },
-  };
+  const msg = lastErr?.message || "Failed to fetch clients from available endpoints.";
+  const detail = `Tried: ${candidates.join(" | ")}`;
+  const err = new Error(`${msg} (${detail})`);
+  err.cause = lastErr;
+  throw err;
 }
