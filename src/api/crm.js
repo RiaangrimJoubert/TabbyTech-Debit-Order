@@ -2,91 +2,71 @@
 "use strict";
 
 /**
- * FRONTEND build-time env var (Slate):
- * VITE_CRM_API_BASE = https://tabbytechdebitorder-913617844.development.catalystserverless.com
- * No trailing slash.
+ * CRM API base resolution
+ * - If VITE_CRM_API_BASE is set, use it (supports absolute Catalyst domain)
+ * - Otherwise fall back to same-origin relative calls
+ *
+ * Expected working endpoint:
+ *   <BASE>/crm_api/api/clients
+ *
+ * Notes:
+ * - BASE should be like:
+ *   https://tabbytechdebitorder-913617844.development.catalystserverless.com
+ *   (no trailing slash required)
  */
-const API_BASE = String(import.meta?.env?.VITE_CRM_API_BASE || "")
-  .trim()
-  .replace(/\/+$/, "");
-
-if (!API_BASE) {
-  throw new Error(
-    "VITE_CRM_API_BASE is missing in the FRONTEND build. Set it in Slate hosting env vars and redeploy."
-  );
+function resolveBase() {
+  const envBase = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
+  if (!envBase) return "";
+  return envBase.replace(/\/+$/, "");
 }
 
-function candidates({ page, perPage }) {
-  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}&_ts=${Date.now()}`;
-  return [
-    `${API_BASE}/crm_api/api/clients?${qs}`,
-    `${API_BASE}/server/crm_api/api/clients?${qs}`, // Catalyst sometimes mounts under /server
-  ];
+function buildUrl(pathWithLeadingSlash) {
+  const base = resolveBase();
+  if (!base) return pathWithLeadingSlash;
+  return `${base}${pathWithLeadingSlash}`;
 }
 
-async function httpGetJson(url, { signal } = {}) {
+async function httpGetJson(url) {
+  // Prevent cached 304/HTML edge cases while debugging
   const res = await fetch(url, {
     method: "GET",
-    headers: {
-      Accept: "application/json",
-      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-      Pragma: "no-cache",
-    },
+    headers: { Accept: "application/json" },
     cache: "no-store",
-    credentials: "include",
-    signal,
   });
 
   const text = await res.text();
-
   let json;
   try {
     json = JSON.parse(text);
   } catch {
+    // If we end up here, we almost certainly hit a 404 HTML or non-JSON payload
     json = { raw: text };
   }
 
   if (!res.ok) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.status = res.status;
-    err.url = url;
-    err.payload = json;
-    throw err;
+    throw new Error(msg);
+  }
+
+  // Some proxies can return 200 with HTML. Protect against that.
+  if (json && typeof json === "object" && "raw" in json && typeof json.raw === "string") {
+    const raw = json.raw.toLowerCase();
+    if (raw.includes("<html") || raw.includes("<!doctype")) {
+      throw new Error("Unexpected HTML response. Frontend likely hit the wrong CRM API URL.");
+    }
   }
 
   return json;
 }
 
-function extractItems(data) {
-  if (!data) return [];
-  if (Array.isArray(data)) return data;
-
-  // Your backend contract:
-  // { ok:true, page, perPage, count, items:[...] }
-  if (Array.isArray(data.items)) return data.items;
-
-  // Extra tolerance (should not be needed but safe)
-  if (Array.isArray(data.clients)) return data.clients;
-  if (Array.isArray(data.data)) return data.data;
-  if (Array.isArray(data.records)) return data.records;
-
-  if (data.result && typeof data.result === "object") {
-    if (Array.isArray(data.result.items)) return data.result.items;
-    if (Array.isArray(data.result.clients)) return data.result.clients;
-    if (Array.isArray(data.result.data)) return data.result.data;
-    if (Array.isArray(data.result.records)) return data.result.records;
-  }
-
-  return [];
-}
-
 function mapApiItemToClient(item) {
+  // item is your backend normalized shape:
+  // { id, clientName, name, status, billingCycle, nextChargeDate, amount, email, secondaryEmail, ... }
   const safe = item || {};
   const raw = safe.raw || {};
 
   const ownerName =
-    raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || "" : "";
+    raw?.Owner && typeof raw.Owner === "object" ? (raw.Owner.name || "") : "";
 
   const debitStatus = safe.status || raw.Status || "Unknown";
 
@@ -94,6 +74,7 @@ function mapApiItemToClient(item) {
     id: safe.id || raw.id || `ZOHO-${Math.random().toString(16).slice(2)}`,
     source: "zoho",
 
+    // Best effort: if your CRM has these fields later, we can wire properly.
     zohoClientId: raw?.Client?.id || "",
     zohoDebitOrderId: safe.id || raw.id || "",
 
@@ -107,12 +88,15 @@ function mapApiItemToClient(item) {
     industry: raw.Industry || "",
     risk: raw.Risk || "Low",
 
+    // UI status mapping
     status:
       debitStatus === "Scheduled"
         ? "Active"
         : debitStatus === "Failed"
-        ? "Risk"
-        : "Active",
+          ? "Risk"
+          : debitStatus === "Paused"
+            ? "Paused"
+            : "Active",
 
     debit: {
       billingCycle:
@@ -134,54 +118,30 @@ function mapApiItemToClient(item) {
       failureReason: safe.failureReason || raw.Failure_Reason || "",
     },
 
-    updatedAt:
-      safe.updated || raw.Modified_Time || raw.Created_Time || new Date().toISOString(),
+    updatedAt: safe.updated || raw.Modified_Time || raw.Created_Time || new Date().toISOString(),
     notes: raw.Notes || "",
   };
 }
 
-export async function fetchZohoClients({ page = 1, perPage = 50, signal } = {}) {
-  const urls = candidates({ page, perPage });
-
-  let lastErr = null;
-
-  for (const url of urls) {
-    try {
-      const data = await httpGetJson(url, { signal });
-      const items = extractItems(data);
-
-      if (!items.length) {
-        const keys = data && typeof data === "object" ? Object.keys(data).join(", ") : "n/a";
-        const sample =
-          data && typeof data === "object" && typeof data.raw === "string"
-            ? data.raw.slice(0, 120).replace(/\s+/g, " ").trim()
-            : "";
-        throw new Error(
-          `Clients API returned no items array. URL=${url} Keys=[${keys}]${sample ? ` RawStart="${sample}"` : ""}`
-        );
-      }
-
-      return {
-        page: data.page || page,
-        perPage: data.perPage || perPage,
-        count: data.count ?? items.length,
-        clients: items.map(mapApiItemToClient),
-        raw: data,
-        meta: { usedUrl: url, apiBase: API_BASE },
-      };
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-
-  const status = lastErr?.status ? `HTTP ${lastErr.status}` : "HTTP ?";
-  const tried = urls.join(" | ");
-  const rawStart =
-    lastErr?.payload?.raw && typeof lastErr.payload.raw === "string"
-      ? lastErr.payload.raw.slice(0, 140).replace(/\s+/g, " ").trim()
-      : "";
-
-  throw new Error(
-    `Failed to fetch clients (${status}). Tried: ${tried}. ${lastErr?.message || ""}${rawStart ? ` RawStart="${rawStart}"` : ""}`
+export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
+  // Always call the API the same way you tested in the browser:
+  // <BASE>/crm_api/api/clients?page=1&perPage=10
+  const url = buildUrl(
+    `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`
   );
+
+  const data = await httpGetJson(url);
+
+  // Your backend returns items under `items`
+  // { ok, page, perPage, count, items: [...] }
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  return {
+    page: data.page || page,
+    perPage: data.perPage || perPage,
+    count: data.count ?? items.length,
+    clients: items.map(mapApiItemToClient),
+    raw: data,
+    _requestUrl: url,
+  };
 }
