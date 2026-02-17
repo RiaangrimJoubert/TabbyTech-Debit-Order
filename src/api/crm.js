@@ -29,9 +29,8 @@ function buildUrl(path) {
 }
 
 async function httpGetJson(url, { signal } = {}) {
-  // Cache-buster prevents 304 + empty body edge cases
   const u = new URL(url);
-  u.searchParams.set("_ts", String(Date.now()));
+  u.searchParams.set("_ts", String(Date.now())); // cache-buster
 
   const res = await fetch(u.toString(), {
     method: "GET",
@@ -69,10 +68,7 @@ function extractItems(data) {
   if (!data) return [];
   if (Array.isArray(data)) return data;
 
-  // Your backend contract: { ok, page, perPage, count, items: [...] }
   if (Array.isArray(data.items)) return data.items;
-
-  // Safety for alternate shapes
   if (Array.isArray(data.clients)) return data.clients;
   if (Array.isArray(data.data)) return data.data;
   if (Array.isArray(data.records)) return data.records;
@@ -88,8 +84,6 @@ function extractItems(data) {
 }
 
 function mapApiItemToClient(item) {
-  // item is your backend normalized shape:
-  // { id, clientName, name, status, billingCycle, nextChargeDate, amount, email, secondaryEmail, ... , raw }
   const safe = item || {};
   const raw = safe.raw || {};
 
@@ -115,7 +109,6 @@ function mapApiItemToClient(item) {
     industry: raw.Industry || "",
     risk: raw.Risk || "Low",
 
-    // UI-friendly status mapping
     status:
       debitStatus === "Scheduled"
         ? "Active"
@@ -161,7 +154,9 @@ export async function fetchZohoClients({ page = 1, perPage = 50, signal } = {}) 
 
   if (!items.length) {
     const keys = data && typeof data === "object" ? Object.keys(data).join(", ") : "n/a";
-    throw new Error(`API response did not include an array under items, clients, data, or records. Keys received: ${keys}`);
+    throw new Error(
+      `API response did not include an array under items, clients, data, or records. Keys received: ${keys}`
+    );
   }
 
   return {
