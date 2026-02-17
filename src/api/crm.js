@@ -2,39 +2,45 @@
 "use strict";
 
 /**
- * IMPORTANT:
- * If your frontend is hosted on a different domain than the Catalyst serverless app,
- * you must set VITE_CRM_API_BASE to the Catalyst serverless origin, for example:
- *
+ * Vite build-time env (Slate):
  * VITE_CRM_API_BASE=https://tabbytechdebitorder-913617844.development.catalystserverless.com
- *
- * Do NOT include a trailing slash.
  */
-const API_BASE = String(import.meta?.env?.VITE_CRM_API_BASE || "").trim().replace(/\/+$/, "");
+const API_BASE = String(import.meta?.env?.VITE_CRM_API_BASE || "")
+  .trim()
+  .replace(/\/+$/, "");
 
 function buildUrl(path) {
-  // path should start with "/"
   if (!path.startsWith("/")) path = "/" + path;
-
-  // If API_BASE is set, we call cross-origin to the serverless host.
-  // If not set, we fall back to same-origin.
   return API_BASE ? `${API_BASE}${path}` : path;
 }
 
 async function httpGetJson(url, { signal } = {}) {
-  const res = await fetch(url, {
+  // Add a cache-buster to avoid 304 + empty body issues on some edge proxies
+  const u = new URL(url, window.location.origin);
+  u.searchParams.set("_ts", String(Date.now()));
+
+  const res = await fetch(u.toString(), {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      Pragma: "no-cache",
+    },
     signal,
-    // If cross-origin is used, credentials usually do nothing unless server sets proper CORS.
-    // Keeping include is safe for same-origin and future auth.
+    cache: "no-store",
     credentials: "include",
   });
 
-  const text = await res.text();
+  // If a proxy returns 304, we treat it as a hard error for API JSON reads.
+  // 304 frequently has no body, which breaks JSON parsing.
+  if (res.status === 304) {
+    const err = new Error("Clients API returned 304 (Not Modified). API responses must not be cached.");
+    err.status = 304;
+    err.url = u.toString();
+    throw err;
+  }
 
-  // If the server returns HTML (like index.html), JSON.parse will fail.
-  // We keep a small slice for debuggability.
+  const text = await res.text();
   let json;
   try {
     json = JSON.parse(text);
@@ -46,7 +52,7 @@ async function httpGetJson(url, { signal } = {}) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
-    err.url = url;
+    err.url = u.toString();
     err.payload = json;
     throw err;
   }
@@ -56,36 +62,27 @@ async function httpGetJson(url, { signal } = {}) {
 
 function extractItems(data) {
   if (!data) return [];
-
-  // Some APIs return array directly
   if (Array.isArray(data)) return data;
-
-  // Expected backend shape: { ok, page, perPage, count, items: [...] }
   if (Array.isArray(data.items)) return data.items;
-
-  // Other common shapes
   if (Array.isArray(data.clients)) return data.clients;
   if (Array.isArray(data.data)) return data.data;
   if (Array.isArray(data.records)) return data.records;
-
-  // Nested wrappers
   if (data.result && typeof data.result === "object") {
     if (Array.isArray(data.result.items)) return data.result.items;
     if (Array.isArray(data.result.clients)) return data.result.clients;
     if (Array.isArray(data.result.data)) return data.result.data;
     if (Array.isArray(data.result.records)) return data.result.records;
   }
-
   return [];
 }
 
 function mapApiItemToClient(item) {
-  // item is your backend normalized shape:
-  // { id, clientName, name, status, billingCycle, nextChargeDate, amount, email, secondaryEmail, ... , raw }
   const safe = item || {};
   const raw = safe.raw || {};
 
-  const ownerName = raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || "" : "";
+  const ownerName =
+    raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || "" : "";
+
   const debitStatus = safe.status || raw.Status || "Unknown";
 
   return {
@@ -105,11 +102,19 @@ function mapApiItemToClient(item) {
     industry: raw.Industry || "",
     risk: raw.Risk || "Low",
 
-    // UI-friendly status
-    status: debitStatus === "Scheduled" ? "Active" : debitStatus === "Failed" ? "Risk" : "Active",
+    status:
+      debitStatus === "Scheduled"
+        ? "Active"
+        : debitStatus === "Failed"
+        ? "Risk"
+        : "Active",
 
     debit: {
-      billingCycle: safe.billingCycle || raw.Billing_Cycle_25th_retry_1st || raw.Billing_Cycle || "",
+      billingCycle:
+        safe.billingCycle ||
+        raw.Billing_Cycle_25th_retry_1st ||
+        raw.Billing_Cycle ||
+        "",
       nextChargeDate: safe.nextChargeDate || raw.Next_Charge_Date || "",
       amountZar: Number(safe.amount ?? raw.Amount ?? 0),
       debitStatus: debitStatus,
@@ -119,27 +124,31 @@ function mapApiItemToClient(item) {
       retryCount: raw.Retry_Count ?? 0,
       debitRunBatchId: raw.Debit_Run_Batch_ID || "",
       lastAttemptDate: safe.lastAttemptDate || raw.Last_Attempt_Date || "",
-      lastTransactionReference: safe.lastTransactionReference || raw.Last_Transaction_Reference || "",
+      lastTransactionReference:
+        safe.lastTransactionReference || raw.Last_Transaction_Reference || "",
       failureReason: safe.failureReason || raw.Failure_Reason || "",
     },
 
-    updatedAt: safe.updated || raw.Modified_Time || raw.Created_Time || new Date().toISOString(),
+    updatedAt:
+      safe.updated || raw.Modified_Time || raw.Created_Time || new Date().toISOString(),
     notes: raw.Notes || "",
   };
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50, signal } = {}) {
-  // Prefer the deployed route style that you confirmed is working
-  const url = buildUrl(`/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`);
+  const url = buildUrl(
+    `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`
+  );
+
   const data = await httpGetJson(url, { signal });
 
   const items = extractItems(data);
 
-  // If we got non-JSON (index.html), surface a professional error
-  if (!items.length && data && typeof data === "object" && typeof data.raw === "string") {
-    const rawText = data.raw.slice(0, 140).replace(/\s+/g, " ").trim();
+  if (!items.length) {
+    // Give a clean, useful error if backend returned ok but nothing usable
+    const keys = data && typeof data === "object" ? Object.keys(data).join(", ") : "n/a";
     throw new Error(
-      `Clients API returned non-JSON content. This usually means the frontend is calling the wrong host or a missing proxy route. First bytes: ${rawText}`
+      `Clients API returned no items array. Keys received: ${keys}`
     );
   }
 
