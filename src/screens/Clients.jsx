@@ -1,139 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { fetchZohoClients } from "../api/crm";
+// src/screens/Clients.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 export default function Clients() {
-  const seed = useMemo(
-    () => [
-      {
-        id: "CL-10021",
-        source: "zoho",
-        zohoClientId: "642901000001234567",
-        zohoDebitOrderId: "642901000009876543",
-        name: "Mkhize Holdings",
-        primaryEmail: "finance@mkhize.co.za",
-        secondaryEmail: "",
-        emailOptOut: false,
-        owner: "Ops",
-        phone: "010 446 5754",
-        industry: "Commercial",
-        risk: "Low",
-        status: "Active",
-        debit: {
-          billingCycle: "Monthly - 25th",
-          nextChargeDate: "2026-02-25",
-          amountZar: 245000,
-          debitStatus: "Scheduled",
-          paystackCustomerCode: "CUS_f4v3u1n0b7",
-          paystackAuthorizationCode: "AUTH_9q8w7e6r5t",
-          booksInvoiceId: "INV-000184",
-          retryCount: 0,
-          debitRunBatchId: "BATCH-2401",
-          lastAttemptDate: "2026-02-06T22:00:00.000Z",
-          lastTransactionReference: "PAY-DO-778122",
-          failureReason: "",
-        },
-        updatedAt: "2026-02-08T20:26:00.000Z",
-        notes: "High volume accounts. Prefers batch notifications by email.",
-      },
-      {
-        id: "CL-10022",
-        source: "zoho",
-        zohoClientId: "642901000001234568",
-        zohoDebitOrderId: "642901000009876544",
-        name: "Sable Properties",
-        primaryEmail: "accounts@sableprop.co.za",
-        secondaryEmail: "admin@sableprop.co.za",
-        emailOptOut: false,
-        owner: "Ops",
-        phone: "011 204 7721",
-        industry: "Property",
-        risk: "High",
-        status: "Risk",
-        debit: {
-          billingCycle: "Monthly - 25th",
-          nextChargeDate: "2026-02-25",
-          amountZar: 89000,
-          debitStatus: "Failed",
-          paystackCustomerCode: "CUS_q1w2e3r4t5",
-          paystackAuthorizationCode: "AUTH_1a2s3d4f5g",
-          booksInvoiceId: "INV-000201",
-          retryCount: 2,
-          debitRunBatchId: "BATCH-2401",
-          lastAttemptDate: "2026-02-06T22:00:00.000Z",
-          lastTransactionReference: "PAY-DO-781991",
-          failureReason: "Insufficient funds",
-        },
-        updatedAt: "2026-02-08T18:03:00.000Z",
-        notes: "Recent reversals. Monitor retry count and mandate activity.",
-      },
-      {
-        id: "CL-10023",
-        source: "zoho",
-        zohoClientId: "642901000001234569",
-        zohoDebitOrderId: "642901000009876545",
-        name: "Aurora Wellness Group",
-        primaryEmail: "billing@aurorawellness.co.za",
-        secondaryEmail: "",
-        emailOptOut: false,
-        owner: "Ops",
-        phone: "010 998 4432",
-        industry: "Healthcare",
-        risk: "Medium",
-        status: "Active",
-        debit: {
-          billingCycle: "Monthly - 25th",
-          nextChargeDate: "2026-02-25",
-          amountZar: 128000,
-          debitStatus: "Scheduled",
-          paystackCustomerCode: "CUS_7y6u5t4r3e",
-          paystackAuthorizationCode: "AUTH_z9x8c7v6b5",
-          booksInvoiceId: "INV-000176",
-          retryCount: 0,
-          debitRunBatchId: "BATCH-2401",
-          lastAttemptDate: "2026-02-06T22:00:00.000Z",
-          lastTransactionReference: "PAY-DO-770004",
-          failureReason: "",
-        },
-        updatedAt: "2026-02-08T12:11:00.000Z",
-        notes: "Multiple branches. Standard debit schedule.",
-      },
-      {
-        id: "CL-10024",
-        source: "manual",
-        zohoClientId: "",
-        zohoDebitOrderId: "",
-        name: "Kopano Tutors",
-        primaryEmail: "admin@kopanotutors.co.za",
-        secondaryEmail: "",
-        emailOptOut: false,
-        owner: "Ops",
-        phone: "021 110 0081",
-        industry: "Education",
-        risk: "Low",
-        status: "Paused",
-        debit: {
-          billingCycle: "Monthly - 25th",
-          nextChargeDate: "2026-03-25",
-          amountZar: 12000,
-          debitStatus: "Notified",
-          paystackCustomerCode: "",
-          paystackAuthorizationCode: "",
-          booksInvoiceId: "",
-          retryCount: 0,
-          debitRunBatchId: "",
-          lastAttemptDate: "",
-          lastTransactionReference: "",
-          failureReason: "",
-        },
-        updatedAt: "2026-02-08T09:42:00.000Z",
-        notes: "Manual capture while CRM sync is pending. Link to Zoho when record exists.",
-      },
-    ],
-    []
-  );
-
-  const [clients, setClients] = useState(seed);
-  const [selectedId, setSelectedId] = useState(seed[0]?.id || "");
+  // Manual clients are UI-only. Zoho clients are fetched from /api/clients.
+  const [clients, setClients] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
   const [hoverId, setHoverId] = useState("");
 
   const [toast, setToast] = useState("");
@@ -147,14 +18,15 @@ export default function Clients() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [sourceFilter, setSourceFilter] = useState("All"); // All | Zoho | Manual
 
+  // CRM sync states
   const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
+  const [initialLoad, setInitialLoad] = useState(true);
 
-  const selected = useMemo(
-    () => clients.find((c) => c.id === selectedId) || null,
-    [clients, selectedId]
-  );
+  const inFlight = useRef(null);
+
+  const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
 
   const counts = useMemo(() => {
     const base = { All: clients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
@@ -175,8 +47,8 @@ export default function Clients() {
       .filter((c) => {
         if (!q) return true;
         return (
-          c.name.toLowerCase().includes(q) ||
-          c.id.toLowerCase().includes(q) ||
+          (c.name || "").toLowerCase().includes(q) ||
+          (c.id || "").toLowerCase().includes(q) ||
           (c.primaryEmail || "").toLowerCase().includes(q) ||
           (c.secondaryEmail || "").toLowerCase().includes(q) ||
           (c.zohoClientId || "").toLowerCase().includes(q)
@@ -186,12 +58,30 @@ export default function Clients() {
   }, [clients, query, statusFilter, sourceFilter]);
 
   async function syncFromZoho({ silent = false } = {}) {
+    // Cancel any prior in-flight request
+    if (inFlight.current) {
+      try {
+        inFlight.current.abort();
+      } catch {
+        // ignore
+      }
+    }
+
+    const controller = new AbortController();
+    inFlight.current = controller;
+
+    const isFirst = initialLoad;
+
     try {
       setSyncError("");
       setSyncing(true);
       setZohoCrmStatus("Loading");
 
-      const { clients: zohoClients } = await fetchZohoClients({ page: 1, perPage: 200 });
+      const { clients: zohoClients } = await fetchLiveClients({
+        signal: controller.signal,
+        page: 1,
+        perPage: 200,
+      });
 
       setClients((prev) => {
         const manual = prev.filter((c) => c.source === "manual");
@@ -210,18 +100,31 @@ export default function Clients() {
       setZohoCrmStatus("Connected");
       if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
     } catch (e) {
+      if (e?.name === "AbortError") return;
+
       const msg = e?.message || String(e);
       setSyncError(msg);
       setZohoCrmStatus("Error");
       if (!silent) showToast(`Sync failed: ${msg}`);
     } finally {
       setSyncing(false);
+      if (isFirst) setInitialLoad(false);
+      if (inFlight.current === controller) inFlight.current = null;
     }
   }
 
   // Load once on mount
   useEffect(() => {
     syncFromZoho({ silent: true });
+    return () => {
+      if (inFlight.current) {
+        try {
+          inFlight.current.abort();
+        } catch {
+          // ignore
+        }
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -623,12 +526,28 @@ export default function Clients() {
     max-width: 420px;
   }
 
+  /* Premium loading skeletons (additive only, does not alter existing layout) */
+  .tt-skelRow {
+    height: 14px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+    background-size: 220% 100%;
+    animation: ttShimmer 1.1s ease-in-out infinite;
+  }
+  @keyframes ttShimmer {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+  }
+
   @media (max-width: 1100px) {
     .tt-grid { grid-template-columns: 1fr; }
     .tt-kv { grid-template-columns: 1fr; }
     .tt-split { grid-template-columns: 1fr; }
   }
   `;
+
+  const showTableLoading = initialLoad && syncing && clients.length === 0;
+  const showTableError = !showTableLoading && zohoCrmStatus === "Error" && clients.length === 0;
 
   return (
     <div className="tt-clients">
@@ -640,7 +559,7 @@ export default function Clients() {
             <h1 className="tt-clientsH1">Clients</h1>
             <p className="tt-clientsSub">
               Most client records sync from Zoho CRM. Manual creation is the exception, used only when a CRM record does not exist yet.
-              This screen now pulls live records from your CRM API.
+              This screen pulls live records from your CRM API.
             </p>
           </div>
 
@@ -732,54 +651,113 @@ export default function Clients() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c) => {
-                    const isActive = c.id === selectedId;
-                    const isHover = hoverId === c.id;
-
-                    const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
-
-                    return (
-                      <tr
-                        key={c.id}
-                        className={trClass}
-                        onMouseEnter={() => setHoverId(c.id)}
-                        onMouseLeave={() => setHoverId("")}
-                        onClick={() => setSelectedId(c.id)}
-                      >
+                  {showTableLoading &&
+                    Array.from({ length: 8 }).map((_, idx) => (
+                      <tr key={`sk-${idx}`} className="tt-tr">
                         <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            <div className="tt-nameRow">
-                              <span className="tt-name">{c.name}</span>
-                              <span className="tt-subId">{c.id}</span>
-                              <span className={statusBadgeClass(c.status)}>{c.status}</span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                              <div className="tt-skelRow" style={{ width: 180 }} />
+                              <div className="tt-skelRow" style={{ width: 80, opacity: 0.7 }} />
+                              <div className="tt-skelRow" style={{ width: 70, opacity: 0.55 }} />
                             </div>
-                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
+                            <div className="tt-skelRow" style={{ width: 220, opacity: 0.6 }} />
                           </div>
                         </td>
-
                         <td className="tt-td">
-                          {c.source === "zoho" ? (
-                            <span className="tt-pill tt-pillZoho">
-                              <Dot />
-                              Zoho
-                            </span>
-                          ) : (
-                            <span className="tt-pill tt-pillManual">
-                              <Dot />
-                              Manual
-                            </span>
-                          )}
+                          <div className="tt-skelRow" style={{ width: 76, opacity: 0.55 }} />
                         </td>
-
-                        <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
-                        <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
-                        <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
-                        <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
+                        <td className="tt-td">
+                          <div className="tt-skelRow" style={{ width: 92, opacity: 0.55 }} />
+                        </td>
+                        <td className="tt-td">
+                          <div className="tt-skelRow" style={{ width: 92, opacity: 0.55 }} />
+                        </td>
+                        <td className="tt-td">
+                          <div className="tt-skelRow" style={{ width: 92, opacity: 0.55 }} />
+                        </td>
+                        <td className="tt-td">
+                          <div className="tt-skelRow" style={{ width: 92, opacity: 0.55 }} />
+                        </td>
                       </tr>
-                    );
-                  })}
+                    ))}
 
-                  {filtered.length === 0 && (
+                  {showTableError && (
+                    <tr>
+                      <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>Unable to load clients</div>
+                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
+                            We could not fetch live client records from the API. Verify that <b>/api/clients</b> is reachable from the browser and that
+                            your Catalyst proxy routes are correct.
+                          </div>
+                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                            <button type="button" className="tt-btn tt-btnPrimary" onClick={() => syncFromZoho()}>
+                              Retry
+                            </button>
+                            <button
+                              type="button"
+                              className="tt-btn"
+                              onClick={() => showToast("Tip: Open DevTools, Network tab, then refresh Clients to inspect /api/clients.")}
+                            >
+                              Troubleshoot
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+
+                  {!showTableLoading &&
+                    !showTableError &&
+                    filtered.map((c) => {
+                      const isActive = c.id === selectedId;
+                      const isHover = hoverId === c.id;
+
+                      const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
+
+                      return (
+                        <tr
+                          key={c.id}
+                          className={trClass}
+                          onMouseEnter={() => setHoverId(c.id)}
+                          onMouseLeave={() => setHoverId("")}
+                          onClick={() => setSelectedId(c.id)}
+                        >
+                          <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <div className="tt-nameRow">
+                                <span className="tt-name">{c.name}</span>
+                                <span className="tt-subId">{c.id}</span>
+                                <span className={statusBadgeClass(c.status)}>{c.status}</span>
+                              </div>
+                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
+                            </div>
+                          </td>
+
+                          <td className="tt-td">
+                            {c.source === "zoho" ? (
+                              <span className="tt-pill tt-pillZoho">
+                                <Dot />
+                                Zoho
+                              </span>
+                            ) : (
+                              <span className="tt-pill tt-pillManual">
+                                <Dot />
+                                Manual
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
+                          <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
+                          <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
+                          <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
+                        </tr>
+                      );
+                    })}
+
+                  {!showTableLoading && !showTableError && filtered.length === 0 && (
                     <tr>
                       <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -816,7 +794,15 @@ export default function Clients() {
             <div className="tt-right">
               {!selected ? (
                 <div className="tt-section" style={{ color: "rgba(255,255,255,0.70)" }}>
-                  Select a client to view details.
+                  {showTableLoading ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div className="tt-skelRow" style={{ width: 240 }} />
+                      <div className="tt-skelRow" style={{ width: 280, opacity: 0.7 }} />
+                      <div className="tt-skelRow" style={{ width: 220, opacity: 0.55 }} />
+                    </div>
+                  ) : (
+                    "Select a client to view details."
+                  )}
                 </div>
               ) : (
                 <>
@@ -987,8 +973,8 @@ export default function Clients() {
               <div className="tt-modalBody">
                 {createDuplicate ? (
                   <div className="tt-warn">
-                    Duplicate detected: <b>{createDuplicate.name}</b> already uses <b>{createDuplicate.primaryEmail}</b>.
-                    Create manually only when CRM does not have the record.
+                    Duplicate detected: <b>{createDuplicate.name}</b> already uses <b>{createDuplicate.primaryEmail}</b>. Create manually only when CRM
+                    does not have the record.
                   </div>
                 ) : null}
 
@@ -1048,6 +1034,103 @@ export default function Clients() {
           </div>
         )}
 
+        {editOpen && editForm && (
+          <div className="tt-modalOverlay" role="dialog" aria-modal="true" aria-label="Edit client">
+            <div className="tt-modal">
+              <div className="tt-modalHead">
+                <div>
+                  <h2 className="tt-modalTitle">Edit client</h2>
+                  <div className="tt-modalHint">
+                    Editing is UI-only for now. Zoho synced records should be edited in CRM. This will be wired later.
+                  </div>
+                </div>
+
+                <div className="tt-modalActions">
+                  <button
+                    type="button"
+                    className="tt-btn"
+                    onClick={() => {
+                      setEditOpen(false);
+                      setEditForm(null);
+                    }}
+                  >
+                    Close
+                  </button>
+                  <button type="button" className="tt-btn tt-btnPrimary" onClick={saveEdit}>
+                    Save
+                  </button>
+                </div>
+              </div>
+
+              <div className="tt-modalBody">
+                <div className="tt-formGrid2">
+                  <div className="tt-field">
+                    <div className="tt-label">Client name</div>
+                    <input
+                      className="tt-text"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="tt-field">
+                    <div className="tt-label">Primary email</div>
+                    <input
+                      className="tt-text"
+                      value={editForm.primaryEmail}
+                      onChange={(e) => setEditForm((p) => ({ ...p, primaryEmail: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="tt-field">
+                    <div className="tt-label">Secondary email</div>
+                    <input
+                      className="tt-text"
+                      value={editForm.secondaryEmail}
+                      onChange={(e) => setEditForm((p) => ({ ...p, secondaryEmail: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="tt-field">
+                    <div className="tt-label">Phone</div>
+                    <input className="tt-text" value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} />
+                  </div>
+
+                  <div className="tt-field">
+                    <div className="tt-label">Industry</div>
+                    <input
+                      className="tt-text"
+                      value={editForm.industry}
+                      onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="tt-field">
+                    <div className="tt-label">Email opt out</div>
+                    <select
+                      className="tt-select"
+                      value={editForm.emailOptOut ? "Yes" : "No"}
+                      onChange={(e) => setEditForm((p) => ({ ...p, emailOptOut: e.target.value === "Yes" }))}
+                    >
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="tt-field">
+                  <div className="tt-label">Notes</div>
+                  <textarea
+                    className="tt-area"
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {toast ? (
           <div className="tt-toastWrap">
             <div className="tt-toast">{toast}</div>
@@ -1056,6 +1139,120 @@ export default function Clients() {
       </div>
     </div>
   );
+}
+
+/* ---------------------------
+   Live API (GET /api/clients)
+---------------------------- */
+
+async function httpGetJson(url, { signal } = {}) {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    signal,
+    credentials: "include",
+  });
+
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!res.ok) {
+    const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return json;
+}
+
+function mapApiItemToClient(item) {
+  // Supports:
+  // 1) Already-normalized shape from backend
+  // 2) { raw: <zoho record> } fallback
+  const safe = item || {};
+  const raw = safe.raw || safe || {};
+
+  const ownerName =
+    raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || raw.Owner.full_name || "" : safe.owner || "";
+
+  const debitStatus = safe.status || safe.debitStatus || raw.Status || raw.Debit_Status || "Unknown";
+
+  const derivedStatus =
+    safe.uiStatus ||
+    safe.clientStatus ||
+    safe.statusUi ||
+    (debitStatus === "Scheduled" ? "Active" : debitStatus === "Failed" ? "Risk" : "Active");
+
+  const debit = safe.debit && typeof safe.debit === "object" ? safe.debit : null;
+
+  return {
+    id: safe.id || raw.id || `ZOHO-${Math.random().toString(16).slice(2)}`,
+    source: (safe.source || "zoho").toLowerCase() === "manual" ? "manual" : "zoho",
+
+    zohoClientId: safe.zohoClientId || raw?.Client?.id || raw?.Client_ID || raw?.ClientId || "",
+    zohoDebitOrderId: safe.zohoDebitOrderId || safe.id || raw.id || "",
+
+    name: safe.name || safe.clientName || raw.Name || raw.Client_Name || "Client",
+    primaryEmail: safe.primaryEmail || safe.email || raw.Email || raw.Primary_Email || "",
+    secondaryEmail: safe.secondaryEmail || raw.Secondary_Email || raw.SecondaryEmail || "",
+    emailOptOut: !!(safe.emailOptOut ?? raw.Email_Opt_Out),
+
+    owner: safe.owner || ownerName || "Ops",
+    phone: safe.phone || raw.Phone || "",
+    industry: safe.industry || raw.Industry || "",
+    risk: safe.risk || raw.Risk || "Low",
+
+    status: derivedStatus,
+
+    debit: {
+      billingCycle:
+        (debit && debit.billingCycle) ||
+        safe.billingCycle ||
+        raw.Billing_Cycle_25th_retry_1st ||
+        raw.Billing_Cycle ||
+        "",
+      nextChargeDate: (debit && debit.nextChargeDate) || safe.nextChargeDate || raw.Next_Charge_Date || "",
+      amountZar: Number((debit && debit.amountZar) ?? safe.amount ?? safe.amountZar ?? raw.Amount ?? 0),
+      debitStatus: (debit && debit.debitStatus) || debitStatus,
+      paystackCustomerCode: (debit && debit.paystackCustomerCode) || raw.Paystack_Customer_Code || "",
+      paystackAuthorizationCode: (debit && debit.paystackAuthorizationCode) || raw.Paystack_Authorization_Code || "",
+      booksInvoiceId: (debit && debit.booksInvoiceId) || raw.Books_Invoice_ID || "",
+      retryCount: (debit && debit.retryCount) ?? raw.Retry_Count ?? 0,
+      debitRunBatchId: (debit && debit.debitRunBatchId) || raw.Debit_Run_Batch_ID || "",
+      lastAttemptDate: (debit && debit.lastAttemptDate) || safe.lastAttemptDate || raw.Last_Attempt_Date || "",
+      lastTransactionReference:
+        (debit && debit.lastTransactionReference) || safe.lastTransactionReference || raw.Last_Transaction_Reference || "",
+      failureReason: (debit && debit.failureReason) || safe.failureReason || raw.Failure_Reason || "",
+    },
+
+    updatedAt: safe.updatedAt || safe.updated || raw.Modified_Time || raw.Created_Time || new Date().toISOString(),
+    notes: safe.notes || raw.Notes || "",
+  };
+}
+
+async function fetchLiveClients({ page = 1, perPage = 50, signal } = {}) {
+  // Primary contract: GET /api/clients
+  // Supports either:
+  // - { items: [...] }
+  // - { clients: [...] }
+  // - [ ... ]
+  const url = `/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
+  const data = await httpGetJson(url, { signal });
+
+  const items = Array.isArray(data) ? data : Array.isArray(data.items) ? data.items : Array.isArray(data.clients) ? data.clients : [];
+  const mapped = items.map(mapApiItemToClient);
+
+  return {
+    page: data.page || page,
+    perPage: data.perPage || perPage,
+    count: data.count ?? mapped.length,
+    clients: mapped,
+    raw: data,
+  };
 }
 
 /* ---------------------------
