@@ -1,55 +1,36 @@
-/**
- * src/api/crm.js
- * API utility for fetching and mapping Zoho CRM client data.
- */
-
+// src/api/crm.js
 "use strict";
 
-/**
- * Determines the API base URL.
- * Falls back to window.location.origin if VITE_CRM_API_BASE is empty,
- * which is ideal for same-origin Zoho Catalyst deployments.
- */
 function getApiBase() {
+  // Optional: set this in your Vite env if you want a full domain base.
+  // Example:
+  // VITE_CRM_API_BASE=https://tabbytechdebitorder-913617844.development.catalystserverless.com
   const raw = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
-  if (!raw) return window.location.origin; 
+
+  if (!raw) return ""; // same-origin
   return raw.endsWith("/") ? raw.slice(0, -1) : raw;
 }
 
-/**
- * Safely joins a base URL and a path, ensuring no double slashes.
- */
 function joinUrl(base, path) {
+  // base may be "" meaning same-origin
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }
 
-/**
- * Core HTTP client with specific handling for SPA "HTML Fallback" errors.
- */
 async function httpGetJson(url) {
   const res = await fetch(url, {
     method: "GET",
-    headers: { 
-      "Accept": "application/json",
-      "Cache-Control": "no-store" 
-    },
+    headers: { Accept: "application/json" },
   });
 
   const contentType = (res.headers.get("content-type") || "").toLowerCase();
   const text = await res.text();
 
-  // Safeguard: SPAs often return index.html when a backend route is missing (404 fallback).
-  // This detects that "Unexpected HTML response" error.
-  const looksLikeHtml = contentType.includes("text/html") || /^\s*</.test(text);
-  
-  if (looksLikeHtml) {
-    const err = new Error(
-      "Unexpected HTML response. The frontend likely hit a non-existent API route and fell back to index.html."
+  // If we hit the SPA fallback, we usually get HTML
+  if (contentType.includes("text/html") || /^\s*</.test(text)) {
+    throw new Error(
+      "Unexpected HTML response. Frontend likely hit the wrong CRM API URL."
     );
-    err.name = "UnexpectedHtmlResponse";
-    err.url = url;
-    throw err;
   }
 
   let json;
@@ -61,20 +42,12 @@ async function httpGetJson(url) {
 
   if (!res.ok) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.name = "HttpError";
-    err.status = res.status;
-    err.url = url;
-    throw err;
+    throw new Error(msg);
   }
 
   return json;
 }
 
-/**
- * Transforms raw Zoho API items into a consistent, UI-friendly Client object.
- * Maps custom Zoho fields (e.g., Billing_Cycle_25th) to predictable keys.
- */
 function mapApiItemToClient(item) {
   const safe = item || {};
   const raw = safe.raw || {};
@@ -137,37 +110,25 @@ function mapApiItemToClient(item) {
   };
 }
 
-/**
- * Fetches clients from the Catalyst CRM API.
- * Default path: /crm_api/api/clients
- */
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
   const base = getApiBase();
 
-  // Construct absolute API path with query params
+  // Always use an absolute API path
   const path = `/crm_api/api/clients?page=${encodeURIComponent(
     page
   )}&perPage=${encodeURIComponent(perPage)}`;
 
   const url = joinUrl(base, path);
-  
-  try {
-    const data = await httpGetJson(url);
 
-    // Expects backend to return: { ok: boolean, items: Array, count: number }
-    const items = Array.isArray(data.items) ? data.items : [];
+  const data = await httpGetJson(url);
 
-    return {
-      ok: data.ok !== false,
-      page: data.page || page,
-      perPage: data.perPage || perPage,
-      count: data.count ?? items.length,
-      clients: items.map(mapApiItemToClient),
-      raw: data,
-      requestUrl: url,
-    };
-  } catch (error) {
-    console.error(`[CRM API Error] ${error.name}: ${error.message}`, { url });
-    throw error;
-  }
+  const items = Array.isArray(data.items) ? data.items : [];
+  return {
+    page: data.page || page,
+    perPage: data.perPage || perPage,
+    count: data.count ?? items.length,
+    clients: items.map(mapApiItemToClient),
+    raw: data,
+    _requestUrl: url, // useful for debugging in UI
+  };
 }
