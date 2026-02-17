@@ -2,15 +2,18 @@
 "use strict";
 
 /**
- * CRM API client for TabbyTech Debit Orders
- * Key points:
- * - Always bypass browser/proxy caching (prevents 304 with empty body)
- * - Robust JSON parsing (handles empty/HTML)
- * - Accepts { items: [...] } response shape from /crm_api/api/clients
+ * Catalyst-safe CRM API client
+ * - In production on Catalyst: ALWAYS use relative path (/crm_api/...) to avoid CORS + wrong-host issues.
+ * - In local dev: you may set VITE_CRM_API_BASE to point at your Catalyst domain.
  */
 
-function getBaseUrl() {
-  // In Vite, this is injected at build time. If undefined, fall back to same-origin.
+function runningOnCatalystHost() {
+  if (typeof window === "undefined") return false;
+  const h = String(window.location.hostname || "").toLowerCase();
+  return h.includes("catalystserverless.com");
+}
+
+function getInjectedBaseUrl() {
   const injected =
     (typeof import.meta !== "undefined" &&
       import.meta.env &&
@@ -18,19 +21,21 @@ function getBaseUrl() {
     "";
 
   const base = String(injected || "").trim();
-
-  // If base is present, ensure no trailing slash
-  if (base) return base.replace(/\/+$/, "");
-  return "";
+  return base ? base.replace(/\/+$/, "") : "";
 }
 
 function buildUrl(pathWithQuery) {
-  const base = getBaseUrl();
-  // If no base, return path as-is (same-origin)
-  if (!base) return pathWithQuery.startsWith("/") ? pathWithQuery : `/${pathWithQuery}`;
-  // If base exists, join
-  const p = pathWithQuery.startsWith("/") ? pathWithQuery : `/${pathWithQuery}`;
-  return `${base}${p}`;
+  const path = pathWithQuery.startsWith("/") ? pathWithQuery : `/${pathWithQuery}`;
+
+  // If we are already hosted on Catalyst, do NOT use an absolute base
+  // This guarantees same-origin requests and avoids CORS or routing mistakes.
+  if (runningOnCatalystHost()) return path;
+
+  // Otherwise (local dev etc), use injected base if present
+  const base = getInjectedBaseUrl();
+  if (!base) return path;
+
+  return `${base}${path}`;
 }
 
 function looksLikeHtml(text) {
@@ -39,13 +44,36 @@ function looksLikeHtml(text) {
   return t.startsWith("<!doctype html") || t.startsWith("<html") || t.includes("<head") || t.includes("<body");
 }
 
-async function httpGetJson(url, { retryOn304 = true } = {}) {
-  const fetchOnce = async (u) => {
-    const res = await fetch(u, {
+async function httpGetJson(url) {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+
+  // Read body as text first so we can detect HTML and handle empty bodies
+  const text = await res.text();
+
+  if (looksLikeHtml(text)) {
+    throw new Error(
+      `Unexpected HTML response. Wrong API path or base URL. Expected JSON from /crm_api/api/clients. URL hit: ${url}`
+    );
+  }
+
+  // Handle 304 explicitly (can have empty body)
+  if (res.status === 304) {
+    // Retry once with cache buster
+    const u = new URL(url, window.location.origin);
+    u.searchParams.set("_ts", String(Date.now()));
+    const r2 = await fetch(u.toString(), {
       method: "GET",
       headers: {
         Accept: "application/json",
-        // Defensive headers to avoid 304 / cached empty body scenarios
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
       },
@@ -53,71 +81,46 @@ async function httpGetJson(url, { retryOn304 = true } = {}) {
       credentials: "same-origin",
     });
 
-    const text = await res.text();
-
-    // If we got HTML, the request hit a frontend route or wrong host/path
-    if (looksLikeHtml(text)) {
-      const hint = `Unexpected HTML response. Wrong API path or base URL. Expected JSON from /crm_api/api/clients. URL hit: ${u}`;
-      const err = new Error(hint);
-      err.name = "UnexpectedHtmlResponse";
-      err.status = res.status;
-      err.raw = text.slice(0, 220);
-      throw err;
-    }
-
-    // Handle 304 explicitly (often no body)
-    if (res.status === 304) {
-      const err = new Error(`Received 304 Not Modified from API (empty body likely). URL: ${u}`);
-      err.name = "NotModified";
-      err.status = 304;
-      err.raw = text;
-      throw err;
-    }
-
-    let json;
+    const t2 = await r2.text();
+    let j2;
     try {
-      json = text ? JSON.parse(text) : null;
+      j2 = t2 ? JSON.parse(t2) : null;
     } catch {
-      json = { raw: text };
+      j2 = { raw: t2 };
     }
 
-    if (!res.ok) {
-      const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-      const err = new Error(msg);
-      err.status = res.status;
-      err.payload = json;
-      throw err;
+    if (!r2.ok) {
+      const msg = j2?.error || j2?.message || t2 || `HTTP ${r2.status}`;
+      throw new Error(msg);
     }
 
-    if (!json || typeof json !== "object") {
-      const err = new Error(`Empty or invalid JSON response. URL: ${u}`);
-      err.name = "InvalidJson";
-      err.status = res.status;
-      err.raw = text;
-      throw err;
+    if (!j2 || typeof j2 !== "object") {
+      throw new Error(`Empty or invalid JSON after retry. URL: ${u.toString()}`);
     }
 
-    return json;
-  };
-
-  try {
-    return await fetchOnce(url);
-  } catch (e) {
-    // Retry once if 304 or empty/invalid response by adding a cache buster
-    const is304 = e && (e.name === "NotModified" || e.status === 304);
-    const isInvalid = e && (e.name === "InvalidJson" || /Empty or invalid JSON/i.test(e.message || ""));
-    if (retryOn304 && (is304 || isInvalid)) {
-      const u = new URL(url, window.location.origin);
-      u.searchParams.set("_ts", String(Date.now()));
-      return await fetchOnce(u.toString());
-    }
-    throw e;
+    return j2;
   }
+
+  let json;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!res.ok) {
+    const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  if (!json || typeof json !== "object") {
+    throw new Error(`Empty or invalid JSON response. URL: ${url}`);
+  }
+
+  return json;
 }
 
 function mapApiItemToClient(item) {
-  // item is your backend normalized shape:
-  // { id, clientName, name, status, billingCycle, nextChargeDate, amount, email, secondaryEmail, ... , raw }
   const safe = item || {};
   const raw = safe.raw || {};
 
@@ -143,7 +146,6 @@ function mapApiItemToClient(item) {
     industry: raw.Industry || "",
     risk: raw.Risk || "Low",
 
-    // Derive UI friendly status from debitStatus
     status:
       debitStatus === "Scheduled"
         ? "Active"
@@ -190,7 +192,6 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
   const url = buildUrl(path);
   const data = await httpGetJson(url);
 
-  // Your backend returns: { ok, page, perPage, count, items: [] }
   const items = Array.isArray(data.items) ? data.items : [];
 
   return {
