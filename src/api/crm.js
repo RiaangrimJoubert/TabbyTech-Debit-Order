@@ -1,34 +1,51 @@
-// src/api/crm.js
+/**
+ * src/api/crm.js
+ * API utility for fetching and mapping Zoho CRM client data.
+ */
+
 "use strict";
 
+/**
+ * Determines the API base URL.
+ * Falls back to window.location.origin if VITE_CRM_API_BASE is empty,
+ * which is ideal for same-origin Zoho Catalyst deployments.
+ */
 function getApiBase() {
-  // If you are hosting frontend and /crm_api on the same domain (Catalyst typical),
-  // leave VITE_CRM_API_BASE empty and this will use same-origin.
   const raw = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
-  if (!raw) return "";
+  if (!raw) return window.location.origin; 
   return raw.endsWith("/") ? raw.slice(0, -1) : raw;
 }
 
+/**
+ * Safely joins a base URL and a path, ensuring no double slashes.
+ */
 function joinUrl(base, path) {
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }
 
+/**
+ * Core HTTP client with specific handling for SPA "HTML Fallback" errors.
+ */
 async function httpGetJson(url) {
   const res = await fetch(url, {
     method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
+    headers: { 
+      "Accept": "application/json",
+      "Cache-Control": "no-store" 
+    },
   });
 
   const contentType = (res.headers.get("content-type") || "").toLowerCase();
   const text = await res.text();
 
-  // SPA fallback usually returns HTML (index.html)
+  // Safeguard: SPAs often return index.html when a backend route is missing (404 fallback).
+  // This detects that "Unexpected HTML response" error.
   const looksLikeHtml = contentType.includes("text/html") || /^\s*</.test(text);
+  
   if (looksLikeHtml) {
     const err = new Error(
-      "Unexpected HTML response. Frontend likely hit the wrong CRM API URL. The API path must be /crm_api/api/clients."
+      "Unexpected HTML response. The frontend likely hit a non-existent API route and fell back to index.html."
     );
     err.name = "UnexpectedHtmlResponse";
     err.url = url;
@@ -54,6 +71,10 @@ async function httpGetJson(url) {
   return json;
 }
 
+/**
+ * Transforms raw Zoho API items into a consistent, UI-friendly Client object.
+ * Maps custom Zoho fields (e.g., Billing_Cycle_25th) to predictable keys.
+ */
 function mapApiItemToClient(item) {
   const safe = item || {};
   const raw = safe.raw || {};
@@ -116,27 +137,37 @@ function mapApiItemToClient(item) {
   };
 }
 
+/**
+ * Fetches clients from the Catalyst CRM API.
+ * Default path: /crm_api/api/clients
+ */
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
   const base = getApiBase();
 
-  // Always absolute API path
+  // Construct absolute API path with query params
   const path = `/crm_api/api/clients?page=${encodeURIComponent(
     page
   )}&perPage=${encodeURIComponent(perPage)}`;
 
   const url = joinUrl(base, path);
-  const data = await httpGetJson(url);
+  
+  try {
+    const data = await httpGetJson(url);
 
-  // Your backend returns: { ok, page, perPage, count, items: [...] }
-  const items = Array.isArray(data.items) ? data.items : [];
+    // Expects backend to return: { ok: boolean, items: Array, count: number }
+    const items = Array.isArray(data.items) ? data.items : [];
 
-  return {
-    ok: data.ok !== false,
-    page: data.page || page,
-    perPage: data.perPage || perPage,
-    count: data.count ?? items.length,
-    clients: items.map(mapApiItemToClient),
-    raw: data,
-    requestUrl: url,
-  };
+    return {
+      ok: data.ok !== false,
+      page: data.page || page,
+      perPage: data.perPage || perPage,
+      count: data.count ?? items.length,
+      clients: items.map(mapApiItemToClient),
+      raw: data,
+      requestUrl: url,
+    };
+  } catch (error) {
+    console.error(`[CRM API Error] ${error.name}: ${error.message}`, { url });
+    throw error;
+  }
 }
