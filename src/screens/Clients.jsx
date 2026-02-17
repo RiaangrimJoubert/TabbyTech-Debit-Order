@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { fetchZohoClients } from "../api/crm";
 
 export default function Clients() {
   const seed = useMemo(
@@ -146,9 +147,14 @@ export default function Clients() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [sourceFilter, setSourceFilter] = useState("All"); // All | Zoho | Manual
 
-  const [zohoCrmStatus] = useState("Connected"); // UI-only
+  const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState("");
 
-  const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
+  const selected = useMemo(
+    () => clients.find((c) => c.id === selectedId) || null,
+    [clients, selectedId]
+  );
 
   const counts = useMemo(() => {
     const base = { All: clients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
@@ -178,6 +184,46 @@ export default function Clients() {
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [clients, query, statusFilter, sourceFilter]);
+
+  async function syncFromZoho({ silent = false } = {}) {
+    try {
+      setSyncError("");
+      setSyncing(true);
+      setZohoCrmStatus("Loading");
+
+      const { clients: zohoClients } = await fetchZohoClients({ page: 1, perPage: 200 });
+
+      setClients((prev) => {
+        const manual = prev.filter((c) => c.source === "manual");
+        const next = [...zohoClients, ...manual];
+
+        // Keep selection stable if possible
+        const stillExists = next.some((c) => c.id === selectedId);
+        if (!stillExists) {
+          const first = next[0]?.id || "";
+          setSelectedId(first);
+        }
+
+        return next;
+      });
+
+      setZohoCrmStatus("Connected");
+      if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
+    } catch (e) {
+      const msg = e?.message || String(e);
+      setSyncError(msg);
+      setZohoCrmStatus("Error");
+      if (!silent) showToast(`Sync failed: ${msg}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  // Load once on mount
+  useEffect(() => {
+    syncFromZoho({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Manual create modal
   const [createOpen, setCreateOpen] = useState(false);
@@ -247,7 +293,7 @@ export default function Clients() {
     setSelectedId(next.id);
     setCreateOpen(false);
     resetCreate();
-    showToast("Client created (manual, UI-only).");
+    showToast("Client created (manual).");
   }
 
   // Edit modal
@@ -303,21 +349,7 @@ export default function Clients() {
   function linkToZoho() {
     if (!selected) return;
     if (selected.source === "zoho") return showToast("Already linked to Zoho CRM.");
-
-    setClients((prev) =>
-      prev.map((c) => {
-        if (c.id !== selected.id) return c;
-        return {
-          ...c,
-          source: "zoho",
-          zohoClientId: "64290100000" + Math.floor(100000 + Math.random() * 899999),
-          zohoDebitOrderId: "64290100000" + Math.floor(100000 + Math.random() * 899999),
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
-
-    showToast("Linked to Zoho CRM (UI-only).");
+    showToast("Linking manual to Zoho will come next. For now, manual stays manual.");
   }
 
   function disableClient() {
@@ -418,7 +450,6 @@ export default function Clients() {
   .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
 
-  /* PREMIUM BLACK DROPDOWN CONTROL */
   .tt-select {
     height: 34px;
     border-radius: 999px;
@@ -454,7 +485,6 @@ export default function Clients() {
     box-shadow: 0 0 0 6px rgba(124,58,237,0.18);
   }
 
-  /* Try to style options where browsers allow it */
   .tt-select option {
     background: rgba(0,0,0,0.92);
     color: rgba(168,85,247,0.95);
@@ -580,81 +610,6 @@ export default function Clients() {
     border-color: rgba(239,68,68,0.35);
   }
 
-  /* Modal */
-  .tt-modalOverlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.62);
-    backdrop-filter: blur(10px);
-    display: grid;
-    place-items: center;
-    z-index: 80;
-    padding: 24px;
-  }
-  .tt-modal {
-    width: min(980px, 96vw);
-    border-radius: 22px;
-    border: 1px solid rgba(255,255,255,0.10);
-    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
-    box-shadow: 0 30px 90px rgba(0,0,0,0.60);
-    backdrop-filter: blur(18px);
-    overflow: hidden;
-  }
-  .tt-modalHead {
-    padding: 16px 18px;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    background: rgba(0,0,0,0.10);
-  }
-  .tt-modalTitle { margin: 0; font-size: 18px; font-weight: 900; color: rgba(255,255,255,0.92); }
-  .tt-modalHint { margin-top: 6px; font-size: 13px; line-height: 1.4; color: rgba(255,255,255,0.68); max-width: 780px; }
-  .tt-modalBody { padding: 16px 18px 18px; display: grid; gap: 12px; }
-
-  .tt-formGrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .tt-field { display: grid; gap: 6px; }
-  .tt-label { font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.72); }
-  .tt-text {
-    height: 42px;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(0,0,0,0.22);
-    color: rgba(255,255,255,0.90);
-    padding: 0 12px;
-    outline: none;
-    font-size: 13px;
-    font-weight: 700;
-  }
-  .tt-text:focus { border-color: rgba(124,58,237,0.45); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
-  .tt-area {
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(0,0,0,0.22);
-    color: rgba(255,255,255,0.90);
-    padding: 10px 12px;
-    outline: none;
-    font-size: 13px;
-    font-weight: 700;
-    resize: none;
-    min-height: 120px;
-  }
-  .tt-area:focus { border-color: rgba(124,58,237,0.45); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
-
-  .tt-warn {
-    border-radius: 16px;
-    border: 1px solid rgba(245,158,11,0.28);
-    background: rgba(245,158,11,0.10);
-    padding: 12px;
-    color: rgba(255,255,255,0.84);
-    font-size: 13px;
-    line-height: 1.45;
-  }
-  .tt-warn b { color: rgba(255,255,255,0.92); }
-
-  .tt-modalActions { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
-
   .tt-toastWrap { position: fixed; bottom: 24px; right: 24px; z-index: 90; }
   .tt-toast {
     border-radius: 18px;
@@ -670,7 +625,6 @@ export default function Clients() {
 
   @media (max-width: 1100px) {
     .tt-grid { grid-template-columns: 1fr; }
-    .tt-formGrid2 { grid-template-columns: 1fr; }
     .tt-kv { grid-template-columns: 1fr; }
     .tt-split { grid-template-columns: 1fr; }
   }
@@ -686,7 +640,7 @@ export default function Clients() {
             <h1 className="tt-clientsH1">Clients</h1>
             <p className="tt-clientsSub">
               Most client records sync from Zoho CRM. Manual creation is the exception, used only when a CRM record does not exist yet.
-              Everything here remains UI-only until backend wiring resumes.
+              This screen now pulls live records from your CRM API.
             </p>
           </div>
 
@@ -705,13 +659,13 @@ export default function Clients() {
         </div>
 
         <div className="tt-grid">
-          {/* LEFT: LIST */}
           <div className="tt-glass tt-tableWrap">
             <div className="tt-panelHeader">
               <div className="tt-phLeft">
                 <p className="tt-phTitle">Client list</p>
                 <p className="tt-phMeta">
                   {filtered.length} shown · Zoho CRM: <b>{zohoCrmStatus}</b>
+                  {syncError ? <span style={{ marginLeft: 8, color: "rgba(239,68,68,0.9)" }}>({syncError})</span> : null}
                 </p>
               </div>
 
@@ -722,8 +676,8 @@ export default function Clients() {
                   <option value="Manual">Manual</option>
                 </select>
 
-                <button type="button" className="tt-btn" onClick={() => showToast("Sync now is UI-only placeholder.")}>
-                  Sync now
+                <button type="button" className="tt-btn" onClick={() => syncFromZoho()} disabled={syncing}>
+                  {syncing ? "Syncing..." : "Sync now"}
                 </button>
               </div>
             </div>
@@ -842,7 +796,6 @@ export default function Clients() {
             </div>
           </div>
 
-          {/* RIGHT: DETAILS */}
           <div className="tt-glass" style={{ display: "flex", flexDirection: "column" }}>
             <div className="tt-panelHeader">
               <div className="tt-phLeft">
@@ -919,10 +872,10 @@ export default function Clients() {
                     <div className="tt-divider" />
 
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button type="button" className="tt-btn" onClick={() => showToast("View debit orders is UI-only placeholder.")}>
+                      <button type="button" className="tt-btn" onClick={() => showToast("View debit orders will come next.")}>
                         View debit orders
                       </button>
-                      <button type="button" className="tt-btn" onClick={() => showToast("View batches is UI-only placeholder.")}>
+                      <button type="button" className="tt-btn" onClick={() => showToast("View batches will come next.")}>
                         View batches
                       </button>
 
@@ -931,21 +884,11 @@ export default function Clients() {
                           Link to Zoho
                         </button>
                       ) : (
-                        <button type="button" className="tt-btn" onClick={() => showToast("Open in Zoho is UI-only placeholder.")}>
+                        <button type="button" className="tt-btn" onClick={() => showToast("Open in Zoho will come next.")}>
                           Open in Zoho
                         </button>
                       )}
                     </div>
-
-                    {selected.source !== "zoho" ? (
-                      <div style={{ marginTop: 12, color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.45 }}>
-                        Manual record. When a matching Zoho CRM record exists, link it to reduce duplicates and keep CRM as the source of truth.
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: 12, color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.45 }}>
-                        Synced from Zoho CRM. Most fields should remain consistent with CRM to avoid conflict in a two-way sync.
-                      </div>
-                    )}
                   </div>
 
                   <div className="tt-section">
@@ -989,13 +932,13 @@ export default function Clients() {
                     <div className="tt-divider" />
 
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button type="button" className="tt-btn" onClick={() => showToast("Update status is UI-only placeholder.")}>
+                      <button type="button" className="tt-btn" onClick={() => showToast("Update status will come next.")}>
                         Update status
                       </button>
-                      <button type="button" className="tt-btn" onClick={() => showToast("Retry scheduling is UI-only placeholder.")}>
+                      <button type="button" className="tt-btn" onClick={() => showToast("Schedule retry will come next.")}>
                         Schedule retry
                       </button>
-                      <button type="button" className="tt-btn tt-btnPrimary" onClick={() => showToast("Start onboarding is UI-only placeholder.")}>
+                      <button type="button" className="tt-btn tt-btnPrimary" onClick={() => showToast("Start onboarding will come next.")}>
                         Start onboarding
                       </button>
                     </div>
@@ -1013,7 +956,6 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* Create modal */}
         {createOpen && (
           <div className="tt-modalOverlay" role="dialog" aria-modal="true" aria-label="Add client manually">
             <div className="tt-modal">
@@ -1106,98 +1048,6 @@ export default function Clients() {
           </div>
         )}
 
-        {/* Edit modal */}
-        {editOpen && editForm && (
-          <div className="tt-modalOverlay" role="dialog" aria-modal="true" aria-label="Edit client">
-            <div className="tt-modal">
-              <div className="tt-modalHead">
-                <div>
-                  <h2 className="tt-modalTitle">Edit client</h2>
-                  <div className="tt-modalHint">
-                    For Zoho-synced clients, treat CRM as the source of truth. In a two-way sync, avoid conflicting edits.
-                  </div>
-                </div>
-
-                <div className="tt-modalActions">
-                  <button
-                    type="button"
-                    className="tt-btn"
-                    onClick={() => {
-                      setEditOpen(false);
-                      setEditForm(null);
-                    }}
-                  >
-                    Close
-                  </button>
-                  <button type="button" className="tt-btn tt-btnPrimary" onClick={saveEdit}>
-                    Save
-                  </button>
-                </div>
-              </div>
-
-              <div className="tt-modalBody">
-                <div className="tt-formGrid2">
-                  <div className="tt-field">
-                    <div className="tt-label">Client name</div>
-                    <input className="tt-text" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Primary email</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.primaryEmail}
-                      onChange={(e) => setEditForm((p) => ({ ...p, primaryEmail: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Secondary email</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.secondaryEmail}
-                      onChange={(e) => setEditForm((p) => ({ ...p, secondaryEmail: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Phone</div>
-                    <input className="tt-text" value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Industry</div>
-                    <input
-                      className="tt-text"
-                      value={editForm.industry}
-                      onChange={(e) => setEditForm((p) => ({ ...p, industry: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Email opt out</div>
-                    <select
-                      className="tt-text"
-                      style={{ padding: "0 10px" }}
-                      value={editForm.emailOptOut ? "yes" : "no"}
-                      onChange={(e) => setEditForm((p) => ({ ...p, emailOptOut: e.target.value === "yes" }))}
-                    >
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="tt-field">
-                  <div className="tt-label">Notes</div>
-                  <textarea className="tt-area" value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Toast */}
         {toast ? (
           <div className="tt-toastWrap">
             <div className="tt-toast">{toast}</div>
