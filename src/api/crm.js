@@ -2,33 +2,38 @@
 "use strict";
 
 /**
- * Slate / Vite build-time env:
- * VITE_CRM_API_BASE=https://tabbytechdebitorder-913617844.development.catalystserverless.com
+ * Production rule:
+ * We do NOT use relative URLs for CRM API calls because the UI and Catalyst serverless
+ * can be hosted on different origins. We always call the Catalyst serverless origin
+ * via VITE_CRM_API_BASE.
  *
- * IMPORTANT:
- * Do NOT include a trailing slash.
+ * Set in your frontend environment (Slate build env):
+ * VITE_CRM_API_BASE = https://tabbytechdebitorder-913617844.development.catalystserverless.com
+ *
+ * No trailing slash.
  */
+
 const API_BASE = String(import.meta?.env?.VITE_CRM_API_BASE || "")
   .trim()
   .replace(/\/+$/, "");
 
-function buildCandidates({ page, perPage }) {
-  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}&_ts=${Date.now()}`;
+if (!API_BASE) {
+  throw new Error(
+    "VITE_CRM_API_BASE is not defined. Set it in the frontend environment variables and redeploy."
+  );
+}
 
-  // If API_BASE is set, we prefer calling that origin directly.
-  // If not set, we fall back to same-origin.
-  const origin = API_BASE || window.location.origin;
-
-  return [
-    `${origin}/crm_api/api/clients?${qs}`,
-    `${origin}/server/crm_api/api/clients?${qs}`, // seen in your Catalyst dev logs
-    `/crm_api/api/clients?${qs}`,
-    `/server/crm_api/api/clients?${qs}`,
-  ];
+function buildUrl(path) {
+  if (!path.startsWith("/")) path = "/" + path;
+  return `${API_BASE}${path}`;
 }
 
 async function httpGetJson(url, { signal } = {}) {
-  const res = await fetch(url, {
+  // Cache-buster prevents 304 + empty body edge cases
+  const u = new URL(url);
+  u.searchParams.set("_ts", String(Date.now()));
+
+  const res = await fetch(u.toString(), {
     method: "GET",
     headers: {
       Accept: "application/json",
@@ -52,7 +57,7 @@ async function httpGetJson(url, { signal } = {}) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
     const err = new Error(msg);
     err.status = res.status;
-    err.url = url;
+    err.url = u.toString();
     err.payload = json;
     throw err;
   }
@@ -63,20 +68,28 @@ async function httpGetJson(url, { signal } = {}) {
 function extractItems(data) {
   if (!data) return [];
   if (Array.isArray(data)) return data;
+
+  // Your backend contract: { ok, page, perPage, count, items: [...] }
   if (Array.isArray(data.items)) return data.items;
+
+  // Safety for alternate shapes
   if (Array.isArray(data.clients)) return data.clients;
   if (Array.isArray(data.data)) return data.data;
   if (Array.isArray(data.records)) return data.records;
+
   if (data.result && typeof data.result === "object") {
     if (Array.isArray(data.result.items)) return data.result.items;
     if (Array.isArray(data.result.clients)) return data.result.clients;
     if (Array.isArray(data.result.data)) return data.result.data;
     if (Array.isArray(data.result.records)) return data.result.records;
   }
+
   return [];
 }
 
 function mapApiItemToClient(item) {
+  // item is your backend normalized shape:
+  // { id, clientName, name, status, billingCycle, nextChargeDate, amount, email, secondaryEmail, ... , raw }
   const safe = item || {};
   const raw = safe.raw || {};
 
@@ -102,6 +115,7 @@ function mapApiItemToClient(item) {
     industry: raw.Industry || "",
     risk: raw.Risk || "Low",
 
+    // UI-friendly status mapping
     status:
       debitStatus === "Scheduled"
         ? "Active"
@@ -136,31 +150,26 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50, signal } = {}) {
-  const candidates = buildCandidates({ page, perPage });
+  const url = buildUrl(
+    `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(
+      perPage
+    )}`
+  );
 
-  let lastErr = null;
-  for (const url of candidates) {
-    try {
-      const data = await httpGetJson(url, { signal });
-      const items = extractItems(data);
+  const data = await httpGetJson(url, { signal });
+  const items = extractItems(data);
 
-      return {
-        page: data.page || page,
-        perPage: data.perPage || perPage,
-        count: data.count ?? items.length,
-        clients: items.map(mapApiItemToClient),
-        raw: data,
-        meta: { usedUrl: url, apiBase: API_BASE || "same-origin" },
-      };
-    } catch (e) {
-      lastErr = e;
-      // Try next candidate
-    }
+  if (!items.length) {
+    const keys = data && typeof data === "object" ? Object.keys(data).join(", ") : "n/a";
+    throw new Error(`API response did not include an array under items, clients, data, or records. Keys received: ${keys}`);
   }
 
-  const msg = lastErr?.message || "Failed to fetch clients from available endpoints.";
-  const detail = `Tried: ${candidates.join(" | ")}`;
-  const err = new Error(`${msg} (${detail})`);
-  err.cause = lastErr;
-  throw err;
+  return {
+    page: data.page || page,
+    perPage: data.perPage || perPage,
+    count: data.count ?? items.length,
+    clients: items.map(mapApiItemToClient),
+    raw: data,
+    meta: { usedUrl: url, apiBase: API_BASE },
+  };
 }
