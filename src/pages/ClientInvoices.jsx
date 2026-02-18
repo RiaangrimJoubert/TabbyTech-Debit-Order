@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { INVOICES, getInvoiceById, calcTotals, money } from "../data/invoices.js";
 
 export default function ClientInvoices() {
@@ -58,9 +58,8 @@ export default function ClientInvoices() {
           </div>
 
           <div className="tt-toolbar">
-            {/* Optional: you can keep or remove this button */}
-            <Link className="tt-btn" to="/">
-              Back
+            <Link className="tt-btn" to="/invoices-html/${encodeURIComponent(baseInvoice.id)}">
+              Open latest invoice
             </Link>
           </div>
         </div>
