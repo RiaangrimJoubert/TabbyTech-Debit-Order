@@ -1,17 +1,47 @@
-// src/shell/Sidebar.jsx
-import React from "react";
-import { NavLink } from "react-router-dom";
-
 const nav = [
-  { to: "/dashboard", label: "Dashboard", icon: "▦" },
-  { to: "/clients", label: "Clients", icon: "👥" },
-  { to: "/debitorders", label: "Debit Orders", icon: "↻" },
-  { to: "/invoices", label: "Invoices", icon: "🧾" },
-  { to: "/batches", label: "Batches", icon: "⧉" },
-  { to: "/reports", label: "Reports", icon: "📈" }
+  { key: "dashboard", label: "Dashboard", icon: "▦" },
+  { key: "clients", label: "Clients", icon: "CLIENTS_SVG" },
+  { key: "debitorders", label: "Debit Orders", icon: "↻" },
+  { key: "batches", label: "Batches", icon: "⧉" },
+  { key: "invoices", label: "Invoices", icon: "🧾" },
+  { key: "reports", label: "Reports", icon: "📈" },
+  { key: "settings", label: "Settings", icon: "⚙" },
 ];
 
-export default function Sidebar({ onLogout }) {
+function ClientsIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M16 11c1.656 0 3-1.567 3-3.5S17.656 4 16 4s-3 1.567-3 3.5S14.344 11 16 11Z"
+        fill="#ffffff"
+        opacity="0.92"
+      />
+      <path
+        d="M8 11c1.656 0 3-1.567 3-3.5S9.656 4 8 4 5 5.567 5 7.5 6.344 11 8 11Z"
+        fill="#ffffff"
+        opacity="0.92"
+      />
+      <path
+        d="M16 13c-1.86 0-3.33.61-4.09 1.24.67.93 1.09 2.08 1.09 3.36V20h8v-1.6c0-3.02-2.35-5.4-5-5.4Z"
+        fill="#ffffff"
+        opacity="0.92"
+      />
+      <path
+        d="M8 13c-2.76 0-5 2.38-5 5.4V20h10v-1.6c0-3.02-2.24-5.4-5-5.4Z"
+        fill="#ffffff"
+        opacity="0.92"
+      />
+    </svg>
+  );
+}
+
+export default function Sidebar({ activeKey, onNavigate, onLogout }) {
   return (
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
@@ -27,21 +57,23 @@ export default function Sidebar({ onLogout }) {
 
         <nav className="tt-sidenav" aria-label="Sidebar navigation">
           {nav.map((item) => {
+            const isActive = item.key === activeKey;
+
             return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `tt-sidenav-item ${isActive ? "is-active" : ""}`
-                }
-                aria-current={({ isActive }) => (isActive ? "page" : undefined)}
+              <button
+                key={item.key}
+                type="button"
+                className={`tt-sidenav-item ${isActive ? "is-active" : ""}`}
+                onClick={() => onNavigate?.(item.key)}
+                aria-current={isActive ? "page" : undefined}
               >
                 <span className="tt-sidenav-icon" aria-hidden="true">
-                  {item.icon}
+                  {item.icon === "CLIENTS_SVG" ? <ClientsIcon /> : item.icon}
                 </span>
+
                 <span className="tt-sidenav-label">{item.label}</span>
                 <span className="tt-sidenav-pill" aria-hidden="true" />
-              </NavLink>
+              </button>
             );
           })}
         </nav>
@@ -60,17 +92,10 @@ export default function Sidebar({ onLogout }) {
 
         <div className="tt-sidedivider" />
 
-        <NavLink to="/settings" className="tt-sidenav-item tt-sidenav-item-muted">
-          <span className="tt-sidenav-icon" aria-hidden="true">
-            ⚙
-          </span>
-          <span className="tt-sidenav-label">Settings</span>
-        </NavLink>
-
         <button
           type="button"
           className="tt-sidenav-item tt-sidenav-item-muted"
-          onClick={onLogout}
+          onClick={() => onLogout?.()}
         >
           <span className="tt-sidenav-icon" aria-hidden="true">
             ⎋
