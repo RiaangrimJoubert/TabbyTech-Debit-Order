@@ -4,13 +4,15 @@
 /**
  * CRM API client
  *
- * Production reality (based on your video):
- * - onslate routes like /crm_api/* and /server/* are being rewritten to SPA HTML.
- * - So we must call the backend on the catalystserverless domain (cross-origin) and allow it via CORS.
+ * Production reality:
+ * - onslate is rewriting /crm_api/* and /server/* to SPA HTML.
+ * - The working backend URL is on catalystserverless and is mounted under /server/crm_api/.
  *
- * This file will:
- * - Prefer VITE_CRM_API_BASE (absolute https://...catalystserverless...) when set
- * - Fall back to same-origin ONLY if env base is empty (mainly for local dev if you proxy properly)
+ * Therefore:
+ * - Use VITE_CRM_API_BASE = https://<...>.catalystserverless.com
+ * - Call /server/crm_api/api/clients on that host
+ *
+ * CORS must be allowed server-side (we added it in server/crm_api/index.js).
  */
 
 const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
@@ -46,7 +48,6 @@ async function httpGetJson(url) {
       Pragma: "no-cache",
     },
     cache: "no-store",
-    // For CORS: allow cookies if any exist; harmless if none are used.
     credentials: "include",
   });
 
@@ -135,9 +136,13 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
-  const path = `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
+  if (!BASE) {
+    throw new Error(
+      "VITE_CRM_API_BASE is not set. Set it to your catalystserverless host, e.g. https://<app>.catalystserverless.com"
+    );
+  }
 
-  // If BASE is set, we call cross-origin (catalystserverless). If not, we fall back to same-origin.
+  const path = `/server/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
   const requestUrl = joinUrl(BASE, path);
 
   const data = await httpGetJson(requestUrl);
