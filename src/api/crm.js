@@ -2,16 +2,26 @@
 "use strict";
 
 /**
- * TabbyTech CRM API client (same-origin only)
+ * CRM API client
  *
- * We will NOT use any absolute base URL here to avoid CORS.
- * We also will NOT prepend VITE_CRM_API_BASE to these routes, because it can cause
- * doubled paths like "/crm_api/crm_api/api/clients" which returns the SPA HTML.
+ * Production reality (based on your video):
+ * - onslate routes like /crm_api/* and /server/* are being rewritten to SPA HTML.
+ * - So we must call the backend on the catalystserverless domain (cross-origin) and allow it via CORS.
  *
- * Strategy:
- * 1) Try the intended proxy route:  /crm_api/api/clients
- * 2) If we receive HTML (SPA), fall back to Catalyst route: /server/crm_api/api/clients
+ * This file will:
+ * - Prefer VITE_CRM_API_BASE (absolute https://...catalystserverless...) when set
+ * - Fall back to same-origin ONLY if env base is empty (mainly for local dev if you proxy properly)
  */
+
+const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
+const BASE = RAW_BASE.replace(/\/+$/, ""); // remove trailing slashes
+
+function joinUrl(base, path) {
+  if (!path) return base || "";
+  if (!base) return path.startsWith("/") ? path : `/${path}`;
+  if (path.startsWith("/")) return `${base}${path}`;
+  return `${base}/${path}`;
+}
 
 function detectHtmlResponse(text, contentType) {
   const ct = (contentType || "").toLowerCase();
@@ -36,18 +46,15 @@ async function httpGetJson(url) {
       Pragma: "no-cache",
     },
     cache: "no-store",
-    credentials: "same-origin",
+    // For CORS: allow cookies if any exist; harmless if none are used.
+    credentials: "include",
   });
 
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
 
   if (detectHtmlResponse(text, contentType)) {
-    const err = new Error(`Unexpected HTML response. Wrong API path used: ${url}`);
-    err.code = "HTML_RESPONSE";
-    err.url = url;
-    err.status = res.status;
-    throw err;
+    throw new Error(`Unexpected HTML response. Wrong API path used: ${url}`);
   }
 
   let json;
@@ -59,24 +66,10 @@ async function httpGetJson(url) {
 
   if (!res.ok) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.url = url;
-    err.status = res.status;
-    throw err;
+    throw new Error(msg);
   }
 
-  return { json, url };
-}
-
-async function httpGetJsonWithFallback(primaryUrl, fallbackUrl) {
-  try {
-    return await httpGetJson(primaryUrl);
-  } catch (e) {
-    if (e && e.code === "HTML_RESPONSE" && fallbackUrl) {
-      return await httpGetJson(fallbackUrl);
-    }
-    throw e;
-  }
+  return json;
 }
 
 function mapApiItemToClient(item) {
@@ -142,16 +135,12 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
-  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
+  const path = `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
 
-  // Do NOT prepend any base. These are absolute same-origin paths by design.
-  const preferredUrl = `/crm_api/api/clients?${qs}`;
-  const fallbackUrl = `/server/crm_api/api/clients?${qs}`;
+  // If BASE is set, we call cross-origin (catalystserverless). If not, we fall back to same-origin.
+  const requestUrl = joinUrl(BASE, path);
 
-  const { json: data, url: requestUrl } = await httpGetJsonWithFallback(
-    preferredUrl,
-    fallbackUrl
-  );
+  const data = await httpGetJson(requestUrl);
 
   const items = Array.isArray(data.items)
     ? data.items
