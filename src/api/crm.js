@@ -2,40 +2,16 @@
 "use strict";
 
 /**
- * CRM API routing rules (same-origin only)
+ * TabbyTech CRM API client (same-origin only)
  *
- * We want to avoid CORS completely, so we never use an absolute URL here.
+ * We will NOT use any absolute base URL here to avoid CORS.
+ * We also will NOT prepend VITE_CRM_API_BASE to these routes, because it can cause
+ * doubled paths like "/crm_api/crm_api/api/clients" which returns the SPA HTML.
  *
- * Preferred route (your stated intent):
- *   /crm_api/api/clients
- *
- * Catalyst commonly exposes functions behind:
- *   /server/crm_api/api/clients
- *
- * Problem observed in your UI: /crm_api/... returns HTML (SPA), not JSON.
- * Fix: Try /crm_api/... first, and if we detect HTML, fall back to /server/crm_api/...
+ * Strategy:
+ * 1) Try the intended proxy route:  /crm_api/api/clients
+ * 2) If we receive HTML (SPA), fall back to Catalyst route: /server/crm_api/api/clients
  */
-
-// Only allow a RELATIVE base if provided (example: "/crm_api"). Ignore any absolute URL to prevent CORS.
-const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
-const SAFE_RELATIVE_BASE =
-  RAW_BASE.startsWith("/") && !RAW_BASE.startsWith("//")
-    ? RAW_BASE.replace(/\/+$/, "")
-    : "";
-
-// If env is empty or invalid, we use "" (same-origin absolute path when joined).
-const CRM_BASE = SAFE_RELATIVE_BASE || "";
-
-/**
- * Join base + path without double slashes.
- * If base is empty, returns an absolute path like "/crm_api/api/clients..."
- */
-function joinUrl(base, path) {
-  if (!path) return base || "";
-  if (!base) return path.startsWith("/") ? path : `/${path}`;
-  if (path.startsWith("/")) return `${base}${path}`;
-  return `${base}/${path}`;
-}
 
 function detectHtmlResponse(text, contentType) {
   const ct = (contentType || "").toLowerCase();
@@ -66,8 +42,7 @@ async function httpGetJson(url) {
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
 
-  const isHtml = detectHtmlResponse(text, contentType);
-  if (isHtml) {
+  if (detectHtmlResponse(text, contentType)) {
     const err = new Error(`Unexpected HTML response. Wrong API path used: ${url}`);
     err.code = "HTML_RESPONSE";
     err.url = url;
@@ -93,9 +68,6 @@ async function httpGetJson(url) {
   return { json, url };
 }
 
-/**
- * Try the preferred route first, then fall back to Catalyst's /server/ route if needed.
- */
 async function httpGetJsonWithFallback(primaryUrl, fallbackUrl) {
   try {
     return await httpGetJson(primaryUrl);
@@ -109,7 +81,7 @@ async function httpGetJsonWithFallback(primaryUrl, fallbackUrl) {
 
 function mapApiItemToClient(item) {
   const safe = item || {};
-  const raw = safe.raw || safe; // allow backend to return either {raw:{...}} or a flat record
+  const raw = safe.raw || safe;
 
   const ownerName =
     raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || "" : "";
@@ -172,20 +144,15 @@ function mapApiItemToClient(item) {
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
   const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
 
-  // Preferred route (as you requested)
-  const preferredPath = `/crm_api/api/clients?${qs}`;
+  // Do NOT prepend any base. These are absolute same-origin paths by design.
+  const preferredUrl = `/crm_api/api/clients?${qs}`;
+  const fallbackUrl = `/server/crm_api/api/clients?${qs}`;
 
-  // Catalyst common route (your backend logs show /server/crm_api/api/clients returning 200)
-  const catalystPath = `/server/crm_api/api/clients?${qs}`;
+  const { json: data, url: requestUrl } = await httpGetJsonWithFallback(
+    preferredUrl,
+    fallbackUrl
+  );
 
-  // Apply optional RELATIVE base (if you set VITE_CRM_API_BASE="/crm_api", preferred becomes "/crm_api/crm_api/.."
-  // so we only apply CRM_BASE when it makes sense (and never for /server).
-  const preferredUrl = CRM_BASE ? joinUrl(CRM_BASE, preferredPath) : preferredPath;
-  const fallbackUrl = catalystPath;
-
-  const { json: data, url: requestUrl } = await httpGetJsonWithFallback(preferredUrl, fallbackUrl);
-
-  // Backend returns: { ok, page, perPage, count, items: [...] }
   const items = Array.isArray(data.items)
     ? data.items
     : Array.isArray(data.clients)
@@ -201,7 +168,7 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
   }
 
   return {
-    ok: data.ok !== false, // treat missing ok as success
+    ok: data.ok !== false,
     page: data.page || page,
     perPage: data.perPage || perPage,
     count: data.count ?? items.length,
