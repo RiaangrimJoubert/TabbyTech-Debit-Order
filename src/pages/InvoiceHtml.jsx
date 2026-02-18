@@ -35,7 +35,7 @@ export default function InvoiceHtml() {
         <div className="invhtml-shell">
           <div className="invhtml-topbar">
             <div className="invhtml-brand">
-              <div className="invhtml-logo">TP</div>
+              <img className="invhtml-logoimg" src="/tabbytech-logo.png" alt="TabbyTech" />
               <div className="invhtml-brandtext">
                 <div className="invhtml-brandname">TabbyPay</div>
                 <div className="invhtml-brandsub">Debit Orders</div>
