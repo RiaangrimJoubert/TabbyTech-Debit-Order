@@ -2,45 +2,39 @@
 "use strict";
 
 /**
- * CRM API client (locked to working Catalyst public route)
+ * TabbyTech CRM API client
  *
- * Facts from your screenshots/tests:
- * - onslate returns SPA/404 for relative paths like "clients?...": NOT OK
- * - catalystserverless base you provided is the real backend host
- * - Catalyst gateway rejects /server/crm_api/api/clients (INVALID_URL)
- * - So we use the non-/api route: /server/crm_api/clients
+ * Correct public endpoint (confirmed working):
+ *   https://tabbytechdebitorder-913617844.development.catalystserverless.com/crm_api/api/clients?page=1&perPage=200
  *
- * This file forces the request to catalystserverless so we stop looping.
+ * Key requirements:
+ * - Always call CRM API via the Catalyst serverless host (NOT onslate same-origin paths)
+ * - Parse response.items (array)
+ * - Keep request headers simple to avoid unnecessary preflight/CORS noise
  */
 
-const FALLBACK_BASE =
-  "https://tabbytechdebitorder-913617844.development.catalystserverless.com/server/crm_api";
+const FALLBACK_HOST =
+  "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
 
 const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
 
-// Accept either:
-// - host-only: https://...catalystserverless.com
-// - full base: https://...catalystserverless.com/server/crm_api
-function normalizeBase(input) {
+/**
+ * Normalize to an origin host only.
+ * If someone mistakenly provides a full path (like /server/crm_api), we strip it.
+ */
+function normalizeHost(input) {
   const s = (input || "").trim().replace(/\/+$/, "");
-  if (!s) return FALLBACK_BASE;
+  if (!s) return FALLBACK_HOST;
 
-  // If someone sets host-only, append the known mount path.
-  // We detect host-only by checking if pathname is empty or "/".
   try {
     const u = new URL(s);
-    const path = (u.pathname || "").replace(/\/+$/, "");
-    if (!path || path === "/") {
-      return `${u.origin}/server/crm_api`;
-    }
-    return `${u.origin}${path}`;
+    return u.origin;
   } catch {
-    // Not a URL, fall back safely
-    return FALLBACK_BASE;
+    return FALLBACK_HOST;
   }
 }
 
-const BASE = normalizeBase(RAW_BASE);
+const HOST = normalizeHost(RAW_BASE);
 
 function joinUrl(base, path) {
   const b = (base || "").replace(/\/+$/, "");
@@ -66,7 +60,6 @@ async function httpGetJson(url) {
   const res = await fetch(url, {
     method: "GET",
     headers: {
-      // Keep headers SIMPLE to avoid preflight and reduce CORS friction
       Accept: "application/json",
     },
     credentials: "omit",
@@ -86,7 +79,7 @@ async function httpGetJson(url) {
     json = { raw: text };
   }
 
-  // Catalyst sometimes returns 200 with {status:"failure"...}
+  // Catalyst sometimes returns 200 with a failure payload
   if (json && json.status === "failure") {
     const msg = json?.data?.message || json?.message || "Catalyst API failure";
     throw new Error(msg);
@@ -126,6 +119,7 @@ function mapApiItemToClient(item) {
     industry: raw.Industry || "",
     risk: raw.Risk || "Low",
 
+    // Your record status is "Scheduled" and UI expects "Active" / "Risk" / "Paused" / "New"
     status:
       debitStatus === "Scheduled"
         ? "Active"
@@ -163,25 +157,20 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
-  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
+  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(
+    perPage
+  )}`;
 
-  // IMPORTANT: use /clients (not /api/clients) to avoid Catalyst INVALID_URL.
-  const requestUrl = joinUrl(BASE, `/clients?${qs}`);
+  // Confirmed correct gateway path
+  const requestUrl = joinUrl(HOST, `/crm_api/api/clients?${qs}`);
 
   const data = await httpGetJson(requestUrl);
 
-  const items = Array.isArray(data.items)
-    ? data.items
-    : Array.isArray(data.clients)
-      ? data.clients
-      : Array.isArray(data.data)
-        ? data.data
-        : [];
+  // Backend response structure: { ok, page, perPage, count, items: [...] }
+  const items = Array.isArray(data.items) ? data.items : [];
 
   if (!Array.isArray(items)) {
-    throw new Error(
-      "API response did not include an array under items, clients, or data."
-    );
+    throw new Error("API response did not include items array.");
   }
 
   return {
