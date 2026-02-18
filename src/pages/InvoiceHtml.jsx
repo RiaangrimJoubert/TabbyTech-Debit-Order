@@ -1,16 +1,31 @@
 // src/pages/InvoiceHtml.jsx
 import React, { useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
-import { getInvoiceById, calcTotals, money } from "../data/invoices.js";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { INVOICES, getInvoiceById, calcTotals, money } from "../data/invoices.js";
 import "../styles/invoice-html.css";
 
 export default function InvoiceHtml() {
   const { invoiceId } = useParams();
+  const navigate = useNavigate();
 
   const invoice = useMemo(() => {
     const id = decodeURIComponent(String(invoiceId || ""));
     return getInvoiceById(id);
   }, [invoiceId]);
+
+  const relatedInvoices = useMemo(() => {
+    if (!invoice) return [];
+    const email = String(invoice.customerEmail || "").toLowerCase();
+    const customer = String(invoice.customer || "").toLowerCase();
+
+    return INVOICES.filter((x) => {
+      const sameEmail =
+        email && String(x.customerEmail || "").toLowerCase() === email;
+      const sameCustomer =
+        customer && String(x.customer || "").toLowerCase() === customer;
+      return sameEmail || sameCustomer;
+    }).sort((a, b) => String(b.dateIssued).localeCompare(String(a.dateIssued)));
+  }, [invoice]);
 
   if (!invoice) {
     return (
@@ -46,11 +61,14 @@ export default function InvoiceHtml() {
   }
 
   const totals = calcTotals(invoice);
-
   const vatPercent = Math.round(Number(invoice.vatRate || 0) * 100);
 
   function onPrint() {
     window.print();
+  }
+
+  function onOpenInvoice(nextId) {
+    navigate(`/invoices-html/${encodeURIComponent(nextId)}`);
   }
 
   return (
@@ -61,7 +79,7 @@ export default function InvoiceHtml() {
             <div className="invhtml-logo">TT</div>
             <div className="invhtml-brandtext">
               <div className="invhtml-brandname">TabbyTech</div>
-              <div className="invhtml-brandsub">Invoice</div>
+              <div className="invhtml-brandsub">Invoices</div>
             </div>
           </div>
 
@@ -195,6 +213,50 @@ export default function InvoiceHtml() {
           <div className="invhtml-notes">
             <div className="invhtml-paneltitle">Notes</div>
             <div className="invhtml-muted">{invoice.notes || " "}</div>
+          </div>
+
+          <div className="invhtml-divider noprint" />
+
+          <div className="invhtml-notes noprint">
+            <div className="invhtml-paneltitle">More invoices for this client</div>
+
+            {relatedInvoices.length <= 1 ? (
+              <div className="invhtml-muted">No other invoices found for this client.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {relatedInvoices
+                  .filter((x) => x.id !== invoice.id)
+                  .map((x) => {
+                    const t = calcTotals(x);
+                    return (
+                      <button
+                        key={x.id}
+                        type="button"
+                        className="invhtml-btn"
+                        style={{
+                          width: "100%",
+                          justifyContent: "space-between",
+                          paddingLeft: 12,
+                          paddingRight: 12
+                        }}
+                        onClick={() => onOpenInvoice(x.id)}
+                        aria-label={`Open invoice ${x.id}`}
+                      >
+                        <span style={{ display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>
+                          <span style={{ fontWeight: 900 }}>{x.id}</span>
+                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+                            {x.dateIssued} • {x.status}
+                          </span>
+                        </span>
+
+                        <span style={{ fontWeight: 900 }}>
+                          {money(t.total, x.currency)}
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
           <div className="invhtml-footer">
