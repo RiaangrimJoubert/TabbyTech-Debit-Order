@@ -1,44 +1,48 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import AppShell from "./shell/AppShell";
 
-const AUTH_KEY = "tt_authed_v1";
+// TODO: Point this at your real invoices page/component
+function InvoicesPage() {
+  return (
+    <div style={{ padding: 24, color: "#fff" }}>
+      Invoices page placeholder. Wire your InvoiceHtml component here.
+    </div>
+  );
+}
+
+function RequireAuth({ authed, children }) {
+  const location = useLocation();
+  if (!authed) return <Navigate to="/login" replace state={{ from: location }} />;
+  return children;
+}
 
 export default function App() {
   const [authed, setAuthed] = useState(false);
-  const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(AUTH_KEY);
-      setAuthed(saved === "true");
-    } catch (e) {
-      setAuthed(false);
-    } finally {
-      setReady(true);
-    }
-  }, []);
+  const onLogin = useMemo(() => () => setAuthed(true), []);
+  const onLogout = useMemo(() => () => setAuthed(false), []);
 
-  const handleLogin = () => {
-    setAuthed(true);
-    try {
-      localStorage.setItem(AUTH_KEY, "true");
-    } catch (e) {}
-  };
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/login" element={<Login onLogin={onLogin} />} />
+      <Route path="/invoices/*" element={<InvoicesPage />} />
 
-  const handleLogout = () => {
-    setAuthed(false);
-    try {
-      localStorage.setItem(AUTH_KEY, "false");
-    } catch (e) {}
-  };
+      {/* Protected app routes */}
+      <Route
+        path="/app/*"
+        element={
+          <RequireAuth authed={authed}>
+            <AppShell onLogout={onLogout} />
+          </RequireAuth>
+        }
+      />
 
-  // If you ever get stuck, run this in the browser console:
-  // localStorage.removeItem("tt_authed_v1"); location.reload();
-
-  if (!ready) return null;
-
-  if (!authed) return <Login onLogin={handleLogin} />;
-
-  return <AppShell onLogout={handleLogout} />;
+      {/* Default */}
+      <Route path="/" element={<Navigate to={authed ? "/app" : "/login"} replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
