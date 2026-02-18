@@ -1,12 +1,9 @@
 // src/pages/Invoices.jsx
 import React, { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { INVOICES, money, calcTotals } from "../data/invoices.js";
 
 export default function Invoices() {
-  const navigate = useNavigate();
-
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
 
@@ -33,11 +30,10 @@ export default function Invoices() {
     });
   }, [q, status]);
 
- function onView(invoiceId) {
-  const url = `/invoices-html/${encodeURIComponent(invoiceId)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
+  function onView(invoiceId) {
+    const url = `/invoices-html/${encodeURIComponent(invoiceId)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
 
   function exportFilteredToExcel() {
     const rows = filteredInvoices.map((inv) => {
@@ -88,7 +84,7 @@ export default function Invoices() {
         <div className="tt-header">
           <div className="tt-title">
             <h1>Invoices</h1>
-            <p>Desktop-first view. Use View for the standalone printable invoice route.</p>
+            <p>View opens a portal style invoice page in a new tab for printing and Save as PDF.</p>
           </div>
 
           <div className="tt-toolbar">
@@ -112,7 +108,6 @@ export default function Invoices() {
               <option value="Overdue">Overdue</option>
             </select>
 
-            {/* Export button replaces "New invoice" */}
             <button
               type="button"
               className="tt-btn tt-btn-primary"
@@ -198,7 +193,7 @@ export default function Invoices() {
         </div>
 
         <div className="tt-footer-note">
-          View opens the standalone Afrihost-style HTML invoice on its own route for printing and Save as PDF.
+          View opens a new tab with the invoice and a list of all invoices for that customer underneath.
         </div>
       </div>
     </div>
