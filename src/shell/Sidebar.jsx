@@ -1,8 +1,9 @@
 const nav = [
   { key: "dashboard", label: "Dashboard", icon: "▦" },
-  { key: "clients", label: "Clients", icon: "👥" },
+  { key: "clients", label: "Clients", icon: "👥", forceWhite: true },
   { key: "debitorders", label: "Debit Orders", icon: "↻" },
   { key: "batches", label: "Batches", icon: "⧉" },
+  { key: "invoices", label: "Invoices", icon: "🧾" },
   { key: "reports", label: "Reports", icon: "📈" },
   { key: "settings", label: "Settings", icon: "⚙" },
 ];
@@ -33,9 +34,18 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
                 onClick={() => onNavigate?.(item.key)}
                 aria-current={isActive ? "page" : undefined}
               >
-                <span className="tt-sidenav-icon" aria-hidden="true">
+                <span
+                  className="tt-sidenav-icon"
+                  aria-hidden="true"
+                  style={
+                    item.forceWhite
+                      ? { color: "#ffffff" }
+                      : undefined
+                  }
+                >
                   {item.icon}
                 </span>
+
                 <span className="tt-sidenav-label">{item.label}</span>
                 <span className="tt-sidenav-pill" aria-hidden="true" />
               </button>
@@ -57,7 +67,11 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
 
         <div className="tt-sidedivider" />
 
-        <button type="button" className="tt-sidenav-item tt-sidenav-item-muted" onClick={() => onLogout?.()}>
+        <button
+          type="button"
+          className="tt-sidenav-item tt-sidenav-item-muted"
+          onClick={() => onLogout?.()}
+        >
           <span className="tt-sidenav-icon" aria-hidden="true">
             ⎋
           </span>
