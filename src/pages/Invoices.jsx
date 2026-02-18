@@ -31,9 +31,12 @@ export default function Invoices() {
   }, [q, status]);
 
   function onView(invoiceId) {
-  const url = `/#/invoices-html/${encodeURIComponent(invoiceId)}`;
+  const inv = INVOICES.find((x) => String(x.id) === String(invoiceId));
+  const key = encodeURIComponent(String(inv?.customerEmail || inv?.customer || "").toLowerCase().trim());
+  const url = `/#/portal/${key}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }
+
 
   function exportFilteredToExcel() {
     const rows = filteredInvoices.map((inv) => {
