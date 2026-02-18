@@ -2,37 +2,58 @@
 "use strict";
 
 /**
- * CRM API client (production, Catalyst serverless)
+ * CRM API client (locked to working Catalyst public route)
  *
- * Confirmed working base (opens directly and returns JSON):
- *   https://tabbytechdebitorder-913617844.development.catalystserverless.com/server/crm_api/
+ * Facts from your screenshots/tests:
+ * - onslate returns SPA/404 for relative paths like "clients?...": NOT OK
+ * - catalystserverless base you provided is the real backend host
+ * - Catalyst gateway rejects /server/crm_api/api/clients (INVALID_URL)
+ * - So we use the non-/api route: /server/crm_api/clients
  *
- * IMPORTANT CORS FIX:
- * - Do not send non-simple headers like Cache-Control / Pragma (they trigger preflight)
- * - Do not send credentials unless absolutely required (credentials makes CORS stricter)
- *
- * This keeps UI unchanged and focuses only on getting data into Clients.
+ * This file forces the request to catalystserverless so we stop looping.
  */
 
-// Fallback to the known working base you provided (includes /server/crm_api/)
 const FALLBACK_BASE =
   "https://tabbytechdebitorder-913617844.development.catalystserverless.com/server/crm_api";
 
-// If Slate injects env later, it will override the fallback. We accept either host-only or full base.
 const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
-const BASE = (RAW_BASE || FALLBACK_BASE).replace(/\/+$/, "");
+
+// Accept either:
+// - host-only: https://...catalystserverless.com
+// - full base: https://...catalystserverless.com/server/crm_api
+function normalizeBase(input) {
+  const s = (input || "").trim().replace(/\/+$/, "");
+  if (!s) return FALLBACK_BASE;
+
+  // If someone sets host-only, append the known mount path.
+  // We detect host-only by checking if pathname is empty or "/".
+  try {
+    const u = new URL(s);
+    const path = (u.pathname || "").replace(/\/+$/, "");
+    if (!path || path === "/") {
+      return `${u.origin}/server/crm_api`;
+    }
+    return `${u.origin}${path}`;
+  } catch {
+    // Not a URL, fall back safely
+    return FALLBACK_BASE;
+  }
+}
+
+const BASE = normalizeBase(RAW_BASE);
 
 function joinUrl(base, path) {
-  if (!path) return base || "";
-  if (!base) return path.startsWith("/") ? path : `/${path}`;
-  if (path.startsWith("/")) return `${base}${path}`;
-  return `${base}/${path}`;
+  const b = (base || "").replace(/\/+$/, "");
+  const p = (path || "").startsWith("/") ? path : `/${path}`;
+  return `${b}${p}`;
 }
 
 function detectHtmlResponse(text, contentType) {
   const ct = (contentType || "").toLowerCase();
   const trimmed = (text || "").trim().toLowerCase();
+
   if (ct.includes("text/html")) return true;
+
   return (
     trimmed.startsWith("<!doctype html") ||
     trimmed.startsWith("<html") ||
@@ -45,10 +66,9 @@ async function httpGetJson(url) {
   const res = await fetch(url, {
     method: "GET",
     headers: {
-      // Keep headers SIMPLE to avoid preflight
+      // Keep headers SIMPLE to avoid preflight and reduce CORS friction
       Accept: "application/json",
     },
-    // Do not include cookies, keeps CORS simpler
     credentials: "omit",
   });
 
@@ -64,6 +84,12 @@ async function httpGetJson(url) {
     json = JSON.parse(text);
   } catch {
     json = { raw: text };
+  }
+
+  // Catalyst sometimes returns 200 with {status:"failure"...}
+  if (json && json.status === "failure") {
+    const msg = json?.data?.message || json?.message || "Catalyst API failure";
+    throw new Error(msg);
   }
 
   if (!res.ok) {
@@ -136,20 +162,11 @@ function mapApiItemToClient(item) {
   };
 }
 
-function normalizeBaseForClients(base) {
-  // If user provides host-only, we cannot guess routing reliably. Keep it as-is.
-  // If user provides the known working base including /server/crm_api, perfect.
-  return base.replace(/\/+$/, "");
-}
-
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
   const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
 
-  const base = normalizeBaseForClients(BASE);
-
-  // Your express app exposes /api/clients (inside server/crm_api)
-  // Since BASE can already include /server/crm_api, we append only /api/clients
-  const requestUrl = joinUrl(base, `/api/clients?${qs}`);
+  // IMPORTANT: use /clients (not /api/clients) to avoid Catalyst INVALID_URL.
+  const requestUrl = joinUrl(BASE, `/clients?${qs}`);
 
   const data = await httpGetJson(requestUrl);
 
@@ -163,7 +180,7 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
 
   if (!Array.isArray(items)) {
     throw new Error(
-      "API response did not include an array under items, clients, or data. Inspect the Network response JSON keys."
+      "API response did not include an array under items, clients, or data."
     );
   }
 
