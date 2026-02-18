@@ -9,12 +9,11 @@ export default function App() {
   const [authed, setAuthed] = useState(false);
   const location = useLocation();
 
-  // Client portal routes should never be blocked by admin login
   const isClientPortal = useMemo(() => {
     return location.pathname.startsWith("/invoices");
   }, [location.pathname]);
 
-  // 1) Client portal: always accessible
+  // Client portal (public)
   if (isClientPortal) {
     return (
       <Routes>
@@ -25,9 +24,8 @@ export default function App() {
     );
   }
 
-  // 2) Admin app: must login first
+  // Admin app (login protected)
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
-  // If you are logged in, show your full webapp (AppShell)
   return <AppShell onLogout={() => setAuthed(false)} />;
 }
