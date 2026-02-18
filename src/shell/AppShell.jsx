@@ -5,6 +5,7 @@ import Dashboard from "./Dashboard";
 import Clients from "../screens/Clients";
 import DebitOrders from "../screens/DebitOrders";
 import Batches from "../screens/Batches";
+import Invoices from "../screens/Invoices";
 import Reports from "./Reports";
 import Settings from "../screens/Settings";
 
@@ -27,7 +28,7 @@ export default function AppShell({ onLogout }) {
     if (activeKey === "clients") return <Clients />;
     if (activeKey === "debitorders") return <DebitOrders />;
     if (activeKey === "batches") return <Batches />;
-    if (activeKey === "invoices") return <InvoicesPlaceholder />;
+    if (activeKey === "invoices") return <Invoices />;
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
     return <Dashboard />;
@@ -74,31 +75,6 @@ export default function AppShell({ onLogout }) {
 
         <section className="tt-shell-content">{content}</section>
       </main>
-    </div>
-  );
-}
-
-function InvoicesPlaceholder() {
-  return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        borderRadius: 18,
-        border: "1px solid rgba(255,255,255,0.10)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)",
-        boxShadow: "0 18px 50px rgba(0,0,0,0.35)",
-        backdropFilter: "blur(14px)",
-        padding: 18,
-        color: "rgba(255,255,255,0.86)",
-      }}
-    >
-      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 6 }}>Invoices</div>
-      <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.5 }}>
-        This is the placeholder screen. Next step we will add the full invoices list with filters and
-        a status pill on the far right for Paid, Unpaid, Failed, Pending.
-      </div>
     </div>
   );
 }
