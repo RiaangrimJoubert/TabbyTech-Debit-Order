@@ -2,50 +2,22 @@
 "use strict";
 
 /**
- * Catalyst-safe CRM API client
- * - In production on Catalyst: ALWAYS use relative path (/crm_api/...) to avoid CORS + wrong-host issues.
- * - In local dev: you may set VITE_CRM_API_BASE to point at your Catalyst domain.
+ * CRM API base
+ * - Prefer same-origin (empty base) so calls go to /crm_api/... on the current host (onslate).
+ * - Only use VITE_CRM_API_BASE if you truly need cross-origin, which will require CORS headers server-side.
  */
+const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
+const CRM_BASE = RAW_BASE.replace(/\/+$/, ""); // remove trailing slashes
 
-function runningOnCatalystHost() {
-  if (typeof window === "undefined") return false;
-  const h = String(window.location.hostname || "").toLowerCase();
-  return h.includes("catalystserverless.com");
+function joinUrl(base, path) {
+  if (!path) return base || "";
+  if (!base) return path.startsWith("/") ? path : `/${path}`;
+  if (path.startsWith("/")) return `${base}${path}`;
+  return `${base}/${path}`;
 }
 
-function getInjectedBaseUrl() {
-  const injected =
-    (typeof import.meta !== "undefined" &&
-      import.meta.env &&
-      import.meta.env.VITE_CRM_API_BASE) ||
-    "";
-
-  const base = String(injected || "").trim();
-  return base ? base.replace(/\/+$/, "") : "";
-}
-
-function buildUrl(pathWithQuery) {
-  const path = pathWithQuery.startsWith("/") ? pathWithQuery : `/${pathWithQuery}`;
-
-  // If we are already hosted on Catalyst, do NOT use an absolute base
-  // This guarantees same-origin requests and avoids CORS or routing mistakes.
-  if (runningOnCatalystHost()) return path;
-
-  // Otherwise (local dev etc), use injected base if present
-  const base = getInjectedBaseUrl();
-  if (!base) return path;
-
-  return `${base}${path}`;
-}
-
-function looksLikeHtml(text) {
-  const t = String(text || "").trim().toLowerCase();
-  if (!t) return false;
-  return t.startsWith("<!doctype html") || t.startsWith("<html") || t.includes("<head") || t.includes("<body");
-}
-
-async function httpGetJson(url) {
-  const res = await fetch(url, {
+async function httpGetJson(pathOrUrl) {
+  const res = await fetch(pathOrUrl, {
     method: "GET",
     headers: {
       Accept: "application/json",
@@ -56,54 +28,25 @@ async function httpGetJson(url) {
     credentials: "same-origin",
   });
 
-  // Read body as text first so we can detect HTML and handle empty bodies
   const text = await res.text();
 
-  if (looksLikeHtml(text)) {
+  // Helpful detection: did we hit the SPA (HTML) instead of the API (JSON)?
+  const looksHtml =
+    typeof text === "string" &&
+    (text.trim().toLowerCase().startsWith("<!doctype html") ||
+      text.trim().toLowerCase().startsWith("<html") ||
+      text.toLowerCase().includes("<head") ||
+      text.toLowerCase().includes("<body"));
+
+  if (looksHtml) {
     throw new Error(
-      `Unexpected HTML response. Wrong API path or base URL. Expected JSON from /crm_api/api/clients. URL hit: ${url}`
+      `Unexpected HTML response. Wrong API path or base URL. Expected JSON from /crm_api/api/clients. URL hit: ${pathOrUrl}`
     );
-  }
-
-  // Handle 304 explicitly (can have empty body)
-  if (res.status === 304) {
-    // Retry once with cache buster
-    const u = new URL(url, window.location.origin);
-    u.searchParams.set("_ts", String(Date.now()));
-    const r2 = await fetch(u.toString(), {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-      },
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-
-    const t2 = await r2.text();
-    let j2;
-    try {
-      j2 = t2 ? JSON.parse(t2) : null;
-    } catch {
-      j2 = { raw: t2 };
-    }
-
-    if (!r2.ok) {
-      const msg = j2?.error || j2?.message || t2 || `HTTP ${r2.status}`;
-      throw new Error(msg);
-    }
-
-    if (!j2 || typeof j2 !== "object") {
-      throw new Error(`Empty or invalid JSON after retry. URL: ${u.toString()}`);
-    }
-
-    return j2;
   }
 
   let json;
   try {
-    json = text ? JSON.parse(text) : null;
+    json = JSON.parse(text);
   } catch {
     json = { raw: text };
   }
@@ -111,10 +54,6 @@ async function httpGetJson(url) {
   if (!res.ok) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
     throw new Error(msg);
-  }
-
-  if (!json || typeof json !== "object") {
-    throw new Error(`Empty or invalid JSON response. URL: ${url}`);
   }
 
   return json;
@@ -125,7 +64,7 @@ function mapApiItemToClient(item) {
   const raw = safe.raw || {};
 
   const ownerName =
-    raw?.Owner && typeof raw.Owner === "object" ? (raw.Owner.name || "") : "";
+    raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || "" : "";
 
   const debitStatus = safe.status || raw.Status || "Unknown";
 
@@ -150,10 +89,8 @@ function mapApiItemToClient(item) {
       debitStatus === "Scheduled"
         ? "Active"
         : debitStatus === "Failed"
-        ? "Risk"
-        : debitStatus === "Notified"
-        ? "Paused"
-        : "Active",
+          ? "Risk"
+          : "Active",
 
     debit: {
       billingCycle:
@@ -185,14 +122,25 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
-  const path = `/crm_api/api/clients?page=${encodeURIComponent(
-    page
-  )}&perPage=${encodeURIComponent(perPage)}`;
+  const path = `/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
+  const url = joinUrl(CRM_BASE, path);
 
-  const url = buildUrl(path);
   const data = await httpGetJson(url);
 
-  const items = Array.isArray(data.items) ? data.items : [];
+  // Your backend returns: { ok, page, perPage, count, items: [...] }
+  const items = Array.isArray(data.items)
+    ? data.items
+    : Array.isArray(data.clients)
+      ? data.clients
+      : Array.isArray(data.data)
+        ? data.data
+        : [];
+
+  if (!Array.isArray(items)) {
+    throw new Error(
+      "API response did not include an array under items, clients, or data. Inspect the Network response JSON keys."
+    );
+  }
 
   return {
     page: data.page || page,
