@@ -31,10 +31,9 @@ export default function Invoices() {
   }, [q, status]);
 
   function onView(invoiceId) {
-    const url = `#/portal/${encodeURIComponent(invoiceId)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-
-  }
+  const url = `/#/invoices-html/${encodeURIComponent(invoiceId)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 
   function exportFilteredToExcel() {
     const rows = filteredInvoices.map((inv) => {
