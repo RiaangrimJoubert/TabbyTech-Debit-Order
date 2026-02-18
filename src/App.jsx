@@ -1,40 +1,33 @@
 import { useMemo, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+
 import Login from "./pages/Login";
 import AppShell from "./shell/AppShell";
-import InvoiceHtml from "./pages/InvoiceHtml"; // adjust path if yours differs
-
-function RequireAuth({ authed, children }) {
-  const location = useLocation();
-  if (!authed) return <Navigate to="/login" replace state={{ from: location }} />;
-  return children;
-}
+import InvoiceHtml from "./pages/InvoiceHtml";
 
 export default function App() {
   const [authed, setAuthed] = useState(false);
+  const location = useLocation();
 
-  const onLogin = useMemo(() => () => setAuthed(true), []);
-  const onLogout = useMemo(() => () => setAuthed(false), []);
+  // Client portal routes should never be blocked by admin login
+  const isClientPortal = useMemo(() => {
+    return location.pathname.startsWith("/invoices");
+  }, [location.pathname]);
 
-  return (
-    <Routes>
-      {/* PUBLIC */}
-      <Route path="/login" element={<Login onLogin={onLogin} />} />
-      <Route path="/invoices/*" element={<InvoiceHtml />} />
+  // 1) Client portal: always accessible
+  if (isClientPortal) {
+    return (
+      <Routes>
+        <Route path="/invoices" element={<InvoiceHtml />} />
+        <Route path="/invoices/:invoiceId" element={<InvoiceHtml />} />
+        <Route path="*" element={<Navigate to="/invoices" replace />} />
+      </Routes>
+    );
+  }
 
-      {/* PROTECTED */}
-      <Route
-        path="/app/*"
-        element={
-          <RequireAuth authed={authed}>
-            <AppShell onLogout={onLogout} />
-          </RequireAuth>
-        }
-      />
+  // 2) Admin app: must login first
+  if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
-      {/* DEFAULT */}
-      <Route path="/" element={<Navigate to={authed ? "/app" : "/login"} replace />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+  // If you are logged in, show your full webapp (AppShell)
+  return <AppShell onLogout={() => setAuthed(false)} />;
 }
