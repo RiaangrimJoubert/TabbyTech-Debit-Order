@@ -1,6 +1,6 @@
 const nav = [
   { key: "dashboard", label: "Dashboard", icon: "▦" },
-  { key: "clients", label: "Clients", icon: "👥", iconWhite: true },
+  { key: "clients", label: "Clients", icon: "CLIENTS_SVG" },
   { key: "debitorders", label: "Debit Orders", icon: "↻" },
   { key: "batches", label: "Batches", icon: "⧉" },
   { key: "invoices", label: "Invoices", icon: "🧾" },
@@ -8,21 +8,42 @@ const nav = [
   { key: "settings", label: "Settings", icon: "⚙" },
 ];
 
-export default function Sidebar({ activeKey, onNavigate, onLogout }) {
-  // Local style override ONLY for the Clients icon.
-  // This avoids touching global CSS while guaranteeing white.
-  const localCss = `
-    .tt-sidenav-icon.tt-icon-white {
-      color: #ffffff !important;
-      opacity: 0.92 !important;
-      filter: none !important;
-    }
-  `;
+function ClientsIcon({ size = 18 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M16 11c1.656 0 3-1.567 3-3.5S17.656 4 16 4s-3 1.567-3 3.5S14.344 11 16 11Z"
+        fill="#ffffff"
+        opacity="0.92"
+      />
+      <path
+        d="M8 11c1.656 0 3-1.567 3-3.5S9.656 4 8 4 5 5.567 5 7.5 6.344 11 8 11Z"
+        fill="#ffffff"
+        opacity="0.92"
+      />
+      <path
+        d="M16 13c-1.86 0-3.33.61-4.09 1.24.67.93 1.09 2.08 1.09 3.36V20h8v-1.6c0-3.02-2.35-5.4-5-5.4Z"
+        fill="#ffffff"
+        opacity="0.92"
+      />
+      <path
+        d="M8 13c-2.76 0-5 2.38-5 5.4V20h10v-1.6c0-3.02-2.24-5.4-5-5.4Z"
+        fill="#ffffff"
+        opacity="0.92"
+      />
+    </svg>
+  );
+}
 
+export default function Sidebar({ activeKey, onNavigate, onLogout }) {
   return (
     <aside className="tt-sidebar">
-      <style>{localCss}</style>
-
       <div className="tt-sidebar-inner">
         <div className="tt-sidebrand">
           <div className="tt-sidebrand-mark">TT</div>
@@ -46,11 +67,8 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
                 onClick={() => onNavigate?.(item.key)}
                 aria-current={isActive ? "page" : undefined}
               >
-                <span
-                  className={`tt-sidenav-icon ${item.iconWhite ? "tt-icon-white" : ""}`}
-                  aria-hidden="true"
-                >
-                  {item.icon}
+                <span className="tt-sidenav-icon" aria-hidden="true">
+                  {item.icon === "CLIENTS_SVG" ? <ClientsIcon /> : item.icon}
                 </span>
 
                 <span className="tt-sidenav-label">{item.label}</span>
