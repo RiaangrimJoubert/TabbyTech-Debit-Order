@@ -3,12 +3,27 @@
 
 /**
  * CRM API base
- * - Prefer same-origin (empty base) so calls go to /crm_api/... on the current host (onslate).
- * - Only use VITE_CRM_API_BASE if you truly need cross-origin, which will require CORS headers server-side.
+ * Goal: ALWAYS call same-origin from the onslate domain to avoid CORS.
+ *
+ * - Default base is "" which makes requests go to /crm_api/... on the current host.
+ * - Only allow VITE_CRM_API_BASE if it is a RELATIVE base that starts with "/"
+ *   (example: "/crm_api"). Any absolute URL will be ignored to prevent CORS issues.
  */
 const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
-const CRM_BASE = RAW_BASE.replace(/\/+$/, ""); // remove trailing slashes
 
+// Allow only relative bases like "/crm_api" or "/crm_api/v1"
+const SAFE_RELATIVE_BASE =
+  RAW_BASE.startsWith("/") && !RAW_BASE.startsWith("//")
+    ? RAW_BASE.replace(/\/+$/, "")
+    : "";
+
+// If someone set an absolute URL by mistake, we force same-origin anyway.
+const CRM_BASE = SAFE_RELATIVE_BASE || "";
+
+/**
+ * Joins a base + path safely without double slashes.
+ * - If base is empty, returns an absolute path like "/crm_api/api/clients..."
+ */
 function joinUrl(base, path) {
   if (!path) return base || "";
   if (!base) return path.startsWith("/") ? path : `/${path}`;
@@ -28,19 +43,21 @@ async function httpGetJson(pathOrUrl) {
     credentials: "same-origin",
   });
 
+  const contentType = (res.headers.get("content-type") || "").toLowerCase();
   const text = await res.text();
 
-  // Helpful detection: did we hit the SPA (HTML) instead of the API (JSON)?
+  // Detect common SPA/index.html fallbacks or wrong routes
+  const trimmed = (text || "").trim();
   const looksHtml =
-    typeof text === "string" &&
-    (text.trim().toLowerCase().startsWith("<!doctype html") ||
-      text.trim().toLowerCase().startsWith("<html") ||
-      text.toLowerCase().includes("<head") ||
-      text.toLowerCase().includes("<body"));
+    contentType.includes("text/html") ||
+    trimmed.toLowerCase().startsWith("<!doctype html") ||
+    trimmed.toLowerCase().startsWith("<html") ||
+    trimmed.toLowerCase().includes("<head") ||
+    trimmed.toLowerCase().includes("<body");
 
   if (looksHtml) {
     throw new Error(
-      `Unexpected HTML response. Wrong API path or base URL. Expected JSON from /crm_api/api/clients. URL hit: ${pathOrUrl}`
+      `Unexpected HTML response. Wrong API path used: ${pathOrUrl}`
     );
   }
 
@@ -61,7 +78,7 @@ async function httpGetJson(pathOrUrl) {
 
 function mapApiItemToClient(item) {
   const safe = item || {};
-  const raw = safe.raw || {};
+  const raw = safe.raw || safe; // allow backend to return either {raw:{...}} or a flat CRM record
 
   const ownerName =
     raw?.Owner && typeof raw.Owner === "object" ? raw.Owner.name || "" : "";
@@ -127,7 +144,7 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
 
   const data = await httpGetJson(url);
 
-  // Your backend returns: { ok, page, perPage, count, items: [...] }
+  // Backend returns: { ok, page, perPage, count, items: [...] }
   const items = Array.isArray(data.items)
     ? data.items
     : Array.isArray(data.clients)
