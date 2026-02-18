@@ -19,10 +19,8 @@ export default function InvoiceHtml() {
     const customer = String(invoice.customer || "").toLowerCase();
 
     return INVOICES.filter((x) => {
-      const sameEmail =
-        email && String(x.customerEmail || "").toLowerCase() === email;
-      const sameCustomer =
-        customer && String(x.customer || "").toLowerCase() === customer;
+      const sameEmail = email && String(x.customerEmail || "").toLowerCase() === email;
+      const sameCustomer = customer && String(x.customer || "").toLowerCase() === customer;
       return sameEmail || sameCustomer;
     }).sort((a, b) => String(b.dateIssued).localeCompare(String(a.dateIssued)));
   }, [invoice]);
@@ -35,7 +33,7 @@ export default function InvoiceHtml() {
             <div className="invhtml-brand">
               <div className="invhtml-logo">TT</div>
               <div className="invhtml-brandtext">
-                <div className="invhtml-brandname">TabbyTech</div>
+                <div className="invhtml-brandname">TabbyPay</div>
                 <div className="invhtml-brandsub">Debit Orders</div>
               </div>
             </div>
@@ -78,8 +76,8 @@ export default function InvoiceHtml() {
           <div className="invhtml-brand">
             <div className="invhtml-logo">TT</div>
             <div className="invhtml-brandtext">
-              <div className="invhtml-brandname">TabbyTech</div>
-              <div className="invhtml-brandsub">Invoices</div>
+              <div className="invhtml-brandname">TabbyPay</div>
+              <div className="invhtml-brandsub">Invoice</div>
             </div>
           </div>
 
@@ -87,7 +85,11 @@ export default function InvoiceHtml() {
             <Link className="invhtml-btn" to="/invoices">
               Back
             </Link>
-            <button className="invhtml-btn invhtml-btn-primary" type="button" onClick={onPrint}>
+            <button
+              className="invhtml-btn invhtml-btn-primary"
+              type="button"
+              onClick={onPrint}
+            >
               Print / Save as PDF
             </button>
           </div>
@@ -249,9 +251,7 @@ export default function InvoiceHtml() {
                           </span>
                         </span>
 
-                        <span style={{ fontWeight: 900 }}>
-                          {money(t.total, x.currency)}
-                        </span>
+                        <span style={{ fontWeight: 900 }}>{money(t.total, x.currency)}</span>
                       </button>
                     );
                   })}
