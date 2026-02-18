@@ -2,15 +2,7 @@ import { useMemo, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import AppShell from "./shell/AppShell";
-
-// TODO: Point this at your real invoices page/component
-function InvoicesPage() {
-  return (
-    <div style={{ padding: 24, color: "#fff" }}>
-      Invoices page placeholder. Wire your InvoiceHtml component here.
-    </div>
-  );
-}
+import InvoiceHtml from "./pages/InvoiceHtml"; // adjust path if yours differs
 
 function RequireAuth({ authed, children }) {
   const location = useLocation();
@@ -26,11 +18,11 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Public routes */}
+      {/* PUBLIC */}
       <Route path="/login" element={<Login onLogin={onLogin} />} />
-      <Route path="/invoices/*" element={<InvoicesPage />} />
+      <Route path="/invoices/*" element={<InvoiceHtml />} />
 
-      {/* Protected app routes */}
+      {/* PROTECTED */}
       <Route
         path="/app/*"
         element={
@@ -40,7 +32,7 @@ export default function App() {
         }
       />
 
-      {/* Default */}
+      {/* DEFAULT */}
       <Route path="/" element={<Navigate to={authed ? "/app" : "/login"} replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
