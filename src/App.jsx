@@ -1,12 +1,16 @@
 // src/App.jsx
-import { useState } from "react";
-import Login from "./pages/Login";
-import AppShell from "./shell/AppShell";
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import Invoices from "./pages/Invoices.jsx";
+import InvoiceHtml from "./pages/InvoiceHtml.jsx";
 
 export default function App() {
-  const [authed, setAuthed] = useState(false);
-
-  if (!authed) return <Login onLogin={() => setAuthed(true)} />;
-
-  return <AppShell onLogout={() => setAuthed(false)} />;
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/invoices" replace />} />
+      <Route path="/invoices" element={<Invoices />} />
+      <Route path="/invoices-html/:invoiceId" element={<InvoiceHtml />} />
+      <Route path="*" element={<Navigate to="/invoices" replace />} />
+    </Routes>
+  );
 }
