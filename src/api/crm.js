@@ -2,27 +2,25 @@
 "use strict";
 
 /**
- * CRM API client (robust public URL detection)
+ * CRM API client (production, Catalyst serverless)
  *
- * We are calling the backend on catalystserverless (cross-origin) because onslate rewrites API paths to SPA HTML.
+ * Confirmed working base (opens directly and returns JSON):
+ *   https://tabbytechdebitorder-913617844.development.catalystserverless.com/server/crm_api/
  *
- * Problem observed:
- * - Calling /server/crm_api/api/clients returned:
- *   { status:"failure", data:{ message:"Invalid API ...", error_code:"INVALID_URL" } }
+ * IMPORTANT CORS FIX:
+ * - Do not send non-simple headers like Cache-Control / Pragma (they trigger preflight)
+ * - Do not send credentials unless absolutely required (credentials makes CORS stricter)
  *
- * This means the public route is different than we assumed.
- *
- * Fix:
- * - Accept VITE_CRM_API_BASE as either:
- *    a) host only: https://<app>.catalystserverless.com
- *    b) host + path: https://<app>.catalystserverless.com/server/crm_api/
- * - Try multiple candidate paths and use the first that returns JSON with an items array.
+ * This keeps UI unchanged and focuses only on getting data into Clients.
  */
 
-const FALLBACK_BASE = "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
+// Fallback to the known working base you provided (includes /server/crm_api/)
+const FALLBACK_BASE =
+  "https://tabbytechdebitorder-913617844.development.catalystserverless.com/server/crm_api";
 
-const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim() || FALLBACK_BASE;
-const BASE = RAW_BASE.replace(/\/+$/, ""); // remove trailing slashes
+// If Slate injects env later, it will override the fallback. We accept either host-only or full base.
+const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
+const BASE = (RAW_BASE || FALLBACK_BASE).replace(/\/+$/, "");
 
 function joinUrl(base, path) {
   if (!path) return base || "";
@@ -34,9 +32,7 @@ function joinUrl(base, path) {
 function detectHtmlResponse(text, contentType) {
   const ct = (contentType || "").toLowerCase();
   const trimmed = (text || "").trim().toLowerCase();
-
   if (ct.includes("text/html")) return true;
-
   return (
     trimmed.startsWith("<!doctype html") ||
     trimmed.startsWith("<html") ||
@@ -45,35 +41,22 @@ function detectHtmlResponse(text, contentType) {
   );
 }
 
-function looksLikeCatalystInvalidUrl(json) {
-  const msg = json?.data?.message || json?.message || "";
-  const code = json?.data?.error_code || json?.error_code || "";
-  return (
-    (code && String(code).toUpperCase() === "INVALID_URL") ||
-    (typeof msg === "string" && msg.toLowerCase().includes("invalid api"))
-  );
-}
-
 async function httpGetJson(url) {
   const res = await fetch(url, {
     method: "GET",
     headers: {
+      // Keep headers SIMPLE to avoid preflight
       Accept: "application/json",
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
     },
-    cache: "no-store",
-    credentials: "include",
+    // Do not include cookies, keeps CORS simpler
+    credentials: "omit",
   });
 
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
 
   if (detectHtmlResponse(text, contentType)) {
-    const err = new Error(`Unexpected HTML response. Wrong API path used: ${url}`);
-    err.code = "HTML_RESPONSE";
-    err.url = url;
-    throw err;
+    throw new Error(`Unexpected HTML response. Wrong API path used: ${url}`);
   }
 
   let json;
@@ -85,18 +68,7 @@ async function httpGetJson(url) {
 
   if (!res.ok) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.url = url;
-    err.status = res.status;
-    throw err;
-  }
-
-  // Some Catalyst layers return 200 with an "INVALID_URL" payload.
-  if (looksLikeCatalystInvalidUrl(json)) {
-    const err = new Error(`Invalid public API route at: ${url}`);
-    err.code = "INVALID_URL";
-    err.url = url;
-    throw err;
+    throw new Error(msg);
   }
 
   return json;
@@ -164,75 +136,22 @@ function mapApiItemToClient(item) {
   };
 }
 
-function extractOriginAndMaybeBasePath(fullBase) {
-  // Accept:
-  //  - https://host
-  //  - https://host/server/crm_api
-  //  - https://host/server/crm_api/
-  // Return:
-  //  { origin: "https://host", basePath: "/server/crm_api" | "" }
-  try {
-    const u = new URL(fullBase);
-    const origin = u.origin;
-    const p = (u.pathname || "").replace(/\/+$/, "");
-    const basePath = p && p !== "/" ? p : "";
-    return { origin, basePath };
-  } catch {
-    // If it's not a valid URL, treat it as origin-less (should not happen in prod)
-    return { origin: fullBase.replace(/\/+$/, ""), basePath: "" };
-  }
-}
-
-async function fetchFirstWorkingJson(urls) {
-  const errors = [];
-  for (const u of urls) {
-    try {
-      const data = await httpGetJson(u);
-      // Ensure it actually looks like our API payload
-      const items = Array.isArray(data.items)
-        ? data.items
-        : Array.isArray(data.clients)
-          ? data.clients
-          : Array.isArray(data.data)
-            ? data.data
-            : null;
-
-      if (Array.isArray(items)) {
-        return { data, requestUrl: u };
-      }
-
-      errors.push(`No items array at: ${u}`);
-    } catch (e) {
-      errors.push(`${u} -> ${e?.message || String(e)}`);
-    }
-  }
-
-  const err = new Error(`All CRM API URL candidates failed. ${errors.join(" | ")}`);
-  err.code = "ALL_CANDIDATES_FAILED";
-  throw err;
+function normalizeBaseForClients(base) {
+  // If user provides host-only, we cannot guess routing reliably. Keep it as-is.
+  // If user provides the known working base including /server/crm_api, perfect.
+  return base.replace(/\/+$/, "");
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
   const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
-  const { origin, basePath } = extractOriginAndMaybeBasePath(BASE);
 
-  // Candidate construction rules:
-  // If BASE already contains "/server/crm_api", append "/api/clients"
-  // Otherwise try standard mounts from the origin.
-  const candidates = [];
+  const base = normalizeBaseForClients(BASE);
 
-  if (basePath) {
-    candidates.push(joinUrl(origin + basePath, `/api/clients?${qs}`));
-  }
+  // Your express app exposes /api/clients (inside server/crm_api)
+  // Since BASE can already include /server/crm_api, we append only /api/clients
+  const requestUrl = joinUrl(base, `/api/clients?${qs}`);
 
-  // Common function mount patterns
-  candidates.push(joinUrl(origin, `/server/crm_api/api/clients?${qs}`));
-  candidates.push(joinUrl(origin, `/crm_api/api/clients?${qs}`));
-
-  // If someone mounted the express app directly
-  candidates.push(joinUrl(origin, `/api/clients?${qs}`));
-
-  const { data, requestUrl } = await fetchFirstWorkingJson(candidates);
+  const data = await httpGetJson(requestUrl);
 
   const items = Array.isArray(data.items)
     ? data.items
@@ -241,6 +160,12 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
       : Array.isArray(data.data)
         ? data.data
         : [];
+
+  if (!Array.isArray(items)) {
+    throw new Error(
+      "API response did not include an array under items, clients, or data. Inspect the Network response JSON keys."
+    );
+  }
 
   return {
     ok: data.ok !== false,
