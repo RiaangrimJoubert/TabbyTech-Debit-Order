@@ -1,6 +1,6 @@
 const nav = [
   { key: "dashboard", label: "Dashboard", icon: "▦" },
-  { key: "clients", label: "Clients", icon: "👥", forceWhite: true },
+  { key: "clients", label: "Clients", icon: "👥", iconWhite: true },
   { key: "debitorders", label: "Debit Orders", icon: "↻" },
   { key: "batches", label: "Batches", icon: "⧉" },
   { key: "invoices", label: "Invoices", icon: "🧾" },
@@ -9,8 +9,20 @@ const nav = [
 ];
 
 export default function Sidebar({ activeKey, onNavigate, onLogout }) {
+  // Local style override ONLY for the Clients icon.
+  // This avoids touching global CSS while guaranteeing white.
+  const localCss = `
+    .tt-sidenav-icon.tt-icon-white {
+      color: #ffffff !important;
+      opacity: 0.92 !important;
+      filter: none !important;
+    }
+  `;
+
   return (
     <aside className="tt-sidebar">
+      <style>{localCss}</style>
+
       <div className="tt-sidebar-inner">
         <div className="tt-sidebrand">
           <div className="tt-sidebrand-mark">TT</div>
@@ -35,13 +47,8 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
                 aria-current={isActive ? "page" : undefined}
               >
                 <span
-                  className="tt-sidenav-icon"
+                  className={`tt-sidenav-icon ${item.iconWhite ? "tt-icon-white" : ""}`}
                   aria-hidden="true"
-                  style={
-                    item.forceWhite
-                      ? { color: "#ffffff" }
-                      : undefined
-                  }
                 >
                   {item.icon}
                 </span>
