@@ -2,24 +2,27 @@
 "use strict";
 
 /**
- * CRM API client
+ * CRM API client (robust public URL detection)
  *
- * Deployment reality:
- * - Same-origin routes on onslate are being rewritten to SPA HTML.
- * - The working backend is on catalystserverless under /server/crm_api/.
+ * We are calling the backend on catalystserverless (cross-origin) because onslate rewrites API paths to SPA HTML.
  *
- * Env reality:
- * - On Slate, VITE_* env vars may not be injected depending on where they are set.
+ * Problem observed:
+ * - Calling /server/crm_api/api/clients returned:
+ *   { status:"failure", data:{ message:"Invalid API ...", error_code:"INVALID_URL" } }
  *
- * Therefore:
- * - Prefer VITE_CRM_API_BASE when present
- * - Fall back to a known working catalystserverless host to keep production unblocked
+ * This means the public route is different than we assumed.
+ *
+ * Fix:
+ * - Accept VITE_CRM_API_BASE as either:
+ *    a) host only: https://<app>.catalystserverless.com
+ *    b) host + path: https://<app>.catalystserverless.com/server/crm_api/
+ * - Try multiple candidate paths and use the first that returns JSON with an items array.
  */
 
 const FALLBACK_BASE = "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
 
-const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
-const BASE = (RAW_BASE || FALLBACK_BASE).replace(/\/+$/, ""); // remove trailing slashes
+const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim() || FALLBACK_BASE;
+const BASE = RAW_BASE.replace(/\/+$/, ""); // remove trailing slashes
 
 function joinUrl(base, path) {
   if (!path) return base || "";
@@ -42,6 +45,15 @@ function detectHtmlResponse(text, contentType) {
   );
 }
 
+function looksLikeCatalystInvalidUrl(json) {
+  const msg = json?.data?.message || json?.message || "";
+  const code = json?.data?.error_code || json?.error_code || "";
+  return (
+    (code && String(code).toUpperCase() === "INVALID_URL") ||
+    (typeof msg === "string" && msg.toLowerCase().includes("invalid api"))
+  );
+}
+
 async function httpGetJson(url) {
   const res = await fetch(url, {
     method: "GET",
@@ -58,7 +70,10 @@ async function httpGetJson(url) {
   const text = await res.text();
 
   if (detectHtmlResponse(text, contentType)) {
-    throw new Error(`Unexpected HTML response. Wrong API path used: ${url}`);
+    const err = new Error(`Unexpected HTML response. Wrong API path used: ${url}`);
+    err.code = "HTML_RESPONSE";
+    err.url = url;
+    throw err;
   }
 
   let json;
@@ -70,7 +85,18 @@ async function httpGetJson(url) {
 
   if (!res.ok) {
     const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.url = url;
+    err.status = res.status;
+    throw err;
+  }
+
+  // Some Catalyst layers return 200 with an "INVALID_URL" payload.
+  if (looksLikeCatalystInvalidUrl(json)) {
+    const err = new Error(`Invalid public API route at: ${url}`);
+    err.code = "INVALID_URL";
+    err.url = url;
+    throw err;
   }
 
   return json;
@@ -138,11 +164,75 @@ function mapApiItemToClient(item) {
   };
 }
 
-export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
-  const path = `/server/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
-  const requestUrl = joinUrl(BASE, path);
+function extractOriginAndMaybeBasePath(fullBase) {
+  // Accept:
+  //  - https://host
+  //  - https://host/server/crm_api
+  //  - https://host/server/crm_api/
+  // Return:
+  //  { origin: "https://host", basePath: "/server/crm_api" | "" }
+  try {
+    const u = new URL(fullBase);
+    const origin = u.origin;
+    const p = (u.pathname || "").replace(/\/+$/, "");
+    const basePath = p && p !== "/" ? p : "";
+    return { origin, basePath };
+  } catch {
+    // If it's not a valid URL, treat it as origin-less (should not happen in prod)
+    return { origin: fullBase.replace(/\/+$/, ""), basePath: "" };
+  }
+}
 
-  const data = await httpGetJson(requestUrl);
+async function fetchFirstWorkingJson(urls) {
+  const errors = [];
+  for (const u of urls) {
+    try {
+      const data = await httpGetJson(u);
+      // Ensure it actually looks like our API payload
+      const items = Array.isArray(data.items)
+        ? data.items
+        : Array.isArray(data.clients)
+          ? data.clients
+          : Array.isArray(data.data)
+            ? data.data
+            : null;
+
+      if (Array.isArray(items)) {
+        return { data, requestUrl: u };
+      }
+
+      errors.push(`No items array at: ${u}`);
+    } catch (e) {
+      errors.push(`${u} -> ${e?.message || String(e)}`);
+    }
+  }
+
+  const err = new Error(`All CRM API URL candidates failed. ${errors.join(" | ")}`);
+  err.code = "ALL_CANDIDATES_FAILED";
+  throw err;
+}
+
+export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
+  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
+  const { origin, basePath } = extractOriginAndMaybeBasePath(BASE);
+
+  // Candidate construction rules:
+  // If BASE already contains "/server/crm_api", append "/api/clients"
+  // Otherwise try standard mounts from the origin.
+  const candidates = [];
+
+  if (basePath) {
+    candidates.push(joinUrl(origin + basePath, `/api/clients?${qs}`));
+  }
+
+  // Common function mount patterns
+  candidates.push(joinUrl(origin, `/server/crm_api/api/clients?${qs}`));
+  candidates.push(joinUrl(origin, `/crm_api/api/clients?${qs}`));
+
+  // If someone mounted the express app directly
+  candidates.push(joinUrl(origin, `/api/clients?${qs}`));
+
+  const { data, requestUrl } = await fetchFirstWorkingJson(candidates);
 
   const items = Array.isArray(data.items)
     ? data.items
@@ -151,12 +241,6 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
       : Array.isArray(data.data)
         ? data.data
         : [];
-
-  if (!Array.isArray(items)) {
-    throw new Error(
-      "API response did not include an array under items, clients, or data. Inspect the Network response JSON keys."
-    );
-  }
 
   return {
     ok: data.ok !== false,
