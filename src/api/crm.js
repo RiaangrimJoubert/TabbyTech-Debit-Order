@@ -4,19 +4,22 @@
 /**
  * CRM API client
  *
- * Production reality:
- * - onslate is rewriting /crm_api/* and /server/* to SPA HTML.
- * - The working backend URL is on catalystserverless and is mounted under /server/crm_api/.
+ * Deployment reality:
+ * - Same-origin routes on onslate are being rewritten to SPA HTML.
+ * - The working backend is on catalystserverless under /server/crm_api/.
+ *
+ * Env reality:
+ * - On Slate, VITE_* env vars may not be injected depending on where they are set.
  *
  * Therefore:
- * - Use VITE_CRM_API_BASE = https://<...>.catalystserverless.com
- * - Call /server/crm_api/api/clients on that host
- *
- * CORS must be allowed server-side (we added it in server/crm_api/index.js).
+ * - Prefer VITE_CRM_API_BASE when present
+ * - Fall back to a known working catalystserverless host to keep production unblocked
  */
 
+const FALLBACK_BASE = "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
+
 const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
-const BASE = RAW_BASE.replace(/\/+$/, ""); // remove trailing slashes
+const BASE = (RAW_BASE || FALLBACK_BASE).replace(/\/+$/, ""); // remove trailing slashes
 
 function joinUrl(base, path) {
   if (!path) return base || "";
@@ -136,12 +139,6 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
-  if (!BASE) {
-    throw new Error(
-      "VITE_CRM_API_BASE is not set. Set it to your catalystserverless host, e.g. https://<app>.catalystserverless.com"
-    );
-  }
-
   const path = `/server/crm_api/api/clients?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
   const requestUrl = joinUrl(BASE, path);
 
