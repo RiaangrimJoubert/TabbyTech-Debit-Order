@@ -1,341 +1,422 @@
 /* src/styles/invoice-html.css */
 
-/* Screen theme: premium dark glass like the web app */
+/* Premium dark base */
+:root{
+  --bg0:#070714;
+  --bg1:#0b0b20;
+  --card: rgba(255,255,255,0.06);
+  --card2: rgba(255,255,255,0.08);
+  --stroke: rgba(255,255,255,0.10);
+  --stroke2: rgba(255,255,255,0.14);
+  --text: rgba(255,255,255,0.92);
+  --muted: rgba(255,255,255,0.65);
+  --muted2: rgba(255,255,255,0.48);
+  --purple:#7c4dff;
+  --purple2:#9b6bff;
+  --shadow: 0 18px 70px rgba(0,0,0,0.55);
+  --radius: 18px;
+  --radius2: 22px;
+}
+
+/* Make printing keep colors and backgrounds */
+html, body{
+  height:100%;
+}
+body{
+  margin:0;
+  color: var(--text);
+  background: radial-gradient(1200px 700px at 18% 18%, rgba(124,77,255,0.28), transparent 60%),
+              radial-gradient(900px 600px at 70% 25%, rgba(80,120,255,0.16), transparent 55%),
+              linear-gradient(135deg, var(--bg0), var(--bg1));
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* critical for PDF */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Root wrapper */
 .invhtml-root{
-  min-height: 100vh;
-  padding: 34px 24px;
-  box-sizing: border-box;
-  background:
-    radial-gradient(1200px 700px at 20% 10%, rgba(126, 87, 255, 0.35), transparent 60%),
-    radial-gradient(900px 600px at 80% 20%, rgba(88, 43, 255, 0.28), transparent 55%),
-    radial-gradient(900px 700px at 50% 90%, rgba(255, 255, 255, 0.06), transparent 55%),
-    linear-gradient(180deg, #070714, #050512);
-  color: rgba(255,255,255,0.92);
-  font-family: "Montserrat", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+  min-height:100%;
+  padding: 34px 26px 54px;
+  box-sizing:border-box;
 }
 
 .invhtml-shell{
-  width: 100%;
-  max-width: 1160px;
+  width:100%;
+  max-width: 1080px;
   margin: 0 auto;
 }
 
+/* Top bar */
 .invhtml-topbar{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.10);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
-  backdrop-filter: blur(18px);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .invhtml-brand{
-  display: flex;
-  align-items: center;
+  display:flex;
+  align-items:center;
   gap: 12px;
-  min-width: 260px;
 }
 
 .invhtml-logo{
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: #fff;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   font-weight: 900;
-  letter-spacing: 0.3px;
-  background: linear-gradient(135deg, rgba(140, 102, 255, 0.95), rgba(88, 43, 255, 0.95));
-  box-shadow: 0 12px 30px rgba(88, 43, 255, 0.35);
+  letter-spacing: 0.6px;
+  background: linear-gradient(135deg, rgba(124,77,255,0.95), rgba(155,107,255,0.85));
+  box-shadow: 0 10px 40px rgba(124,77,255,0.25);
+  color: #fff;
 }
 
-.invhtml-logoimg{
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  object-fit: cover;
-  box-shadow: 0 12px 30px rgba(88, 43, 255, 0.35);
-  border: 1px solid rgba(255,255,255,0.14);
+.invhtml-brandtext{
+  display:flex;
+  flex-direction:column;
+  line-height: 1.05;
 }
 
-.invhtml-brandtext{ display:flex; flex-direction: column; gap: 2px; }
 .invhtml-brandname{
   font-weight: 900;
-  letter-spacing: 0.2px;
-  font-size: 14px;
-  color: rgba(255,255,255,0.95);
-}
-.invhtml-brandsub{
-  font-size: 12px;
-  color: rgba(255,255,255,0.68);
+  font-size: 18px;
 }
 
+.invhtml-brandsub{
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Buttons */
 .invhtml-actions{
-  display: flex;
-  align-items: center;
+  display:flex;
+  align-items:center;
   gap: 10px;
 }
 
 .invhtml-btn{
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.92);
+  appearance:none;
+  border: 1px solid var(--stroke2);
+  background: rgba(0,0,0,0.20);
+  color: var(--text);
   padding: 10px 14px;
   border-radius: 12px;
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0.2px;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  font-weight: 700;
+  cursor:pointer;
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  backdrop-filter: blur(10px);
 }
+
 .invhtml-btn:hover{
-  transform: translateY(-1px);
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.20);
+  border-color: rgba(255,255,255,0.22);
+  background: rgba(0,0,0,0.28);
 }
-.invhtml-btn:active{ transform: translateY(0px); }
 
 .invhtml-btn-primary{
-  border-color: rgba(140, 102, 255, 0.42);
-  background: linear-gradient(135deg, rgba(140, 102, 255, 0.95), rgba(88, 43, 255, 0.95));
-  box-shadow: 0 16px 40px rgba(88, 43, 255, 0.35);
-}
-.invhtml-btn-primary:hover{
-  border-color: rgba(140, 102, 255, 0.58);
-  background: linear-gradient(135deg, rgba(150, 114, 255, 0.98), rgba(96, 52, 255, 0.98));
+  border-color: rgba(124,77,255,0.55);
+  background: linear-gradient(135deg, rgba(124,77,255,0.92), rgba(155,107,255,0.82));
+  box-shadow: 0 10px 30px rgba(124,77,255,0.20);
 }
 
+.invhtml-btn-primary:hover{
+  filter: brightness(1.05);
+}
+
+/* Card */
 .invhtml-card{
-  margin-top: 16px;
-  border-radius: 22px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.10);
-  box-shadow: 0 24px 70px rgba(0,0,0,0.50);
-  backdrop-filter: blur(18px);
-  padding: 18px;
+  border-radius: var(--radius2);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: var(--shadow);
+  overflow:hidden;
 }
 
 .invhtml-header{
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 16px;
-}
-@media (max-width: 920px){
-  .invhtml-header{ grid-template-columns: 1fr; }
-  .invhtml-brand{ min-width: auto; }
+  display:flex;
+  gap: 18px;
+  padding: 22px 22px 18px;
+  align-items:stretch;
+  justify-content:space-between;
+  flex-wrap:wrap;
 }
 
-.invhtml-h1{
-  font-size: 22px;
-  font-weight: 1000;
-  letter-spacing: 0.2px;
-  margin-bottom: 10px;
-}
-.invhtml-meta{
-  display: grid;
-  gap: 8px;
-}
-.invhtml-row{
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 10px;
-  align-items: center;
-}
-.invhtml-k{
-  color: rgba(255,255,255,0.62);
-  font-size: 12px;
-  font-weight: 700;
-}
-.invhtml-v{
-  color: rgba(255,255,255,0.92);
-  font-size: 12px;
-  font-weight: 850;
+.invhtml-left{
+  flex: 1 1 520px;
+  min-width: 320px;
 }
 
 .invhtml-right{
-  display: grid;
+  flex: 0 1 360px;
+  min-width: 280px;
+  display:flex;
+  flex-direction:column;
   gap: 12px;
 }
 
-.invhtml-company{
-  border-radius: 18px;
-  padding: 14px;
-  background: rgba(0,0,0,0.18);
+.invhtml-h1{
+  font-weight: 950;
+  font-size: 22px;
+  letter-spacing: 0.2px;
+  margin-bottom: 12px;
+}
+
+.invhtml-meta{
+  display:flex;
+  flex-direction:column;
+  gap: 8px;
+}
+
+.invhtml-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.10);
 }
+
+.invhtml-k{
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.invhtml-v{
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.invhtml-company{
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
 .invhtml-companyname{
-  font-weight: 950;
+  font-weight: 900;
   margin-bottom: 6px;
 }
+
 .invhtml-companyline{
-  color: rgba(255,255,255,0.70);
+  color: var(--muted);
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .invhtml-chip{
-  border-radius: 18px;
-  padding: 14px;
-  background: linear-gradient(135deg, rgba(140, 102, 255, 0.22), rgba(88, 43, 255, 0.10));
-  border: 1px solid rgba(140, 102, 255, 0.28);
+  padding: 14px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(124,77,255,0.30);
+  background: radial-gradient(600px 220px at 20% 20%, rgba(124,77,255,0.26), transparent 55%),
+              rgba(255,255,255,0.05);
 }
+
 .invhtml-chipk{
+  color: var(--muted);
   font-size: 12px;
-  color: rgba(255,255,255,0.68);
-  font-weight: 700;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
 }
+
 .invhtml-chipv{
-  margin-top: 8px;
   font-size: 20px;
-  font-weight: 1000;
+  font-weight: 950;
+  margin-top: 6px;
 }
 
 .invhtml-divider{
   height: 1px;
   background: rgba(255,255,255,0.10);
-  margin: 16px 0;
 }
 
 .invhtml-grid{
-  display: grid;
+  display:grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 12px;
+  padding: 18px 22px 10px;
 }
-@media (max-width: 920px){
+
+@media (max-width: 860px){
   .invhtml-grid{ grid-template-columns: 1fr; }
 }
 
 .invhtml-panel{
-  border-radius: 18px;
-  padding: 14px;
-  background: rgba(0,0,0,0.18);
+  border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 14px 14px;
 }
+
 .invhtml-paneltitle{
-  font-weight: 950;
+  font-weight: 900;
   font-size: 12px;
-  letter-spacing: 0.18px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
   margin-bottom: 10px;
-  color: rgba(255,255,255,0.92);
 }
-.invhtml-panelbody{ display: grid; gap: 6px; }
-.invhtml-strong{ font-weight: 950; }
-.invhtml-muted{ color: rgba(255,255,255,0.70); font-size: 12px; }
+
+.invhtml-panelbody{
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+}
+
+.invhtml-strong{ font-weight: 900; }
+.invhtml-muted{ color: var(--muted); font-size: 12px; }
 
 .invhtml-row2{
-  display: grid;
-  grid-template-columns: 130px 1fr;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
   gap: 10px;
-  align-items: center;
 }
 
+/* Table */
 .invhtml-tablewrap{
-  margin-top: 14px;
-  border-radius: 18px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.14);
+  padding: 14px 22px 22px;
 }
 
 .invhtml-table{
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow:hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
 }
+
 .invhtml-table thead th{
-  text-align: left;
+  text-align:left;
+  padding: 12px 12px;
   font-size: 12px;
-  padding: 12px 14px;
-  color: rgba(255,255,255,0.70);
-  border-bottom: 1px solid rgba(255,255,255,0.10);
   font-weight: 900;
+  color: rgba(255,255,255,0.78);
+  background: rgba(0,0,0,0.22);
+  border-bottom: 1px solid rgba(255,255,255,0.10);
 }
+
 .invhtml-table tbody td{
-  padding: 12px 14px;
+  padding: 12px 12px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
-  font-size: 12px;
-  color: rgba(255,255,255,0.90);
+  font-size: 13px;
 }
-.invhtml-desc{ font-weight: 800; }
 
+.invhtml-table tbody tr:last-child td{
+  border-bottom: none;
+}
+
+.invhtml-desc{
+  font-weight: 800;
+}
+
+/* Totals */
 .invhtml-totals{
-  padding: 14px;
-  display: grid;
+  margin-top: 12px;
+  width: 100%;
+  max-width: 360px;
+  margin-left: auto;
+  display:flex;
+  flex-direction:column;
   gap: 8px;
-}
-.invhtml-trow{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.invhtml-trowtotal{
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255,255,255,0.10);
-  font-weight: 1000;
-  font-size: 14px;
+  padding: 12px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
 }
 
-.invhtml-empty{
-  padding: 26px 8px;
-  text-align: center;
+.invhtml-trow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
 }
-.invhtml-emptytitle{
-  font-size: 18px;
-  font-weight: 1000;
+
+.invhtml-trowtotal{
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  font-weight: 950;
 }
-.invhtml-emptysub{
-  margin-top: 6px;
-  color: rgba(255,255,255,0.70);
-  font-size: 12px;
+
+/* Notes */
+.invhtml-notes{
+  padding: 0 22px 18px;
 }
 
 .invhtml-footer{
-  margin-top: 14px;
-  display: flex;
-  justify-content: space-between;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
   gap: 12px;
-  flex-wrap: wrap;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255,255,255,0.10);
+  padding: 14px 22px 18px;
+  color: var(--muted2);
+  font-size: 12px;
 }
 
-.noprint{}
+/* Empty state */
+.invhtml-empty{
+  padding: 28px 22px 30px;
+}
 
-/* PRINT: force clean white invoice for PDF */
+.invhtml-emptytitle{
+  font-size: 18px;
+  font-weight: 950;
+  margin-bottom: 6px;
+}
+
+.invhtml-emptysub{
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Print rules */
 @media print{
+  /* Remove any default margins and keep colors */
+  @page { margin: 12mm; }
+
+  html, body{
+    background: linear-gradient(135deg, var(--bg0), var(--bg1)) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide non-print items */
+  .noprint{ display:none !important; }
+
+  /* Make card fit nicely */
   .invhtml-root{
-    background: #ffffff !important;
     padding: 0 !important;
-    color: #111 !important;
   }
-
-  .invhtml-topbar, .invhtml-btn, .noprint{
-    display: none !important;
+  .invhtml-shell{
+    max-width: 100% !important;
   }
-
   .invhtml-card{
-    margin: 0 !important;
-    border: none !important;
     box-shadow: none !important;
-    background: #ffffff !important;
-    padding: 0 !important;
   }
 
-  .invhtml-panel, .invhtml-company, .invhtml-chip, .invhtml-tablewrap{
-    background: #ffffff !important;
-    border-color: #e6e6e6 !important;
+  /* Avoid weird page breaks */
+  .invhtml-table, .invhtml-panel, .invhtml-totals{
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
-
-  .invhtml-muted, .invhtml-k{ color: #444 !important; }
-  .invhtml-v, .invhtml-strong, .invhtml-companyname, .invhtml-h1{ color: #111 !important; }
 }
