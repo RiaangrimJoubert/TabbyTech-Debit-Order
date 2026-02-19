@@ -22,6 +22,7 @@
 html, body{
   height:100%;
 }
+
 body{
   margin:0;
   color: var(--text);
@@ -65,14 +66,16 @@ body{
   gap: 12px;
 }
 
-<div className="invhtml-logo" style={{ padding: 0, overflow: "hidden" }}>
-  <img
-    src="/tabbytech-logo.png"
-    alt="TabbyTech"
-    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-  />
-</div>
-
+/* Logo container (logo IMG stays in React, not in CSS) */
+.invhtml-logo{
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+  flex: 0 0 auto;
 }
 
 .invhtml-brandtext{
@@ -387,11 +390,23 @@ body{
 
 /* Print rules */
 @media print{
-  /* Remove any default margins and keep colors */
-  @page { margin: 12mm; }
+  /* Force portrait single page sizing rules */
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
 
+  /* Stop "full height" layout behaviours that create a blank page */
   html, body{
-    background: linear-gradient(135deg, var(--bg0), var(--bg1)) !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  body{
+    /* keep your premium look in PDF */
+    background: radial-gradient(1200px 700px at 18% 18%, rgba(124,77,255,0.28), transparent 60%),
+                radial-gradient(900px 600px at 70% 25%, rgba(80,120,255,0.16), transparent 55%),
+                linear-gradient(135deg, var(--bg0), var(--bg1)) !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -399,20 +414,36 @@ body{
   /* Hide non-print items */
   .noprint{ display:none !important; }
 
-  /* Make card fit nicely */
+  /* Critical: remove min-height + big paddings so footer stays on page 1 */
   .invhtml-root{
+    min-height: 0 !important;
+    height: auto !important;
     padding: 0 !important;
+    margin: 0 !important;
   }
+
   .invhtml-shell{
     max-width: 100% !important;
+    margin: 0 !important;
   }
+
   .invhtml-card{
     box-shadow: none !important;
+    overflow: visible !important;
   }
 
   /* Avoid weird page breaks */
-  .invhtml-table, .invhtml-panel, .invhtml-totals{
-    break-inside: avoid;
-    page-break-inside: avoid;
+  .invhtml-header,
+  .invhtml-grid,
+  .invhtml-tablewrap,
+  .invhtml-notes,
+  .invhtml-footer{
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .invhtml-table{
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }
