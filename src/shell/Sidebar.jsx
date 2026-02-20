@@ -46,10 +46,19 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
         <div className="tt-sidebrand">
-          <div className="tt-sidebrand-mark">TT</div>
+          {/* Logo */}
+          <div className="tt-sidebrand-mark" aria-hidden="true">
+            <img
+              src="/tabbytech-logo.png"
+              alt=""
+              className="tt-sidebrand-logo"
+            />
+          </div>
+
+          {/* Product name */}
           <div className="tt-sidebrand-text">
-            <div className="tt-sidebrand-name">TabbyTech</div>
-            <div className="tt-sidebrand-sub">Debit Orders</div>
+            <div className="tt-sidebrand-name">TabbyPay</div>
+            <div className="tt-sidebrand-sub">by TabbyTech</div>
           </div>
         </div>
 
