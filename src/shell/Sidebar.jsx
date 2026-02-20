@@ -1,3 +1,6 @@
+// src/shell/Sidebar.jsx
+import React from "react";
+
 const nav = [
   { key: "dashboard", label: "Dashboard", icon: "▦" },
   { key: "clients", label: "Clients", icon: "CLIENTS_SVG" },
@@ -46,16 +49,17 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
         <div className="tt-sidebrand">
-          {/* Logo */}
+          {/* Brand mark (uses TabbyTech logo from /public/tabbytech-logo.png) */}
           <div className="tt-sidebrand-mark" aria-hidden="true">
             <img
               src="/tabbytech-logo.png"
-              alt=""
+              alt="TabbyTech"
               className="tt-sidebrand-logo"
+              draggable={false}
             />
           </div>
 
-          {/* Product name */}
+          {/* Brand text */}
           <div className="tt-sidebrand-text">
             <div className="tt-sidebrand-name">TabbyPay</div>
             <div className="tt-sidebrand-sub">by TabbyTech</div>
