@@ -223,6 +223,11 @@ h6 {
   position: sticky;
   top: 18px;
   height: calc(100vh - 36px);
+
+  /* Patch: keep sidebar above any decorative overflow */
+  z-index: 50;
+  isolation: isolate;
+  overflow: hidden;
 }
 
 .tt-sidebar-inner {
@@ -255,6 +260,14 @@ h6 {
   place-items: center;
   font-weight: 900;
   letter-spacing: 0.5px;
+}
+
+/* Ensures logo fits inside the sidebrand mark */
+.tt-sidebrand-logo {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+  display: block;
 }
 
 .tt-sidebrand-name {
@@ -742,4 +755,3 @@ h6 {
 .tt-settings h4 {
   color: var(--purple);
 }
-
