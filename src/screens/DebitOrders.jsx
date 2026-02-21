@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { request } from "../api";
 
 const styles = {
   page: { height: "100%", display: "flex", flexDirection: "column", gap: 16 },
@@ -38,10 +39,10 @@ const styles = {
     borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
 
-  leftTools: { display: "flex", flexDirection: "column", gap: 10, flex: "1 1 560px", minWidth: 320 },
-  rightTools: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  leftTools: { display: "flex", flexDirection: "column", gap: 10, flex: "1 1 520px", minWidth: 340 },
+  rightTools: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" },
 
-  inputWrap: { position: "relative", width: "100%", maxWidth: 640 },
+  inputWrap: { position: "relative", width: "100%", maxWidth: 560 },
   input: {
     height: 38,
     width: "100%",
@@ -55,7 +56,7 @@ const styles = {
   },
   inputIcon: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", opacity: 0.7 },
 
-  chipRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  chipsRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
 
   chip: (active) => ({
     height: 34,
@@ -72,6 +73,7 @@ const styles = {
     fontWeight: 700,
     letterSpacing: 0.2,
     userSelect: "none",
+    transition: "transform 160ms ease, box-shadow 160ms ease, background 160ms ease",
   }),
 
   btn: (variant = "secondary", disabled = false) => {
@@ -87,6 +89,7 @@ const styles = {
       gap: 10,
       cursor: disabled ? "not-allowed" : "pointer",
       userSelect: "none",
+      transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease",
       fontSize: 13,
       fontWeight: 700,
       letterSpacing: 0.2,
@@ -108,14 +111,6 @@ const styles = {
         ...base,
         background: "rgba(239,68,68,0.14)",
         border: "1px solid rgba(239,68,68,0.35)",
-      };
-    }
-
-    if (variant === "ghost") {
-      return {
-        ...base,
-        background: "rgba(0,0,0,0.10)",
-        border: "1px solid rgba(255,255,255,0.10)",
       };
     }
 
@@ -147,6 +142,7 @@ const styles = {
   row: (active) => ({
     cursor: "pointer",
     background: active ? "rgba(168,85,247,0.12)" : "transparent",
+    transition: "transform 160ms ease, background 160ms ease, box-shadow 160ms ease",
   }),
   rowHover: {
     transform: "translateY(-1px)",
@@ -160,11 +156,11 @@ const styles = {
       Paused: { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.32)" },
       Cancelled: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)" },
       Draft: { bg: "rgba(168,85,247,0.16)", bd: "rgba(168,85,247,0.32)" },
-      Scheduled: { bg: "rgba(168,85,247,0.16)", bd: "rgba(168,85,247,0.32)" },
+      Scheduled: { bg: "rgba(99,102,241,0.16)", bd: "rgba(99,102,241,0.32)" },
       Paid: { bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.30)" },
-      Unpaid: { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.32)" },
+      Unpaid: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)" },
     };
-    const t = map[tone] || map.Draft;
+    const t = map[tone] || { bg: "rgba(255,255,255,0.06)", bd: "rgba(255,255,255,0.14)" };
     return {
       height: 22,
       padding: "0 10px",
@@ -181,8 +177,13 @@ const styles = {
   },
 
   checkbox: { width: 16, height: 16, accentColor: "#A855F7", cursor: "pointer" },
-
-  note: { margin: 0, fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.4 },
+  errorBar: {
+    padding: "10px 14px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(239,68,68,0.10)",
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+  },
 };
 
 function IconSearch({ size = 16 }) {
@@ -206,29 +207,33 @@ function formatDate(iso) {
   return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
 }
 
-function downloadTextFile(filename, content, mime = "text/plain;charset=utf-8") {
-  const blob = new Blob([content], { type: mime });
+function safeText(v) {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+function downloadCsv(filename, rows) {
+  const csvEscape = (v) => {
+    const s = safeText(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
+
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+
   URL.revokeObjectURL(url);
 }
 
-function escapeCsv(v) {
-  const s = String(v ?? "");
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
 export default function DebitOrders() {
-  const API_BASE =
-    (import.meta?.env?.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "") ||
-    window.location.origin;
-
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [hoverRow, setHoverRow] = useState(null);
@@ -236,64 +241,64 @@ export default function DebitOrders() {
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
+  const [errorText, setErrorText] = useState("");
 
-  async function fetchList() {
+  async function load() {
     setLoading(true);
-    setLoadError("");
+    setErrorText("");
     try {
-      const url = `${API_BASE}/api/debit-orders`;
-      const resp = await fetch(url, { method: "GET" });
-      const json = await resp.json().catch(() => ({}));
-      if (!resp.ok || !json.ok) throw new Error(json.error || `Request failed ${resp.status}`);
-      setRows(Array.isArray(json.data) ? json.data : []);
+      const json = await request("/api/debit-orders", { method: "GET" });
+
+      if (!json || json.ok !== true || !Array.isArray(json.data)) {
+        const preview = typeof json?.raw === "string" ? json.raw.slice(0, 140) : "";
+        throw new Error(preview ? `Unexpected response: ${preview}` : "Unexpected response from API");
+      }
+
+      setRows(json.data);
     } catch (e) {
-      setLoadError(String(e?.message || e));
+      setRows([]);
+      setErrorText(safeText(e?.message || e));
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    fetchList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    load();
   }, []);
-
-  const normalized = useMemo(() => {
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name || "",
-      clientName: r?.client?.name || r?.client?.Name || "",
-      status: r.status || "Draft",
-      amount: r.amount ?? null,
-      billingCycle: r.billingCycle || "",
-      nextChargeDate: r.nextChargeDate || "",
-      retryCount: Number(r.retryCount ?? 0),
-      lastTransactionReference: r.lastTransactionReference || "",
-      failureReason: r.failureReason || "",
-      updatedAt: r.updatedAt || "",
-    }));
-  }, [rows]);
-
-  const statusCounts = useMemo(() => {
-    const base = { All: normalized.length };
-    for (const r of normalized) base[r.status] = (base[r.status] || 0) + 1;
-    return base;
-  }, [normalized]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return normalized
-      .filter((d) => (statusFilter === "All" ? true : d.status === statusFilter))
+    return rows
+      .filter((d) => (statusFilter === "All" ? true : safeText(d.status) === statusFilter))
       .filter((d) => {
         if (!q) return true;
+
+        const clientName = d?.client?.name ? String(d.client.name) : "";
         return (
-          String(d.clientName || "").toLowerCase().includes(q) ||
-          String(d.id || "").toLowerCase().includes(q) ||
-          String(d.lastTransactionReference || "").toLowerCase().includes(q)
+          safeText(d?.name).toLowerCase().includes(q) ||
+          safeText(d?.id).toLowerCase().includes(q) ||
+          clientName.toLowerCase().includes(q) ||
+          safeText(d?.paystackCustomerCode).toLowerCase().includes(q) ||
+          safeText(d?.paystackAuthorizationCode).toLowerCase().includes(q)
         );
       });
-  }, [normalized, query, statusFilter]);
+  }, [rows, query, statusFilter]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { All: rows.length };
+    for (const r of rows) {
+      const s = safeText(r?.status) || "Draft";
+      counts[s] = (counts[s] || 0) + 1;
+    }
+    return counts;
+  }, [rows]);
+
+  const statusKeys = useMemo(() => {
+    const preferred = ["All", "Live", "Paused", "Cancelled", "Draft", "Scheduled", "Paid", "Unpaid"];
+    const present = new Set(Object.keys(statusCounts));
+    return preferred.filter((k) => present.has(k) || k === "All");
+  }, [statusCounts]);
 
   const allVisibleSelected = filtered.length > 0 && filtered.every((x) => selectedIds.includes(x.id));
   const anySelected = selectedIds.length > 0;
@@ -314,49 +319,44 @@ export default function DebitOrders() {
     });
   }
 
-  function exportVisibleToExcelCsv() {
+  function onExportExcel() {
+    const exportRows = filtered.length > 0 ? filtered : rows;
+
     const header = [
-      "Debit Order ID",
+      "ID",
       "Name",
-      "Client",
-      "Status",
+      "Client Name",
+      "Client ID",
       "Amount",
       "Billing Cycle",
       "Next Charge Date",
+      "Status",
+      "Paystack Customer Code",
+      "Paystack Authorization Code",
       "Retry Count",
       "Last Transaction Reference",
       "Failure Reason",
       "Updated At",
     ];
 
-    const lines = [header.map(escapeCsv).join(",")];
+    const body = exportRows.map((r) => [
+      r.id,
+      r.name,
+      r?.client?.name || "",
+      r?.client?.id || "",
+      r.amount ?? "",
+      r.billingCycle || "",
+      r.nextChargeDate || "",
+      r.status || "",
+      r.paystackCustomerCode || "",
+      r.paystackAuthorizationCode || "",
+      r.retryCount ?? 0,
+      r.lastTransactionReference || "",
+      r.failureReason || "",
+      r.updatedAt || "",
+    ]);
 
-    for (const r of filtered) {
-      lines.push(
-        [
-          r.id,
-          r.name,
-          r.clientName,
-          r.status,
-          r.amount,
-          r.billingCycle,
-          r.nextChargeDate,
-          r.retryCount,
-          r.lastTransactionReference,
-          r.failureReason,
-          r.updatedAt,
-        ]
-          .map(escapeCsv)
-          .join(",")
-      );
-    }
-
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-    downloadTextFile(`tabbytech-debit-orders-${stamp}.csv`, lines.join("\n"), "text/csv;charset=utf-8");
-  }
-
-  async function syncToCrm() {
-    await fetchList();
+    downloadCsv(`tabbytech-debit-orders-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...body]);
   }
 
   return (
@@ -366,12 +366,14 @@ export default function DebitOrders() {
           <h1 style={styles.title}>Debit Orders</h1>
           <p style={styles.subtitle}>
             Live data from Zoho CRM via Catalyst API Gateway.
-            {loadError ? ` Error: ${loadError}` : ""}
+            {loading ? " Loading..." : ""}
           </p>
         </div>
       </div>
 
       <div style={{ ...styles.glass, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {errorText ? <div style={styles.errorBar}>Error: {errorText}</div> : null}
+
         <div style={styles.panelHeader}>
           <div>
             <p style={styles.panelTitle}>All debit orders</p>
@@ -380,7 +382,9 @@ export default function DebitOrders() {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Selected:</span>
-            <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>{selectedIds.length}</span>
+            <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>
+              {selectedIds.length}
+            </span>
           </div>
         </div>
 
@@ -394,13 +398,13 @@ export default function DebitOrders() {
                 style={styles.input}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by client, id, reference, or codes"
+                placeholder="Search by client, id, or codes"
                 aria-label="Search debit orders"
               />
             </div>
 
-            <div style={styles.chipRow}>
-              {["All", "Live", "Paused", "Cancelled", "Draft", "Scheduled", "Paid", "Unpaid"].map((k) => {
+            <div style={styles.chipsRow}>
+              {statusKeys.map((k) => {
                 const active = statusFilter === k;
                 return (
                   <div
@@ -415,24 +419,25 @@ export default function DebitOrders() {
                     title={`Filter: ${k}`}
                   >
                     <span>{k}</span>
-                    <span style={{ opacity: 0.8 }}>{k === "All" ? normalized.length : statusCounts[k] ?? 0}</span>
+                    <span style={{ opacity: 0.8 }}>{statusCounts[k] ?? 0}</span>
                   </div>
                 );
               })}
 
-              <button style={styles.btn("ghost", loading)} type="button" onClick={syncToCrm} disabled={loading}>
+              <button
+                style={styles.btn("secondary", loading)}
+                type="button"
+                disabled={loading}
+                onClick={load}
+                title="Re-fetch latest data from CRM"
+              >
                 Sync to CRM Debit-Orders
               </button>
             </div>
           </div>
 
           <div style={styles.rightTools}>
-            <button
-              style={styles.btn("primary", filtered.length === 0)}
-              type="button"
-              onClick={exportVisibleToExcelCsv}
-              disabled={filtered.length === 0}
-            >
+            <button style={styles.btn("primary", false)} type="button" onClick={onExportExcel}>
               Export to Excel
             </button>
 
@@ -459,6 +464,7 @@ export default function DebitOrders() {
                     checked={allVisibleSelected}
                     onChange={toggleSelectAllVisible}
                     aria-label="Select all visible"
+                    disabled={loading || filtered.length === 0}
                   />
                 </th>
                 <th style={styles.th}>Debit order</th>
@@ -470,6 +476,7 @@ export default function DebitOrders() {
                 <th style={styles.th}>Updated</th>
               </tr>
             </thead>
+
             <tbody>
               {filtered.map((d) => {
                 const isHover = hoverRow === d.id;
@@ -494,19 +501,17 @@ export default function DebitOrders() {
 
                     <td style={styles.td}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>{d.id}</span>
-                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>
-                          {d.lastTransactionReference || ""}
-                        </span>
+                        <span style={{ fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>{d.name || d.id}</span>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{d.id}</span>
                       </div>
                     </td>
 
-                    <td style={styles.td}>{d.clientName || "-"}</td>
+                    <td style={styles.td}>{d?.client?.name || ""}</td>
                     <td style={styles.td}>
-                      <span style={styles.badge(d.status)}>{d.status}</span>
+                      <span style={styles.badge(d.status)}>{d.status || "Draft"}</span>
                     </td>
                     <td style={styles.td}>{currencyZar(d.amount)}</td>
-                    <td style={styles.td}>{d.billingCycle || "-"}</td>
+                    <td style={styles.td}>{d.billingCycle || ""}</td>
                     <td style={styles.td}>{formatDate(d.nextChargeDate)}</td>
                     <td style={styles.td}>{formatDate(d.updatedAt)}</td>
                   </tr>
@@ -529,7 +534,7 @@ export default function DebitOrders() {
               {loading && (
                 <tr>
                   <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
-                    <div style={{ color: "rgba(255,255,255,0.70)" }}>Loading debit orders...</div>
+                    <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 13 }}>Loading debit orders...</div>
                   </td>
                 </tr>
               )}
