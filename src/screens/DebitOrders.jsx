@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const styles = {
   page: { height: "100%", display: "flex", flexDirection: "column", gap: 16 },
@@ -10,8 +10,7 @@ const styles = {
   glass: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)",
     boxShadow: "0 18px 50px rgba(0,0,0,0.35)",
     backdropFilter: "blur(14px)",
     overflow: "hidden",
@@ -32,17 +31,17 @@ const styles = {
   toolbar: {
     padding: 14,
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
     flexWrap: "wrap",
     borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
 
-  leftTools: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  leftTools: { display: "flex", flexDirection: "column", gap: 10, flex: "1 1 560px", minWidth: 320 },
   rightTools: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
 
-  inputWrap: { position: "relative", flex: "1 1 320px", maxWidth: 520 },
+  inputWrap: { position: "relative", width: "100%", maxWidth: 640 },
   input: {
     height: 38,
     width: "100%",
@@ -55,6 +54,8 @@ const styles = {
     fontSize: 13,
   },
   inputIcon: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", opacity: 0.7 },
+
+  chipRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
 
   chip: (active) => ({
     height: 34,
@@ -92,6 +93,7 @@ const styles = {
       fontWeight: 700,
       letterSpacing: 0.2,
       opacity: disabled ? 0.55 : 1,
+      whiteSpace: "nowrap",
     };
 
     if (variant === "primary") {
@@ -108,6 +110,14 @@ const styles = {
         ...base,
         background: "rgba(239,68,68,0.14)",
         border: "1px solid rgba(239,68,68,0.35)",
+      };
+    }
+
+    if (variant === "ghost") {
+      return {
+        ...base,
+        background: "rgba(0,0,0,0.10)",
+        border: "1px solid rgba(255,255,255,0.10)",
       };
     }
 
@@ -153,6 +163,9 @@ const styles = {
       Paused: { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.32)" },
       Cancelled: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)" },
       Draft: { bg: "rgba(168,85,247,0.16)", bd: "rgba(168,85,247,0.32)" },
+      Scheduled: { bg: "rgba(168,85,247,0.16)", bd: "rgba(168,85,247,0.32)" },
+      Unpaid: { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.32)" },
+      Paid: { bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.30)" },
     };
     const t = map[tone] || map.Draft;
     return {
@@ -215,32 +228,20 @@ const styles = {
     letterSpacing: 0.2,
     textTransform: "uppercase",
   },
-  kv: { display: "grid", gridTemplateColumns: "150px 1fr", gap: 10, marginTop: 10 },
+  kv: { display: "grid", gridTemplateColumns: "160px 1fr", gap: 10, marginTop: 10 },
   k: { fontSize: 12, color: "rgba(255,255,255,0.55)" },
   v: { fontSize: 13, color: "rgba(255,255,255,0.82)" },
 
-  checkbox: {
-    width: 16,
-    height: 16,
-    accentColor: "#A855F7",
-    cursor: "pointer",
-  },
+  checkbox: { width: 16, height: 16, accentColor: "#A855F7", cursor: "pointer" },
+
+  note: { margin: 0, fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.4 },
 };
 
 function IconSearch({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-        stroke="rgba(255,255,255,0.75)"
-        strokeWidth="2"
-      />
-      <path
-        d="M16.2 16.2 21 21"
-        stroke="rgba(255,255,255,0.75)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
+      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -251,77 +252,29 @@ function currencyZar(n) {
 }
 
 function formatDate(iso) {
+  if (!iso) return "";
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
 }
 
-const seed = [
-  {
-    id: "DO-90021",
-    client: "Mkhize Holdings",
-    reference: "MKH-MND-0182",
-    status: "Live",
-    amount: 3990,
-    frequency: "Monthly",
-    runDay: "15",
-    nextRun: "2026-02-15T10:00:00.000Z",
-    bank: "FNB",
-    accountLast4: "1129",
-    updated: "2026-02-06T14:22:00.000Z",
-  },
-  {
-    id: "DO-90022",
-    client: "Sable Properties",
-    reference: "SBL-MND-2201",
-    status: "Paused",
-    amount: 12500,
-    frequency: "Monthly",
-    runDay: "12",
-    nextRun: "2026-02-12T10:00:00.000Z",
-    bank: "Standard Bank",
-    accountLast4: "8841",
-    updated: "2026-02-07T09:08:00.000Z",
-  },
-  {
-    id: "DO-90023",
-    client: "Aurora Wellness Group",
-    reference: "AWG-MND-0319",
-    status: "Live",
-    amount: 1790,
-    frequency: "Monthly",
-    runDay: "18",
-    nextRun: "2026-02-18T10:00:00.000Z",
-    bank: "ABSA",
-    accountLast4: "5510",
-    updated: "2026-02-01T17:55:00.000Z",
-  },
-  {
-    id: "DO-90024",
-    client: "Kopano Tutors",
-    reference: "KOP-MND-0099",
-    status: "Cancelled",
-    amount: 990,
-    frequency: "Monthly",
-    runDay: "01",
-    nextRun: "2026-03-01T10:00:00.000Z",
-    bank: "Nedbank",
-    accountLast4: "7003",
-    updated: "2026-02-03T11:12:00.000Z",
-  },
-  {
-    id: "DO-90025",
-    client: "TabbyTech Partners",
-    reference: "TTP-MND-0007",
-    status: "Draft",
-    amount: 2500,
-    frequency: "Monthly",
-    runDay: "20",
-    nextRun: "2026-02-20T10:00:00.000Z",
-    bank: "FNB",
-    accountLast4: "1022",
-    updated: "2026-02-07T16:40:00.000Z",
-  },
-];
+function downloadTextFile(filename, content, mime = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsv(v) {
+  const s = String(v ?? "");
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
 
 export default function DebitOrders() {
   const [query, setQuery] = useState("");
@@ -330,31 +283,100 @@ export default function DebitOrders() {
   const [drawerId, setDrawerId] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
 
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [detail, setDetail] = useState(null);
+
+  async function fetchList() {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const resp = await fetch("/api/debit-orders", { method: "GET" });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json.ok) throw new Error(json.error || `Request failed ${resp.status}`);
+      setRows(Array.isArray(json.data) ? json.data : []);
+    } catch (e) {
+      setLoadError(String(e?.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchDetail(id) {
+    setDetailLoading(true);
+    setDetailError("");
+    setDetail(null);
+    try {
+      const resp = await fetch(`/api/debit-orders/${encodeURIComponent(id)}`, { method: "GET" });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json.ok) throw new Error(json.error || `Request failed ${resp.status}`);
+      setDetail(json.data || null);
+    } catch (e) {
+      setDetailError(String(e?.message || e));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchList();
+  }, []);
+
+  useEffect(() => {
+    if (!drawerId) return;
+    fetchDetail(drawerId);
+  }, [drawerId]);
+
+  const normalized = useMemo(() => {
+    // Map API rows to the table shape you want
+    return rows.map((r) => ({
+      id: r.id,
+      clientName: r?.client?.name || r?.client?.Name || r?.client?.full_name || r?.client?.display_name || "",
+      clientId: r?.client?.id || "",
+      status: r.status || "",
+      amount: r.amount ?? null,
+      billingCycle: r.billingCycle || "",
+      nextChargeDate: r.nextChargeDate || "",
+      paystackCustomerCode: r.paystackCustomerCode || "",
+      paystackAuthorizationCode: r.paystackAuthorizationCode || "",
+      retryCount: Number(r.retryCount ?? 0),
+      lastTransactionReference: r.lastTransactionReference || "",
+      failureReason: r.failureReason || "",
+      updatedAt: r.updatedAt || "",
+      name: r.name || "",
+    }));
+  }, [rows]);
+
+  const statusCounts = useMemo(() => {
+    const base = { All: normalized.length };
+    for (const r of normalized) {
+      const k = r.status || "Draft";
+      base[k] = (base[k] || 0) + 1;
+    }
+    return base;
+  }, [normalized]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return seed
-      .filter((d) => (statusFilter === "All" ? true : d.status === statusFilter))
+    return normalized
+      .filter((d) => (statusFilter === "All" ? true : (d.status || "") === statusFilter))
       .filter((d) => {
         if (!q) return true;
         return (
-          d.client.toLowerCase().includes(q) ||
-          d.id.toLowerCase().includes(q) ||
-          d.reference.toLowerCase().includes(q) ||
-          d.bank.toLowerCase().includes(q)
+          String(d.clientName || "").toLowerCase().includes(q) ||
+          String(d.id || "").toLowerCase().includes(q) ||
+          String(d.lastTransactionReference || "").toLowerCase().includes(q) ||
+          String(d.paystackCustomerCode || "").toLowerCase().includes(q)
         );
       });
-  }, [query, statusFilter]);
-
-  const statusCounts = useMemo(() => {
-    const base = { All: seed.length, Live: 0, Paused: 0, Cancelled: 0, Draft: 0 };
-    for (const d of seed) base[d.status] = (base[d.status] || 0) + 1;
-    return base;
-  }, []);
+  }, [normalized, query, statusFilter]);
 
   const allVisibleSelected = filtered.length > 0 && filtered.every((x) => selectedIds.includes(x.id));
   const anySelected = selectedIds.length > 0;
-
-  const drawerItem = useMemo(() => seed.find((d) => d.id === drawerId) || null, [drawerId]);
 
   function toggleSelect(id) {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -372,14 +394,66 @@ export default function DebitOrders() {
     });
   }
 
+  function exportVisibleToExcelCsv() {
+    const header = [
+      "Debit Order ID",
+      "Name",
+      "Client",
+      "Status",
+      "Amount",
+      "Billing Cycle",
+      "Next Charge Date",
+      "Paystack Customer Code",
+      "Paystack Authorization Code",
+      "Retry Count",
+      "Last Transaction Reference",
+      "Failure Reason",
+      "Updated At",
+    ];
+
+    const lines = [header.map(escapeCsv).join(",")];
+
+    for (const r of filtered) {
+      lines.push(
+        [
+          r.id,
+          r.name,
+          r.clientName,
+          r.status,
+          r.amount,
+          r.billingCycle,
+          r.nextChargeDate,
+          r.paystackCustomerCode,
+          r.paystackAuthorizationCode,
+          r.retryCount,
+          r.lastTransactionReference,
+          r.failureReason,
+          r.updatedAt,
+        ]
+          .map(escapeCsv)
+          .join(",")
+      );
+    }
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    downloadTextFile(`tabbytech-debit-orders-${stamp}.csv`, lines.join("\n"), "text/csv;charset=utf-8");
+  }
+
+  async function syncToCrm() {
+    // Since the API already reads from CRM, sync here means refresh.
+    // Later we can change this to "force sync" if you add a backend sync endpoint.
+    await fetchList();
+  }
+
+  const drawerTitle = detail?.name || drawerId || "Debit order details";
+  const drawerClient = detail?.client?.name || detail?.client?.Name || "";
+
   return (
     <div style={styles.page}>
       <div style={styles.headerRow}>
         <div style={styles.titleWrap}>
           <h1 style={styles.title}>Debit Orders</h1>
-          <p style={styles.subtitle}>
-            View and manage debit orders. Bulk actions are UI-only and do not persist yet.
-          </p>
+          <p style={styles.subtitle}>Live data from Zoho CRM via Catalyst API Gateway.</p>
         </div>
       </div>
 
@@ -387,7 +461,10 @@ export default function DebitOrders() {
         <div style={styles.panelHeader}>
           <div>
             <p style={styles.panelTitle}>All debit orders</p>
-            <p style={styles.panelMeta}>{filtered.length} shown</p>
+            <p style={styles.panelMeta}>
+              {loading ? "Loading..." : `${filtered.length} shown`}
+              {loadError ? ` · ${loadError}` : ""}
+            </p>
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -406,33 +483,43 @@ export default function DebitOrders() {
                 style={styles.input}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by client, id, reference, or bank"
+                placeholder="Search by client, id, reference, or codes"
                 aria-label="Search debit orders"
               />
             </div>
 
-            {["All", "Live", "Paused", "Cancelled", "Draft"].map((k) => {
-              const active = statusFilter === k;
-              return (
-                <div
-                  key={k}
-                  style={styles.chip(active)}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setStatusFilter(k)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") setStatusFilter(k);
-                  }}
-                  title={`Filter: ${k}`}
-                >
-                  <span>{k}</span>
-                  <span style={{ opacity: 0.8 }}>{statusCounts[k] ?? 0}</span>
-                </div>
-              );
-            })}
+            <div style={styles.chipRow}>
+              {["All", "Live", "Paused", "Cancelled", "Draft", "Scheduled", "Paid", "Unpaid"].map((k) => {
+                const active = statusFilter === k;
+                return (
+                  <div
+                    key={k}
+                    style={styles.chip(active)}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setStatusFilter(k)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") setStatusFilter(k);
+                    }}
+                    title={`Filter: ${k}`}
+                  >
+                    <span>{k}</span>
+                    <span style={{ opacity: 0.8 }}>{k === "All" ? normalized.length : statusCounts[k] ?? 0}</span>
+                  </div>
+                );
+              })}
+
+              <button style={styles.btn("ghost", loading)} type="button" onClick={syncToCrm} disabled={loading}>
+                Sync to CRM Debit-Orders
+              </button>
+            </div>
           </div>
 
           <div style={styles.rightTools}>
+            <button style={styles.btn("ghost", filtered.length === 0)} type="button" onClick={exportVisibleToExcelCsv} disabled={filtered.length === 0}>
+              Export to Excel
+            </button>
+
             <button style={styles.btn("secondary", !anySelected)} type="button" disabled={!anySelected}>
               Pause
             </button>
@@ -442,6 +529,7 @@ export default function DebitOrders() {
             <button style={styles.btn("danger", !anySelected)} type="button" disabled={!anySelected}>
               Cancel
             </button>
+
             <button style={styles.btn("primary", false)} type="button">
               New debit order
             </button>
@@ -465,9 +553,8 @@ export default function DebitOrders() {
                 <th style={styles.th}>Client</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Amount</th>
-                <th style={styles.th}>Schedule</th>
-                <th style={styles.th}>Next run</th>
-                <th style={styles.th}>Bank</th>
+                <th style={styles.th}>Billing cycle</th>
+                <th style={styles.th}>Next charge</th>
                 <th style={styles.th}>Updated</th>
               </tr>
             </thead>
@@ -479,10 +566,7 @@ export default function DebitOrders() {
                 return (
                   <tr
                     key={d.id}
-                    style={{
-                      ...styles.row(isSelected),
-                      ...(isHover ? styles.rowHover : null),
-                    }}
+                    style={{ ...styles.row(isSelected), ...(isHover ? styles.rowHover : null) }}
                     onMouseEnter={() => setHoverRow(d.id)}
                     onMouseLeave={() => setHoverRow(null)}
                     onClick={() => setDrawerId(d.id)}
@@ -500,30 +584,27 @@ export default function DebitOrders() {
                     <td style={styles.td}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         <span style={{ fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>{d.id}</span>
-                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{d.reference}</span>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>
+                          {d.lastTransactionReference || d.paystackCustomerCode || ""}
+                        </span>
                       </div>
                     </td>
 
-                    <td style={styles.td}>{d.client}</td>
+                    <td style={styles.td}>{d.clientName || "-"}</td>
                     <td style={styles.td}>
-                      <span style={styles.badge(d.status)}>{d.status}</span>
+                      <span style={styles.badge(d.status || "Draft")}>{d.status || "Draft"}</span>
                     </td>
                     <td style={styles.td}>{currencyZar(d.amount)}</td>
-                    <td style={styles.td}>
-                      {d.frequency} · Day {d.runDay}
-                    </td>
-                    <td style={styles.td}>{formatDate(d.nextRun)}</td>
-                    <td style={styles.td}>
-                      {d.bank} · {d.accountLast4}
-                    </td>
-                    <td style={styles.td}>{formatDate(d.updated)}</td>
+                    <td style={styles.td}>{d.billingCycle || "-"}</td>
+                    <td style={styles.td}>{formatDate(d.nextChargeDate)}</td>
+                    <td style={styles.td}>{formatDate(d.updatedAt)}</td>
                   </tr>
                 );
               })}
 
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <tr>
-                  <td style={{ ...styles.td, padding: 20 }} colSpan={9}>
+                  <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>No debit orders found</div>
                       <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
@@ -533,12 +614,20 @@ export default function DebitOrders() {
                   </td>
                 </tr>
               )}
+
+              {loading && (
+                <tr>
+                  <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
+                    <div style={{ color: "rgba(255,255,255,0.70)" }}>Loading debit orders...</div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {drawerItem && (
+      {drawerId && (
         <div
           style={styles.drawerOverlay}
           role="button"
@@ -552,10 +641,8 @@ export default function DebitOrders() {
           <div style={styles.drawer} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={styles.drawerHeader}>
               <div>
-                <p style={styles.drawerTitle}>Debit order details</p>
-                <p style={styles.drawerSub}>
-                  {drawerItem.id} · {drawerItem.client}
-                </p>
+                <p style={styles.drawerTitle}>{drawerTitle}</p>
+                <p style={styles.drawerSub}>{drawerClient ? `${drawerClient}` : "Fetching details from CRM"}</p>
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -569,64 +656,76 @@ export default function DebitOrders() {
             </div>
 
             <div style={styles.drawerBody}>
-              <div style={styles.section}>
-                <p style={styles.sectionTitle}>Status</p>
-                <div style={styles.kv}>
-                  <div style={styles.k}>Current</div>
-                  <div style={styles.v}>
-                    <span style={styles.badge(drawerItem.status)}>{drawerItem.status}</span>
+              {detailLoading && <p style={styles.note}>Loading detail...</p>}
+              {detailError && <p style={styles.note}>{detailError}</p>}
+
+              {detail && (
+                <>
+                  <div style={styles.section}>
+                    <p style={styles.sectionTitle}>Overview</p>
+                    <div style={styles.kv}>
+                      <div style={styles.k}>Record ID</div>
+                      <div style={styles.v}>{detail.id}</div>
+
+                      <div style={styles.k}>Name</div>
+                      <div style={styles.v}>{detail.name || "-"}</div>
+
+                      <div style={styles.k}>Client</div>
+                      <div style={styles.v}>{detail?.client?.name || "-"}</div>
+
+                      <div style={styles.k}>Status</div>
+                      <div style={styles.v}>
+                        <span style={styles.badge(detail.status || "Draft")}>{detail.status || "Draft"}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div style={styles.k}>Updated</div>
-                  <div style={styles.v}>{formatDate(drawerItem.updated)}</div>
-                </div>
-              </div>
 
-              <div style={styles.section}>
-                <p style={styles.sectionTitle}>Billing</p>
-                <div style={styles.kv}>
-                  <div style={styles.k}>Amount</div>
-                  <div style={styles.v}>{currencyZar(drawerItem.amount)}</div>
-                  <div style={styles.k}>Frequency</div>
-                  <div style={styles.v}>{drawerItem.frequency}</div>
-                  <div style={styles.k}>Run day</div>
-                  <div style={styles.v}>{drawerItem.runDay}</div>
-                  <div style={styles.k}>Next run</div>
-                  <div style={styles.v}>{formatDate(drawerItem.nextRun)}</div>
-                </div>
-              </div>
+                  <div style={styles.section}>
+                    <p style={styles.sectionTitle}>Billing</p>
+                    <div style={styles.kv}>
+                      <div style={styles.k}>Amount</div>
+                      <div style={styles.v}>{currencyZar(detail.amount)}</div>
 
-              <div style={styles.section}>
-                <p style={styles.sectionTitle}>Banking</p>
-                <div style={styles.kv}>
-                  <div style={styles.k}>Bank</div>
-                  <div style={styles.v}>{drawerItem.bank}</div>
-                  <div style={styles.k}>Account</div>
-                  <div style={styles.v}>Ending {drawerItem.accountLast4}</div>
-                  <div style={styles.k}>Reference</div>
-                  <div style={styles.v}>{drawerItem.reference}</div>
-                </div>
-              </div>
+                      <div style={styles.k}>Billing cycle</div>
+                      <div style={styles.v}>{detail.billingCycle || "-"}</div>
 
-              <div style={styles.section}>
-                <p style={styles.sectionTitle}>Actions</p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                  <button style={styles.btn("secondary")} type="button">
-                    Pause
-                  </button>
-                  <button style={styles.btn("secondary")} type="button">
-                    Resume
-                  </button>
-                  <button style={styles.btn("danger")} type="button">
-                    Cancel
-                  </button>
-                  <button style={styles.btn("primary")} type="button">
-                    Create batch
-                  </button>
-                </div>
-                <p style={{ margin: "10px 0 0 0", fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
-                  These buttons are UI-only. No data is saved yet.
-                </p>
-              </div>
+                      <div style={styles.k}>Next charge date</div>
+                      <div style={styles.v}>{formatDate(detail.nextChargeDate)}</div>
+
+                      <div style={styles.k}>Retry count</div>
+                      <div style={styles.v}>{Number(detail.retryCount ?? 0)}</div>
+                    </div>
+                  </div>
+
+                  <div style={styles.section}>
+                    <p style={styles.sectionTitle}>Paystack</p>
+                    <div style={styles.kv}>
+                      <div style={styles.k}>Customer code</div>
+                      <div style={styles.v}>{detail.paystackCustomerCode || "-"}</div>
+
+                      <div style={styles.k}>Authorization code</div>
+                      <div style={styles.v}>{detail.paystackAuthorizationCode || "-"}</div>
+
+                      <div style={styles.k}>Last reference</div>
+                      <div style={styles.v}>{detail.lastTransactionReference || "-"}</div>
+
+                      <div style={styles.k}>Failure reason</div>
+                      <div style={styles.v}>{detail.failureReason || "-"}</div>
+                    </div>
+                  </div>
+
+                  <div style={styles.section}>
+                    <p style={styles.sectionTitle}>Books</p>
+                    <div style={styles.kv}>
+                      <div style={styles.k}>Books invoice ID</div>
+                      <div style={styles.v}>{detail.booksInvoiceId || "-"}</div>
+
+                      <div style={styles.k}>Debit run batch ID</div>
+                      <div style={styles.v}>{detail.debitRunBatchId || "-"}</div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
