@@ -117,6 +117,21 @@ const styles = {
     return base;
   },
 
+  select: {
+    height: 38,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(0,0,0,0.18)",
+    color: "rgba(255,255,255,0.86)",
+    outline: "none",
+    fontSize: 13,
+    fontWeight: 800,
+    letterSpacing: 0.2,
+    cursor: "pointer",
+  },
+  selectLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 },
+
   tableScroll: { overflow: "auto", height: "100%" },
   table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13 },
   th: {
@@ -139,6 +154,9 @@ const styles = {
     color: "rgba(255,255,255,0.78)",
     whiteSpace: "nowrap",
   },
+  thCenter: { textAlign: "center" },
+  tdCenter: { textAlign: "center" },
+
   row: (active) => ({
     cursor: "pointer",
     background: active ? "rgba(168,85,247,0.12)" : "transparent",
@@ -243,6 +261,9 @@ export default function DebitOrders() {
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
 
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
+
   async function load() {
     setLoading(true);
     setErrorText("");
@@ -274,16 +295,18 @@ export default function DebitOrders() {
       .filter((d) => {
         if (!q) return true;
 
-        const clientName = d?.client?.name ? String(d.client.name) : "";
         return (
           safeText(d?.name).toLowerCase().includes(q) ||
           safeText(d?.id).toLowerCase().includes(q) ||
-          clientName.toLowerCase().includes(q) ||
           safeText(d?.paystackCustomerCode).toLowerCase().includes(q) ||
           safeText(d?.paystackAuthorizationCode).toLowerCase().includes(q)
         );
       });
   }, [rows, query, statusFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, statusFilter, pageSize]);
 
   const statusCounts = useMemo(() => {
     const counts = { All: rows.length };
@@ -300,7 +323,24 @@ export default function DebitOrders() {
     return preferred.filter((k) => present.has(k) || k === "All");
   }, [statusCounts]);
 
-  const allVisibleSelected = filtered.length > 0 && filtered.every((x) => selectedIds.includes(x.id));
+  const totalPages = useMemo(() => {
+    const n = Math.ceil((filtered.length || 0) / Number(pageSize || 1));
+    return n <= 0 ? 1 : n;
+  }, [filtered.length, pageSize]);
+
+  const pageClamped = useMemo(() => {
+    if (page < 1) return 1;
+    if (page > totalPages) return totalPages;
+    return page;
+  }, [page, totalPages]);
+
+  const pagedRows = useMemo(() => {
+    const start = (pageClamped - 1) * pageSize;
+    const end = start + pageSize;
+    return filtered.slice(start, end);
+  }, [filtered, pageClamped, pageSize]);
+
+  const allVisibleSelected = pagedRows.length > 0 && pagedRows.every((x) => selectedIds.includes(x.id));
   const anySelected = selectedIds.length > 0;
 
   function toggleSelect(id) {
@@ -309,12 +349,12 @@ export default function DebitOrders() {
 
   function toggleSelectAllVisible() {
     if (allVisibleSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !filtered.some((x) => x.id === id)));
+      setSelectedIds((prev) => prev.filter((id) => !pagedRows.some((x) => x.id === id)));
       return;
     }
     setSelectedIds((prev) => {
       const set = new Set(prev);
-      for (const x of filtered) set.add(x.id);
+      for (const x of pagedRows) set.add(x.id);
       return Array.from(set);
     });
   }
@@ -325,13 +365,11 @@ export default function DebitOrders() {
     const header = [
       "ID",
       "Name",
-      "Client Name",
-      "Client ID",
+      "Paystack Customer Code",
       "Amount",
       "Billing Cycle",
       "Next Charge Date",
       "Status",
-      "Paystack Customer Code",
       "Paystack Authorization Code",
       "Retry Count",
       "Last Transaction Reference",
@@ -342,13 +380,11 @@ export default function DebitOrders() {
     const body = exportRows.map((r) => [
       r.id,
       r.name,
-      r?.client?.name || "",
-      r?.client?.id || "",
+      r.paystackCustomerCode || "",
       r.amount ?? "",
       r.billingCycle || "",
       r.nextChargeDate || "",
       r.status || "",
-      r.paystackCustomerCode || "",
       r.paystackAuthorizationCode || "",
       r.retryCount ?? 0,
       r.lastTransactionReference || "",
@@ -359,13 +395,21 @@ export default function DebitOrders() {
     downloadCsv(`tabbytech-debit-orders-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...body]);
   }
 
+  function goPrev() {
+    setPage((p) => Math.max(1, p - 1));
+  }
+
+  function goNext() {
+    setPage((p) => Math.min(totalPages, p + 1));
+  }
+
   return (
     <div style={styles.page}>
       <div style={styles.headerRow}>
         <div style={styles.titleWrap}>
           <h1 style={styles.title}>Debit Orders</h1>
           <p style={styles.subtitle}>
-            Live data from Zoho CRM via Catalyst API Gateway.
+            Live data from Zoho CRM.
             {loading ? " Loading..." : ""}
           </p>
         </div>
@@ -377,7 +421,9 @@ export default function DebitOrders() {
         <div style={styles.panelHeader}>
           <div>
             <p style={styles.panelTitle}>All debit orders</p>
-            <p style={styles.panelMeta}>{loading ? "Loading..." : `${filtered.length} shown`}</p>
+            <p style={styles.panelMeta}>
+              {loading ? "Loading..." : `${pagedRows.length} shown`}
+            </p>
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -398,7 +444,7 @@ export default function DebitOrders() {
                 style={styles.input}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by client, id, or codes"
+                placeholder="Search by id or Paystack codes"
                 aria-label="Search debit orders"
               />
             </div>
@@ -441,14 +487,26 @@ export default function DebitOrders() {
               Export to Excel
             </button>
 
-            <button style={styles.btn("secondary", !anySelected)} type="button" disabled={!anySelected}>
-              Pause
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={styles.selectLabel}>Records</span>
+              <select
+                style={styles.select}
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                aria-label="Records per page"
+              >
+                <option value={10}>10 records</option>
+                <option value={20}>20 records</option>
+                <option value={50}>50 records</option>
+                <option value={100}>100 records</option>
+              </select>
+            </div>
+
+            <button style={styles.btn("primary", pageClamped <= 1)} type="button" disabled={pageClamped <= 1} onClick={goPrev}>
+              Back
             </button>
-            <button style={styles.btn("secondary", !anySelected)} type="button" disabled={!anySelected}>
-              Resume
-            </button>
-            <button style={styles.btn("danger", !anySelected)} type="button" disabled={!anySelected}>
-              Cancel
+            <button style={styles.btn("primary", pageClamped >= totalPages)} type="button" disabled={pageClamped >= totalPages} onClick={goNext}>
+              Next
             </button>
           </div>
         </div>
@@ -464,11 +522,11 @@ export default function DebitOrders() {
                     checked={allVisibleSelected}
                     onChange={toggleSelectAllVisible}
                     aria-label="Select all visible"
-                    disabled={loading || filtered.length === 0}
+                    disabled={loading || pagedRows.length === 0}
                   />
                 </th>
                 <th style={styles.th}>Debit order</th>
-                <th style={styles.th}>Client</th>
+                <th style={{ ...styles.th, ...styles.thCenter }}>Paystack Customer Code</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Amount</th>
                 <th style={styles.th}>Billing cycle</th>
@@ -478,7 +536,7 @@ export default function DebitOrders() {
             </thead>
 
             <tbody>
-              {filtered.map((d) => {
+              {pagedRows.map((d) => {
                 const isHover = hoverRow === d.id;
                 const isSelected = selectedIds.includes(d.id);
 
@@ -506,7 +564,10 @@ export default function DebitOrders() {
                       </div>
                     </td>
 
-                    <td style={styles.td}>{d?.client?.name || ""}</td>
+                    <td style={{ ...styles.td, ...styles.tdCenter }}>
+                      {d?.paystackCustomerCode || ""}
+                    </td>
+
                     <td style={styles.td}>
                       <span style={styles.badge(d.status)}>{d.status || "Draft"}</span>
                     </td>
@@ -518,7 +579,7 @@ export default function DebitOrders() {
                 );
               })}
 
-              {!loading && filtered.length === 0 && (
+              {!loading && pagedRows.length === 0 && (
                 <tr>
                   <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
