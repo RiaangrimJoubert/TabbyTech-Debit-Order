@@ -22,35 +22,33 @@ const TITLES = {
 export default function AppShell({ onLogout }) {
   const [activeKey, setActiveKey] = useState("dashboard");
 
-  const [debitOrdersPreset, setDebitOrdersPreset] = useState({
-    presetSearch: "",
-    focusZohoClientId: "",
-    focusEmail: "",
-    nonce: 0,
-  });
+  // When you click "View debit orders" in Clients, we set these and jump to Debit Orders.
+  const [debitOrdersPresetSearch, setDebitOrdersPresetSearch] = useState("");
+  const [debitOrdersFocusKey, setDebitOrdersFocusKey] = useState("");
 
   const pageTitle = useMemo(() => TITLES[activeKey] || "Dashboard", [activeKey]);
 
-  function openDebitOrdersFromClient(payload = {}) {
-    setDebitOrdersPreset({
-      presetSearch: String(payload?.presetSearch || ""),
-      focusZohoClientId: String(payload?.focusZohoClientId || ""),
-      focusEmail: String(payload?.focusEmail || ""),
-      nonce: Date.now(),
-    });
+  function openDebitOrdersFromClient(payload) {
+    const presetSearch = (payload?.presetSearch || "").trim();
+    const focusKey = (payload?.focusKey || "").trim();
+
+    setDebitOrdersPresetSearch(presetSearch);
+    setDebitOrdersFocusKey(focusKey);
+
+    // Switch module using AppShell state, not react-router.
     setActiveKey("debitorders");
   }
 
   const content = useMemo(() => {
-    if (activeKey === "clients") return <Clients onOpenDebitOrders={openDebitOrdersFromClient} />;
+    if (activeKey === "clients") {
+      return <Clients onOpenDebitOrders={openDebitOrdersFromClient} />;
+    }
 
     if (activeKey === "debitorders") {
       return (
         <DebitOrders
-          key={`debitorders-${debitOrdersPreset.nonce}`}
-          presetSearch={debitOrdersPreset.presetSearch}
-          focusZohoClientId={debitOrdersPreset.focusZohoClientId}
-          focusEmail={debitOrdersPreset.focusEmail}
+          presetSearch={debitOrdersPresetSearch}
+          presetFocusKey={debitOrdersFocusKey}
         />
       );
     }
@@ -60,7 +58,7 @@ export default function AppShell({ onLogout }) {
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
     return <Dashboard />;
-  }, [activeKey, debitOrdersPreset]);
+  }, [activeKey, debitOrdersPresetSearch, debitOrdersFocusKey]);
 
   return (
     <div className="tt-appshell">
