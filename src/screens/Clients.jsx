@@ -120,32 +120,6 @@ export default function Clients({ onOpenDebitOrders }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function safeText(v) {
-    if (v === null || v === undefined) return "";
-    return String(v);
-  }
-
-  function downloadCsv(filename, rows) {
-    const csvEscape = (v) => {
-      const s = safeText(v);
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-      return s;
-    };
-
-    const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
-    const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    URL.revokeObjectURL(url);
-  }
-
   function onExportExcel() {
     const exportRows = filteredAll.length ? filteredAll : clients;
 
@@ -196,23 +170,29 @@ export default function Clients({ onOpenDebitOrders }) {
     setPage((p) => Math.min(pageCount, p + 1));
   }
 
-  // CHANGED: Focus Debit Orders by Zoho Client ID first, fallback to email
   function onViewDebitOrders() {
     if (!selected) return;
 
-    const zohoClientId = safeText(selected.zohoClientId).trim();
-    const email = safeText(selected.primaryEmail).trim();
+    // Prefer Zoho CRM client id, then email, then Paystack customer code
+    const focusKey =
+      (selected?.zohoClientId || "").trim() ||
+      (selected?.primaryEmail || "").trim() ||
+      (selected?.debit?.paystackCustomerCode || "").trim();
 
-    if (!zohoClientId && !email) {
-      showToast("No Zoho Client ID or Email found for this client.");
+    if (!focusKey) {
+      showToast("No Zoho client id, email, or customer code available for this client.");
       return;
     }
 
-    onOpenDebitOrders?.({
-      presetSearch: zohoClientId || email,
-      focusZohoClientId: zohoClientId,
-      focusEmail: email,
-    });
+    // presetSearch should match focusKey so DebitOrders filters down and focus works.
+    const presetSearch = focusKey;
+
+    if (typeof onOpenDebitOrders === "function") {
+      onOpenDebitOrders({ presetSearch, focusKey });
+      return;
+    }
+
+    showToast("Debit Orders navigation is not wired in AppShell yet.");
   }
 
   function onViewBatches() {
@@ -221,60 +201,6 @@ export default function Clients({ onOpenDebitOrders }) {
 
   function onOpenZoho() {
     showToast("Open in Zoho can be wired once we confirm the CRM record URL format.");
-  }
-
-  function currencyZar(n) {
-    const val = Number(n || 0);
-    return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
-  }
-
-  function fmtDateShort(yyyyMmDd) {
-    const d = new Date(yyyyMmDd + "T00:00:00.000Z");
-    return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-  }
-
-  function fmtDateTimeShort(iso) {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return String(iso);
-    return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-  }
-
-  function fmtDateTimeLong(iso) {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return String(iso);
-    return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-  }
-
-  function statusBadgeClass(status) {
-    if (status === "Active") return "tt-badge tt-bActive";
-    if (status === "Paused") return "tt-badge tt-bPaused";
-    if (status === "Risk") return "tt-badge tt-bRisk";
-    return "tt-badge tt-bNew";
-  }
-
-  function Dot() {
-    return (
-      <span
-        aria-hidden="true"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: 999,
-          background: "rgba(255,255,255,0.85)",
-          boxShadow: "0 0 0 6px rgba(124,58,237,0.12)",
-          opacity: 0.9,
-        }}
-      />
-    );
-  }
-
-  function IconSearch({ size = 16 }) {
-    return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
-        <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    );
   }
 
   const css = `
@@ -366,35 +292,6 @@ export default function Clients({ onOpenDebitOrders }) {
   }
   .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
-
-  .tt-recordsLabel { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 800; }
-  .tt-select {
-    height: 34px;
-    border-radius: 999px;
-    border: 1px solid rgba(124,58,237,0.55);
-    background: rgba(0,0,0,0.55);
-    color: rgba(255,255,255,0.92);
-    padding: 0 42px 0 14px;
-    font-size: 12px;
-    font-weight: 900;
-    letter-spacing: 0.2px;
-    outline: none;
-    cursor: pointer;
-
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-
-    background-image:
-      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='%23A855F7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat, no-repeat;
-    background-position: 0 0, right 12px center;
-    background-size: auto, 18px 18px;
-  }
-  .tt-select:hover { background: rgba(0,0,0,0.62); box-shadow: 0 10px 26px rgba(0,0,0,0.32); }
-  .tt-select:focus { border-color: rgba(168,85,247,0.75); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
-  .tt-select option { background: rgba(0,0,0,0.92); color: rgba(255,255,255,0.92); }
 
   .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .tt-tableScroll { overflow: auto; height: 100%; }
@@ -566,9 +463,30 @@ export default function Clients({ onOpenDebitOrders }) {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <span className="tt-recordsLabel">Records</span>
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 }}>Records</span>
+
                 <select
-                  className="tt-select"
+                  className="tt-btn"
+                  style={{
+                    height: 34,
+                    borderRadius: 999,
+                    padding: "0 42px 0 14px",
+                    border: "1px solid rgba(124,58,237,0.55)",
+                    background: "rgba(0,0,0,0.55)",
+                    color: "rgba(255,255,255,0.92)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: 0.2,
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    MozAppearance: "none",
+                    backgroundImage:
+                      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)), url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='%23A855F7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
+                    backgroundRepeat: "no-repeat, no-repeat",
+                    backgroundPosition: "0 0, right 12px center",
+                    backgroundSize: "auto, 18px 18px",
+                    cursor: "pointer",
+                  }}
                   value={String(perPage)}
                   onChange={(e) => {
                     const n = parseInt(e.target.value, 10);
@@ -773,11 +691,29 @@ export default function Clients({ onOpenDebitOrders }) {
                       <div className="tt-k">Zoho client id</div>
                       <div className="tt-v">{selected.zohoClientId || "Not set"}</div>
 
+                      <div className="tt-k">Source</div>
+                      <div className="tt-v">Zoho CRM sync</div>
+
                       <div className="tt-k">Primary email</div>
                       <div className="tt-v">{selected.primaryEmail || "Not set"}</div>
 
                       <div className="tt-k">Secondary email</div>
                       <div className="tt-v">{selected.secondaryEmail || "Not set"}</div>
+
+                      <div className="tt-k">Email opt out</div>
+                      <div className="tt-v">{selected.emailOptOut ? "Yes" : "No"}</div>
+
+                      <div className="tt-k">Owner</div>
+                      <div className="tt-v">{selected.owner || "Not set"}</div>
+
+                      <div className="tt-k">Phone</div>
+                      <div className="tt-v">{selected.phone || "Not set"}</div>
+
+                      <div className="tt-k">Industry</div>
+                      <div className="tt-v">{selected.industry || "Not set"}</div>
+
+                      <div className="tt-k">Risk</div>
+                      <div className="tt-v">{selected.risk || "Not set"}</div>
 
                       <div className="tt-k">Updated</div>
                       <div className="tt-v">{fmtDateTimeLong(selected.updatedAt)}</div>
@@ -795,6 +731,51 @@ export default function Clients({ onOpenDebitOrders }) {
                       <button type="button" className="tt-btn tt-btnPrimary" onClick={onOpenZoho}>
                         Open in Zoho
                       </button>
+                    </div>
+                  </div>
+
+                  <div className="tt-section">
+                    <p className="tt-sectionTitle">Debit profile</p>
+
+                    <div className="tt-kv">
+                      <div className="tt-k">Billing cycle</div>
+                      <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div>
+
+                      <div className="tt-k">Next charge date</div>
+                      <div className="tt-v">{selected.debit?.nextChargeDate ? fmtDateShort(selected.debit.nextChargeDate) : "Not set"}</div>
+
+                      <div className="tt-k">Last attempt date</div>
+                      <div className="tt-v">{selected.debit?.lastAttemptDate ? fmtDateTimeLong(selected.debit.lastAttemptDate) : "Not set"}</div>
+
+                      <div className="tt-k">Last transaction reference</div>
+                      <div className="tt-v">{selected.debit?.lastTransactionReference || "Not set"}</div>
+
+                      <div className="tt-k">Failure reason</div>
+                      <div className="tt-v">{selected.debit?.failureReason || "None"}</div>
+
+                      <div className="tt-k">Status</div>
+                      <div className="tt-v">{selected.debit?.debitStatus || "None"}</div>
+
+                      <div className="tt-k">Books invoice id</div>
+                      <div className="tt-v">{selected.debit?.booksInvoiceId || "Not set"}</div>
+
+                      <div className="tt-k">Retry count</div>
+                      <div className="tt-v">{String(selected.debit?.retryCount ?? 0)}</div>
+
+                      <div className="tt-k">Debit run batch id</div>
+                      <div className="tt-v">{selected.debit?.debitRunBatchId || "Not set"}</div>
+
+                      <div className="tt-k">Paystack customer code</div>
+                      <div className="tt-v">{selected.debit?.paystackCustomerCode || "Not set"}</div>
+
+                      <div className="tt-k">Paystack authorization code</div>
+                      <div className="tt-v">{selected.debit?.paystackAuthorizationCode || "Not set"}</div>
+                    </div>
+
+                    <div className="tt-divider" />
+
+                    <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
+                      Actions like onboarding will be added later once backend workflows are ready.
                     </div>
                   </div>
 
@@ -818,4 +799,92 @@ export default function Clients({ onOpenDebitOrders }) {
       </div>
     </div>
   );
+}
+
+/* ---------------------------
+   Small UI bits
+---------------------------- */
+
+function Dot() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: 999,
+        background: "rgba(255,255,255,0.85)",
+        boxShadow: "0 0 0 6px rgba(124,58,237,0.12)",
+        opacity: 0.9,
+      }}
+    />
+  );
+}
+
+function IconSearch({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
+      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/* ---------------------------
+   Helpers
+---------------------------- */
+
+function safeText(v) {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+function downloadCsv(filename, rows) {
+  const csvEscape = (v) => {
+    const s = safeText(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+function currencyZar(n) {
+  const val = Number(n || 0);
+  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
+}
+
+function fmtDateShort(yyyyMmDd) {
+  const d = new Date(yyyyMmDd + "T00:00:00.000Z");
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function fmtDateTimeShort(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function fmtDateTimeLong(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function statusBadgeClass(status) {
+  if (status === "Active") return "tt-badge tt-bActive";
+  if (status === "Paused") return "tt-badge tt-bPaused";
+  if (status === "Risk") return "tt-badge tt-bRisk";
+  return "tt-badge tt-bNew";
 }
