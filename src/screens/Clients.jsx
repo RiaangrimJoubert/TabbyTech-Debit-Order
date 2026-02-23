@@ -55,7 +55,6 @@ export default function Clients() {
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [sourceFilter, setSourceFilter] = useState("All"); // All | Zoho | Manual
 
   const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
   const [syncing, setSyncing] = useState(false);
@@ -63,6 +62,10 @@ export default function Clients() {
   const [lastRequestUrl, setLastRequestUrl] = useState("");
 
   const [initialLoading, setInitialLoading] = useState(true);
+
+  // Paging
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
 
   const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
 
@@ -77,25 +80,17 @@ export default function Clients() {
     return clients
       .filter((c) => (statusFilter === "All" ? true : c.status === statusFilter))
       .filter((c) => {
-        if (sourceFilter === "All") return true;
-        if (sourceFilter === "Zoho") return c.source === "zoho";
-        if (sourceFilter === "Manual") return c.source === "manual";
-        return true;
-      })
-      .filter((c) => {
         if (!q) return true;
         return (
           (c.name || "").toLowerCase().includes(q) ||
           (c.id || "").toLowerCase().includes(q) ||
           (c.primaryEmail || "").toLowerCase().includes(q) ||
           (c.secondaryEmail || "").toLowerCase().includes(q) ||
-          (c.zohoClientId || "").toLowerCase().includes(q) ||
-          (c.debit?.paystackCustomerCode || "").toLowerCase().includes(q) ||
-          (c.debit?.paystackAuthorizationCode || "").toLowerCase().includes(q)
+          (c.zohoClientId || "").toLowerCase().includes(q)
         );
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [clients, query, statusFilter, sourceFilter]);
+  }, [clients, query, statusFilter]);
 
   async function syncFromZoho({ silent = false } = {}) {
     try {
@@ -114,6 +109,7 @@ export default function Clients() {
       const zohoClients = Array.isArray(resp.clients) ? resp.clients : [];
 
       setClients((prev) => {
+        // No manual UI creation in production flow, but if old manual exists, keep it
         const manual = prev.filter((c) => c.source === "manual");
         const next = [...zohoClients, ...manual];
 
@@ -131,11 +127,10 @@ export default function Clients() {
       });
 
       setZohoCrmStatus("Connected");
+      setPage(1);
       if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
     } catch (e) {
       const msg = e?.message || String(e);
-
-      // Attach URL if available for instant diagnosis
       const urlNote = lastRequestUrl ? ` Request: ${lastRequestUrl}` : "";
       setSyncError(`${msg}${urlNote}`.trim());
 
@@ -152,144 +147,14 @@ export default function Clients() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Manual create modal (kept in code, UI entry button removed to reduce risk)
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    industry: "",
-    notes: "",
-  });
-
-  const createDuplicate = useMemo(() => {
-    const email = (createForm.email || "").trim().toLowerCase();
-    if (!email) return null;
-    const hit = clients.find((c) => (c.primaryEmail || "").trim().toLowerCase() === email);
-    return hit || null;
-  }, [createForm.email, clients]);
-
-  function resetCreate() {
-    setCreateForm({ name: "", email: "", phone: "", industry: "", notes: "" });
-  }
-
-  function createClient() {
-    const name = createForm.name.trim();
-    const email = createForm.email.trim();
-
-    if (!name) return showToast("Client name is required.");
-    if (!email) return showToast("Email is required.");
-    if (createDuplicate) return showToast("Duplicate detected. Use the existing client or link to Zoho.");
-
-    const id = nextClientId(clients.length ? clients : seed);
-    const nowIso = new Date().toISOString();
-
-    const next = {
-      id,
-      source: "manual",
-      zohoClientId: "",
-      zohoDebitOrderId: "",
-      name,
-      primaryEmail: email,
-      secondaryEmail: "",
-      emailOptOut: false,
-      owner: "Ops",
-      phone: createForm.phone.trim(),
-      industry: createForm.industry.trim(),
-      risk: "Low",
-      status: "New",
-      debit: {
-        billingCycle: "Monthly - 25th",
-        nextChargeDate: "",
-        amountZar: 0,
-        debitStatus: "None",
-        paystackCustomerCode: "",
-        paystackAuthorizationCode: "",
-        booksInvoiceId: "",
-        retryCount: 0,
-        debitRunBatchId: "",
-        lastAttemptDate: "",
-        lastTransactionReference: "",
-        failureReason: "",
-      },
-      updatedAt: nowIso,
-      notes: createForm.notes.trim(),
-    };
-
-    setClients((prev) => [next, ...prev]);
-    setSelectedId(next.id);
-    setCreateOpen(false);
-    resetCreate();
-    showToast("Client created (manual).");
-  }
-
-  // Edit modal (UI-only)
-  const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState(null);
-
-  function openEdit() {
-    if (!selected) return;
-    setEditForm({
-      id: selected.id,
-      name: selected.name || "",
-      primaryEmail: selected.primaryEmail || "",
-      secondaryEmail: selected.secondaryEmail || "",
-      phone: selected.phone || "",
-      industry: selected.industry || "",
-      notes: selected.notes || "",
-      emailOptOut: !!selected.emailOptOut,
-    });
-    setEditOpen(true);
-  }
-
-  function saveEdit() {
-    if (!editForm) return;
-
-    const name = (editForm.name || "").trim();
-    const primaryEmail = (editForm.primaryEmail || "").trim();
-
-    if (!name) return showToast("Client name is required.");
-    if (!primaryEmail) return showToast("Email is required.");
-
-    setClients((prev) =>
-      prev.map((c) => {
-        if (c.id !== editForm.id) return c;
-        return {
-          ...c,
-          name,
-          primaryEmail,
-          secondaryEmail: (editForm.secondaryEmail || "").trim(),
-          phone: (editForm.phone || "").trim(),
-          industry: (editForm.industry || "").trim(),
-          notes: (editForm.notes || "").trim(),
-          emailOptOut: !!editForm.emailOptOut,
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
-
-    setEditOpen(false);
-    setEditForm(null);
-    showToast("Client updated (UI-only).");
-  }
-
-  function linkToZoho() {
-    if (!selected) return;
-    if (selected.source === "zoho") return showToast("Already linked to Zoho CRM.");
-    showToast("Linking manual to Zoho will come next. For now, manual stays manual.");
-  }
-
-  function disableClient() {
-    if (!selected) return;
-    setClients((prev) =>
-      prev.map((c) => (c.id === selected.id ? { ...c, status: "Paused", updatedAt: new Date().toISOString() } : c))
-    );
-    showToast("Client disabled (UI-only).");
-  }
-
+  // CSV export (clients list)
   function downloadCsv(filename, rows) {
+    const safeText = (v) => {
+      if (v === null || v === undefined) return "";
+      return String(v);
+    };
     const csvEscape = (v) => {
-      const s = v === null || v === undefined ? "" : String(v);
+      const s = safeText(v);
       if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
       return s;
     };
@@ -309,61 +174,66 @@ export default function Clients() {
   }
 
   function onExportExcel() {
-    const exportRows = filtered.length > 0 ? filtered : clients;
-
     const header = [
       "Client ID",
       "Client Name",
       "Primary Email",
       "Secondary Email",
       "Phone",
-      "Owner",
       "Industry",
-      "Risk",
       "Status",
-      "Source",
       "Zoho Client ID",
-      "Zoho Debit Order ID",
+      "Paystack Customer Code",
+      "Paystack Authorization Code",
       "Debit Status",
       "Billing Cycle",
       "Next Charge Date",
       "Amount (ZAR)",
-      "Paystack Customer Code",
-      "Paystack Authorization Code",
-      "Retry Count",
-      "Last Transaction Reference",
-      "Failure Reason",
       "Updated At",
-      "Notes",
     ];
 
-    const body = exportRows.map((c) => [
+    const body = filtered.map((c) => [
       c.id || "",
       c.name || "",
       c.primaryEmail || "",
       c.secondaryEmail || "",
       c.phone || "",
-      c.owner || "",
       c.industry || "",
-      c.risk || "",
       c.status || "",
-      c.source || "",
       c.zohoClientId || "",
-      c.zohoDebitOrderId || "",
-      c.debit?.debitStatus || "",
-      c.debit?.billingCycle || "",
-      c.debit?.nextChargeDate || "",
-      c.debit?.amountZar ?? "",
-      c.debit?.paystackCustomerCode || "",
-      c.debit?.paystackAuthorizationCode || "",
-      c.debit?.retryCount ?? 0,
-      c.debit?.lastTransactionReference || "",
-      c.debit?.failureReason || "",
+      c?.debit?.paystackCustomerCode || "",
+      c?.debit?.paystackAuthorizationCode || "",
+      c?.debit?.debitStatus || "",
+      c?.debit?.billingCycle || "",
+      c?.debit?.nextChargeDate || "",
+      c?.debit?.amountZar ?? 0,
       c.updatedAt || "",
-      c.notes || "",
     ]);
 
     downloadCsv(`tabbytech-clients-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...body]);
+    showToast("Exported clients to CSV.");
+  }
+
+  // Paging calculations
+  const totalPages = useMemo(() => {
+    const n = Math.ceil((filtered.length || 0) / pageSize);
+    return n <= 0 ? 1 : n;
+  }, [filtered.length, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, query, statusFilter]);
+
+  const pageClients = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  function goPrev() {
+    setPage((p) => Math.max(1, p - 1));
+  }
+  function goNext() {
+    setPage((p) => Math.min(totalPages, p + 1));
   }
 
   const css = `
@@ -456,16 +326,20 @@ export default function Clients() {
   .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
 
-  /* Records-dropdown style (matches your purple dropdown look) */
-  .tt-dd {
-    height: 34px;
-    border-radius: 10px;
+  .tt-topTools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+  .tt-recordsLabel { font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.62); }
+
+  .tt-recordsSelect {
+    height: 38px;
+    min-width: 140px;
+    border-radius: 12px;
     border: 1px solid rgba(168,85,247,0.55);
-    background: rgba(0,0,0,0.22);
-    color: rgba(255,255,255,0.90);
+    background: rgba(0,0,0,0.18);
+    color: rgba(255,255,255,0.88);
     padding: 0 40px 0 12px;
-    font-size: 12px;
-    font-weight: 900;
+    font-size: 13px;
+    font-weight: 800;
     letter-spacing: 0.2px;
     outline: none;
     cursor: pointer;
@@ -475,15 +349,14 @@ export default function Clients() {
     appearance: none;
 
     background-image:
-      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='%23A855F7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat, no-repeat;
-    background-position: 0 0, right 12px center;
-    background-size: auto, 18px 18px;
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 18px 18px;
   }
-  .tt-dd:hover { box-shadow: 0 10px 26px rgba(0,0,0,0.32); }
-  .tt-dd:focus { border-color: rgba(168,85,247,0.75); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
-  .tt-dd option { background: rgba(10,10,14,0.98); color: rgba(255,255,255,0.92); }
+
+  .tt-recordsSelect:focus { border-color: rgba(168,85,247,0.75); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
+  .tt-recordsSelect option { background: rgba(0,0,0,0.92); color: rgba(255,255,255,0.90); }
 
   .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .tt-tableScroll { overflow: auto; height: 100%; }
@@ -650,19 +523,39 @@ export default function Clients() {
               <div className="tt-phLeft">
                 <p className="tt-phTitle">Client list</p>
                 <p className="tt-phMeta">
-                  {filtered.length} shown · Zoho CRM: <b>{zohoCrmStatus}</b>
+                  {initialLoading ? "Loading..." : `${pageClients.length} shown`}
+                  {!initialLoading ? ` (Page ${page} of ${totalPages})` : ""} · Zoho CRM: <b>{zohoCrmStatus}</b>
                   {syncError ? <span style={{ marginLeft: 8, color: "rgba(239,68,68,0.9)" }}>({syncError})</span> : null}
                 </p>
               </div>
 
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <select className="tt-dd" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} aria-label="Source filter">
-                  <option value="All">All sync</option>
-                  <option value="Zoho">Zoho CRM</option>
-                  <option value="Manual">Manual</option>
+              <div className="tt-topTools">
+                <span className="tt-recordsLabel">Records</span>
+                <select
+                  className="tt-recordsSelect"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+                  aria-label="Records per page"
+                >
+                  <option value={10}>10 records</option>
+                  <option value={20}>20 records</option>
+                  <option value={50}>50 records</option>
+                  <option value={100}>100 records</option>
                 </select>
 
-                <button type="button" className="tt-btn" onClick={() => syncFromZoho()} disabled={syncing}>
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={goPrev} disabled={page <= 1 || initialLoading}>
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="tt-btn tt-btnPrimary"
+                  onClick={goNext}
+                  disabled={page >= totalPages || initialLoading}
+                >
+                  Next
+                </button>
+
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={() => syncFromZoho()} disabled={syncing}>
                   {syncing ? "Syncing..." : "Sync now"}
                 </button>
               </div>
@@ -677,7 +570,7 @@ export default function Clients() {
                   className="tt-input"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by name, id, email, Zoho id, or Paystack codes"
+                  placeholder="Search by name, id, email, or Zoho id"
                   aria-label="Search clients"
                 />
               </div>
@@ -723,14 +616,16 @@ export default function Clients() {
                       <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>Loading clients</div>
-                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>Syncing from Zoho CRM API.</div>
+                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
+                            Syncing from Zoho CRM API.
+                          </div>
                         </div>
                       </td>
                     </tr>
                   )}
 
                   {!initialLoading &&
-                    filtered.map((c) => {
+                    pageClients.map((c) => {
                       const isActive = c.id === selectedId;
                       const isHover = hoverId === c.id;
 
@@ -783,7 +678,7 @@ export default function Clients() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>No clients found</div>
                           <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                            Try a different search term, adjust filters, or switch source.
+                            Try a different search term or adjust filters.
                           </div>
                         </div>
                       </td>
@@ -802,10 +697,10 @@ export default function Clients() {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <button type="button" className="tt-btn" onClick={openEdit} disabled={!selected}>
+                <button type="button" className="tt-btn" onClick={() => showToast("Edit is UI-only for now.")} disabled={!selected}>
                   Edit
                 </button>
-                <button type="button" className="tt-btn tt-btnDanger" onClick={disableClient} disabled={!selected}>
+                <button type="button" className="tt-btn tt-btnDanger" onClick={() => showToast("Disable is UI-only for now.")} disabled={!selected}>
                   Disable
                 </button>
               </div>
@@ -876,16 +771,9 @@ export default function Clients() {
                       <button type="button" className="tt-btn" onClick={() => showToast("View batches will come next.")}>
                         View batches
                       </button>
-
-                      {selected.source !== "zoho" ? (
-                        <button type="button" className="tt-btn tt-btnPrimary" onClick={linkToZoho}>
-                          Link to Zoho
-                        </button>
-                      ) : (
-                        <button type="button" className="tt-btn" onClick={() => showToast("Open in Zoho will come next.")}>
-                          Open in Zoho
-                        </button>
-                      )}
+                      <button type="button" className="tt-btn" onClick={() => showToast("Open in Zoho will come next.")}>
+                        Open in Zoho
+                      </button>
                     </div>
                   </div>
 
@@ -926,20 +814,6 @@ export default function Clients() {
                       <div className="tt-k">Paystack authorization code</div>
                       <div className="tt-v">{selected.debit?.paystackAuthorizationCode || "Not set"}</div>
                     </div>
-
-                    <div className="tt-divider" />
-
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button type="button" className="tt-btn" onClick={() => showToast("Update status will come next.")}>
-                        Update status
-                      </button>
-                      <button type="button" className="tt-btn" onClick={() => showToast("Schedule retry will come next.")}>
-                        Schedule retry
-                      </button>
-                      <button type="button" className="tt-btn tt-btnPrimary" onClick={() => showToast("Start onboarding will come next.")}>
-                        Start onboarding
-                      </button>
-                    </div>
                   </div>
 
                   <div className="tt-section">
@@ -954,117 +828,9 @@ export default function Clients() {
           </div>
         </div>
 
-        {createOpen && (
-          <div className="tt-modalOverlay" role="dialog" aria-modal="true" aria-label="Add client manually">
-            <div className="tt-modal">
-              <div className="tt-modalHead">
-                <div>
-                  <h2 className="tt-modalTitle">Add client manually</h2>
-                  <div className="tt-modalHint">
-                    Manual creation is the exception. If a matching Zoho CRM record exists, linking later reduces risk and prevents duplicates.
-                  </div>
-                </div>
-
-                <div className="tt-modalActions">
-                  <button
-                    type="button"
-                    className="tt-btn"
-                    onClick={() => {
-                      setCreateOpen(false);
-                      resetCreate();
-                    }}
-                  >
-                    Close
-                  </button>
-                  <button type="button" className="tt-btn tt-btnPrimary" onClick={createClient}>
-                    Create
-                  </button>
-                </div>
-              </div>
-
-              <div className="tt-modalBody">
-                {createDuplicate ? (
-                  <div className="tt-warn">
-                    Duplicate detected: <b>{createDuplicate.name}</b> already uses <b>{createDuplicate.primaryEmail}</b>. Create manually only when CRM does not have the
-                    record.
-                  </div>
-                ) : null}
-
-                <div className="tt-formGrid2">
-                  <div className="tt-field">
-                    <div className="tt-label">Client name</div>
-                    <input
-                      className="tt-text"
-                      value={createForm.name}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
-                      placeholder="Example: Mokoena Interiors"
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Email</div>
-                    <input
-                      className="tt-text"
-                      value={createForm.email}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
-                      placeholder="Example: accounts@example.co.za"
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Phone (optional)</div>
-                    <input
-                      className="tt-text"
-                      value={createForm.phone}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
-                      placeholder="Example: 010 446 5754"
-                    />
-                  </div>
-
-                  <div className="tt-field">
-                    <div className="tt-label">Industry (optional)</div>
-                    <input
-                      className="tt-text"
-                      value={createForm.industry}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, industry: e.target.value }))}
-                      placeholder="Example: Property"
-                    />
-                  </div>
-                </div>
-
-                <div className="tt-field">
-                  <div className="tt-label">Notes (optional)</div>
-                  <textarea
-                    className="tt-area"
-                    value={createForm.notes}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, notes: e.target.value }))}
-                    placeholder="Add any operational notes for onboarding and risk context."
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {toast ? (
           <div className="tt-toastWrap">
             <div className="tt-toast">{toast}</div>
-          </div>
-        ) : null}
-
-        {editOpen ? (
-          <div className="tt-toastWrap">
-            <div className="tt-toast">
-              Edit modal is still UI-only in this file. If you want it next, tell me and I will convert it to the same glass modal style used elsewhere.
-              <div style={{ marginTop: 10, display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <button type="button" className="tt-btn" onClick={() => setEditOpen(false)}>
-                  Close
-                </button>
-                <button type="button" className="tt-btn tt-btnPrimary" onClick={saveEdit}>
-                  Save
-                </button>
-              </div>
-            </div>
           </div>
         ) : null}
       </div>
@@ -1123,15 +889,6 @@ function fmtDateTimeShort(iso) {
 function fmtDateTimeLong(iso) {
   const d = new Date(iso);
   return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-function nextClientId(existing) {
-  const nums = existing
-    .map((c) => String(c.id || "").replace(/[^\d]/g, ""))
-    .map((s) => parseInt(s || "0", 10))
-    .filter((n) => Number.isFinite(n));
-  const max = nums.length ? Math.max(...nums) : 10000;
-  return "CL-" + String(max + 1);
 }
 
 function statusBadgeClass(status) {
