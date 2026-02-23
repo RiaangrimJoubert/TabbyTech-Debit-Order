@@ -1,8 +1,11 @@
 // src/screens/Clients.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { fetchZohoClients } from "../api/crm";
 
 export default function Clients() {
+  const navigate = useNavigate();
+
   // Keep seed only for manual add patterns and shape reference, but do not mount UI with it.
   const seed = useMemo(
     () => [
@@ -60,11 +63,10 @@ export default function Clients() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
   const [lastRequestUrl, setLastRequestUrl] = useState("");
-
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Paging
-  const [pageSize, setPageSize] = useState(20);
+  // Records + paging (UI-only paging for now, still one fetch)
+  const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
 
   const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
@@ -75,7 +77,7 @@ export default function Clients() {
     return base;
   }, [clients]);
 
-  const filtered = useMemo(() => {
+  const filteredAll = useMemo(() => {
     const q = query.trim().toLowerCase();
     return clients
       .filter((c) => (statusFilter === "All" ? true : c.status === statusFilter))
@@ -86,11 +88,26 @@ export default function Clients() {
           (c.id || "").toLowerCase().includes(q) ||
           (c.primaryEmail || "").toLowerCase().includes(q) ||
           (c.secondaryEmail || "").toLowerCase().includes(q) ||
-          (c.zohoClientId || "").toLowerCase().includes(q)
+          (c.zohoClientId || "").toLowerCase().includes(q) ||
+          (c.debit?.paystackCustomerCode || "").toLowerCase().includes(q)
         );
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [clients, query, statusFilter]);
+
+  const pageCount = useMemo(() => {
+    const n = Math.max(1, Math.ceil(filteredAll.length / perPage));
+    return n;
+  }, [filteredAll.length, perPage]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  const filtered = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return filteredAll.slice(start, start + perPage);
+  }, [filteredAll, page, perPage]);
 
   async function syncFromZoho({ silent = false } = {}) {
     try {
@@ -108,10 +125,8 @@ export default function Clients() {
 
       const zohoClients = Array.isArray(resp.clients) ? resp.clients : [];
 
-      setClients((prev) => {
-        // No manual UI creation in production flow, but if old manual exists, keep it
-        const manual = prev.filter((c) => c.source === "manual");
-        const next = [...zohoClients, ...manual];
+      setClients(() => {
+        const next = [...zohoClients];
 
         const stillExists = next.some((c) => c.id === selectedId);
         if (!stillExists) {
@@ -127,13 +142,11 @@ export default function Clients() {
       });
 
       setZohoCrmStatus("Connected");
-      setPage(1);
       if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
     } catch (e) {
       const msg = e?.message || String(e);
       const urlNote = lastRequestUrl ? ` Request: ${lastRequestUrl}` : "";
       setSyncError(`${msg}${urlNote}`.trim());
-
       setZohoCrmStatus("Error");
       if (!silent) showToast(`Sync failed: ${msg}`);
     } finally {
@@ -147,66 +160,42 @@ export default function Clients() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // CSV export (clients list)
-  function downloadCsv(filename, rows) {
-    const safeText = (v) => {
-      if (v === null || v === undefined) return "";
-      return String(v);
-    };
-    const csvEscape = (v) => {
-      const s = safeText(v);
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-      return s;
-    };
-
-    const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
-    const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    URL.revokeObjectURL(url);
-  }
-
   function onExportExcel() {
+    const exportRows = filteredAll.length ? filteredAll : clients;
+
     const header = [
       "Client ID",
       "Client Name",
       "Primary Email",
       "Secondary Email",
       "Phone",
-      "Industry",
       "Status",
       "Zoho Client ID",
-      "Paystack Customer Code",
-      "Paystack Authorization Code",
-      "Debit Status",
+      "Zoho Debit Order ID",
       "Billing Cycle",
       "Next Charge Date",
-      "Amount (ZAR)",
+      "Debit Status",
+      "Amount",
+      "Paystack Customer Code",
+      "Paystack Authorization Code",
       "Updated At",
     ];
 
-    const body = filtered.map((c) => [
+    const body = exportRows.map((c) => [
       c.id || "",
       c.name || "",
       c.primaryEmail || "",
       c.secondaryEmail || "",
       c.phone || "",
-      c.industry || "",
       c.status || "",
       c.zohoClientId || "",
-      c?.debit?.paystackCustomerCode || "",
-      c?.debit?.paystackAuthorizationCode || "",
-      c?.debit?.debitStatus || "",
-      c?.debit?.billingCycle || "",
-      c?.debit?.nextChargeDate || "",
-      c?.debit?.amountZar ?? 0,
+      c.zohoDebitOrderId || "",
+      c.debit?.billingCycle || "",
+      c.debit?.nextChargeDate || "",
+      c.debit?.debitStatus || "",
+      c.debit?.amountZar ?? "",
+      c.debit?.paystackCustomerCode || "",
+      c.debit?.paystackAuthorizationCode || "",
       c.updatedAt || "",
     ]);
 
@@ -214,26 +203,37 @@ export default function Clients() {
     showToast("Exported clients to CSV.");
   }
 
-  // Paging calculations
-  const totalPages = useMemo(() => {
-    const n = Math.ceil((filtered.length || 0) / pageSize);
-    return n <= 0 ? 1 : n;
-  }, [filtered.length, pageSize]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [pageSize, query, statusFilter]);
-
-  const pageClients = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
-
   function goPrev() {
     setPage((p) => Math.max(1, p - 1));
   }
   function goNext() {
-    setPage((p) => Math.min(totalPages, p + 1));
+    setPage((p) => Math.min(pageCount, p + 1));
+  }
+
+  function onViewDebitOrders() {
+    if (!selected) return;
+
+    // Best matching key for Debit Orders search is Paystack Customer Code.
+    const code = (selected?.debit?.paystackCustomerCode || "").trim();
+
+    // If we do not have a customer code, fallback to client name (still useful).
+    const search = code || (selected?.name || "").trim();
+    if (!search) {
+      showToast("No customer code or name to search with.");
+      return;
+    }
+
+    // This expects a route like /debit-orders in your router.
+    navigate(`/debit-orders?search=${encodeURIComponent(search)}`);
+  }
+
+  function onViewBatches() {
+    showToast("Batches page navigation can be wired next.");
+  }
+
+  function onOpenZoho() {
+    // You likely do not want hard-coded Zoho URLs in UI yet. Keep as a safe placeholder.
+    showToast("Open in Zoho can be wired once we confirm the CRM record URL format.");
   }
 
   const css = `
@@ -326,20 +326,17 @@ export default function Clients() {
   .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
 
-  .tt-topTools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-
-  .tt-recordsLabel { font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.62); }
-
-  .tt-recordsSelect {
-    height: 38px;
-    min-width: 140px;
-    border-radius: 12px;
-    border: 1px solid rgba(168,85,247,0.55);
-    background: rgba(0,0,0,0.18);
-    color: rgba(255,255,255,0.88);
-    padding: 0 40px 0 12px;
-    font-size: 13px;
-    font-weight: 800;
+  /* Purple dropdown styling like your Records dropdown screenshots */
+  .tt-recordsLabel { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 800; }
+  .tt-select {
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(124,58,237,0.55);
+    background: rgba(0,0,0,0.55);
+    color: rgba(255,255,255,0.92);
+    padding: 0 42px 0 14px;
+    font-size: 12px;
+    font-weight: 900;
     letter-spacing: 0.2px;
     outline: none;
     cursor: pointer;
@@ -349,14 +346,15 @@ export default function Clients() {
     appearance: none;
 
     background-image:
+      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='%23A855F7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    background-size: 18px 18px;
+    background-repeat: no-repeat, no-repeat;
+    background-position: 0 0, right 12px center;
+    background-size: auto, 18px 18px;
   }
-
-  .tt-recordsSelect:focus { border-color: rgba(168,85,247,0.75); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
-  .tt-recordsSelect option { background: rgba(0,0,0,0.92); color: rgba(255,255,255,0.90); }
+  .tt-select:hover { background: rgba(0,0,0,0.62); box-shadow: 0 10px 26px rgba(0,0,0,0.32); }
+  .tt-select:focus { border-color: rgba(168,85,247,0.75); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
+  .tt-select option { background: rgba(0,0,0,0.92); color: rgba(255,255,255,0.92); }
 
   .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .tt-tableScroll { overflow: auto; height: 100%; }
@@ -404,7 +402,6 @@ export default function Clients() {
     gap: 6px;
   }
   .tt-pillZoho { border-color: rgba(124,58,237,0.38); background: rgba(124,58,237,0.16); }
-  .tt-pillManual { border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); }
 
   .tt-badge { height: 22px; padding: 0 10px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 11px; font-weight: 900; letter-spacing: 0.2px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); }
   .tt-bActive { border-color: rgba(34,197,94,0.30); background: rgba(34,197,94,0.14); color: rgba(255,255,255,0.86); }
@@ -523,35 +520,33 @@ export default function Clients() {
               <div className="tt-phLeft">
                 <p className="tt-phTitle">Client list</p>
                 <p className="tt-phMeta">
-                  {initialLoading ? "Loading..." : `${pageClients.length} shown`}
-                  {!initialLoading ? ` (Page ${page} of ${totalPages})` : ""} · Zoho CRM: <b>{zohoCrmStatus}</b>
+                  {filteredAll.length} total · Showing page {page} of {pageCount} · Zoho CRM: <b>{zohoCrmStatus}</b>
                   {syncError ? <span style={{ marginLeft: 8, color: "rgba(239,68,68,0.9)" }}>({syncError})</span> : null}
                 </p>
               </div>
 
-              <div className="tt-topTools">
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <span className="tt-recordsLabel">Records</span>
                 <select
-                  className="tt-recordsSelect"
-                  value={pageSize}
-                  onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+                  className="tt-select"
+                  value={String(perPage)}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    setPerPage(Number.isFinite(n) ? n : 10);
+                    setPage(1);
+                  }}
                   aria-label="Records per page"
                 >
-                  <option value={10}>10 records</option>
-                  <option value={20}>20 records</option>
-                  <option value={50}>50 records</option>
-                  <option value={100}>100 records</option>
+                  <option value="10">10 records</option>
+                  <option value="20">20 records</option>
+                  <option value="50">50 records</option>
+                  <option value="100">100 records</option>
                 </select>
 
-                <button type="button" className="tt-btn tt-btnPrimary" onClick={goPrev} disabled={page <= 1 || initialLoading}>
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={goPrev} disabled={page <= 1}>
                   Back
                 </button>
-                <button
-                  type="button"
-                  className="tt-btn tt-btnPrimary"
-                  onClick={goNext}
-                  disabled={page >= totalPages || initialLoading}
-                >
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={goNext} disabled={page >= pageCount}>
                   Next
                 </button>
 
@@ -569,8 +564,11 @@ export default function Clients() {
                 <input
                   className="tt-input"
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by name, id, email, or Zoho id"
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search by name, id, email, Zoho id, or customer code"
                   aria-label="Search clients"
                 />
               </div>
@@ -584,9 +582,15 @@ export default function Clients() {
                       className={active ? "tt-chip tt-chipActive" : "tt-chip"}
                       role="button"
                       tabIndex={0}
-                      onClick={() => setStatusFilter(k)}
+                      onClick={() => {
+                        setStatusFilter(k);
+                        setPage(1);
+                      }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") setStatusFilter(k);
+                        if (e.key === "Enter" || e.key === " ") {
+                          setStatusFilter(k);
+                          setPage(1);
+                        }
                       }}
                       title={`Filter: ${k}`}
                     >
@@ -625,10 +629,9 @@ export default function Clients() {
                   )}
 
                   {!initialLoading &&
-                    pageClients.map((c) => {
+                    filtered.map((c) => {
                       const isActive = c.id === selectedId;
                       const isHover = hoverId === c.id;
-
                       const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
 
                       return (
@@ -651,17 +654,10 @@ export default function Clients() {
                           </td>
 
                           <td className="tt-td">
-                            {c.source === "zoho" ? (
-                              <span className="tt-pill tt-pillZoho">
-                                <Dot />
-                                Zoho
-                              </span>
-                            ) : (
-                              <span className="tt-pill tt-pillManual">
-                                <Dot />
-                                Manual
-                              </span>
-                            )}
+                            <span className="tt-pill tt-pillZoho">
+                              <Dot />
+                              Zoho
+                            </span>
                           </td>
 
                           <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
@@ -672,13 +668,13 @@ export default function Clients() {
                       );
                     })}
 
-                  {!initialLoading && filtered.length === 0 && (
+                  {!initialLoading && filteredAll.length === 0 && (
                     <tr>
                       <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>No clients found</div>
                           <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                            Try a different search term or adjust filters.
+                            Try a different search term or adjust the filters.
                           </div>
                         </div>
                       </td>
@@ -697,10 +693,10 @@ export default function Clients() {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <button type="button" className="tt-btn" onClick={() => showToast("Edit is UI-only for now.")} disabled={!selected}>
+                <button type="button" className="tt-btn" onClick={() => showToast("Edit stays UI-only for now.")} disabled={!selected}>
                   Edit
                 </button>
-                <button type="button" className="tt-btn tt-btnDanger" onClick={() => showToast("Disable is UI-only for now.")} disabled={!selected}>
+                <button type="button" className="tt-btn tt-btnDanger" onClick={() => showToast("Disable stays UI-only for now.")} disabled={!selected}>
                   Disable
                 </button>
               </div>
@@ -735,7 +731,7 @@ export default function Clients() {
                       <div className="tt-v">{selected.id}</div>
 
                       <div className="tt-k">Source</div>
-                      <div className="tt-v">{selected.source === "zoho" ? "Zoho CRM sync" : "Manual"}</div>
+                      <div className="tt-v">Zoho CRM sync</div>
 
                       <div className="tt-k">Primary email</div>
                       <div className="tt-v">{selected.primaryEmail || "Not set"}</div>
@@ -765,13 +761,14 @@ export default function Clients() {
                     <div className="tt-divider" />
 
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button type="button" className="tt-btn" onClick={() => showToast("View debit orders will come next.")}>
+                      {/* These 3 were marked green by you, now purple primary */}
+                      <button type="button" className="tt-btn tt-btnPrimary" onClick={onViewDebitOrders}>
                         View debit orders
                       </button>
-                      <button type="button" className="tt-btn" onClick={() => showToast("View batches will come next.")}>
+                      <button type="button" className="tt-btn tt-btnPrimary" onClick={onViewBatches}>
                         View batches
                       </button>
-                      <button type="button" className="tt-btn" onClick={() => showToast("Open in Zoho will come next.")}>
+                      <button type="button" className="tt-btn tt-btnPrimary" onClick={onOpenZoho}>
                         Open in Zoho
                       </button>
                     </div>
@@ -813,6 +810,13 @@ export default function Clients() {
 
                       <div className="tt-k">Paystack authorization code</div>
                       <div className="tt-v">{selected.debit?.paystackAuthorizationCode || "Not set"}</div>
+                    </div>
+
+                    <div className="tt-divider" />
+
+                    {/* Removed the 3 green buttons you asked to remove earlier, because CRM syncs data */}
+                    <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
+                      Actions like onboarding will be added later once backend workflows are ready.
                     </div>
                   </div>
 
@@ -871,6 +875,32 @@ function IconSearch({ size = 16 }) {
    Helpers
 ---------------------------- */
 
+function safeText(v) {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+function downloadCsv(filename, rows) {
+  const csvEscape = (v) => {
+    const s = safeText(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
 function currencyZar(n) {
   const val = Number(n || 0);
   return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
@@ -883,11 +913,13 @@ function fmtDateShort(yyyyMmDd) {
 
 function fmtDateTimeShort(iso) {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
 }
 
 function fmtDateTimeLong(iso) {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
