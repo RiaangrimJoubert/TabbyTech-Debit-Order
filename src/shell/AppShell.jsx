@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import Sidebar from "./Sidebar";
 
 import Dashboard from "./Dashboard";
@@ -22,17 +22,43 @@ const TITLES = {
 export default function AppShell({ onLogout }) {
   const [activeKey, setActiveKey] = useState("dashboard");
 
+  // Used to pre-fill the Debit Orders search box when coming from Clients
+  const [debitOrdersPresetSearch, setDebitOrdersPresetSearch] = useState("");
+
   const pageTitle = useMemo(() => TITLES[activeKey] || "Dashboard", [activeKey]);
 
+  const openDebitOrdersForCustomer = useCallback((customerCode) => {
+    const code = String(customerCode || "").trim();
+    if (!code) return;
+
+    setDebitOrdersPresetSearch(code);
+    setActiveKey("debitorders");
+  }, []);
+
   const content = useMemo(() => {
-    if (activeKey === "clients") return <Clients />;
-    if (activeKey === "debitorders") return <DebitOrders />;
+    if (activeKey === "clients") {
+      return (
+        <Clients
+          onOpenDebitOrders={(customerCode) => openDebitOrdersForCustomer(customerCode)}
+        />
+      );
+    }
+
+    if (activeKey === "debitorders") {
+      return (
+        <DebitOrders
+          presetSearch={debitOrdersPresetSearch}
+          onPresetSearchConsumed={() => setDebitOrdersPresetSearch("")}
+        />
+      );
+    }
+
     if (activeKey === "batches") return <Batches />;
     if (activeKey === "invoices") return <Invoices />;
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
     return <Dashboard />;
-  }, [activeKey]);
+  }, [activeKey, debitOrdersPresetSearch, openDebitOrdersForCustomer]);
 
   return (
     <div className="tt-appshell">
