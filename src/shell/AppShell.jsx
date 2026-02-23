@@ -22,20 +22,20 @@ const TITLES = {
 export default function AppShell({ onLogout }) {
   const [activeKey, setActiveKey] = useState("dashboard");
 
-  // NEW: store the last "open debit orders" request so DebitOrders can focus + highlight
   const [debitOrdersPreset, setDebitOrdersPreset] = useState({
-    search: "",
-    focusCustomerCode: "",
-    nonce: 0, // forces refresh even if same customer code clicked again
+    presetSearch: "",
+    focusZohoClientId: "",
+    focusEmail: "",
+    nonce: 0,
   });
 
   const pageTitle = useMemo(() => TITLES[activeKey] || "Dashboard", [activeKey]);
 
-  // NEW: Called by Clients when user clicks "View debit orders"
-  function openDebitOrdersFromClient({ search = "", focusCustomerCode = "" } = {}) {
+  function openDebitOrdersFromClient(payload = {}) {
     setDebitOrdersPreset({
-      search: String(search || ""),
-      focusCustomerCode: String(focusCustomerCode || ""),
+      presetSearch: String(payload?.presetSearch || ""),
+      focusZohoClientId: String(payload?.focusZohoClientId || ""),
+      focusEmail: String(payload?.focusEmail || ""),
       nonce: Date.now(),
     });
     setActiveKey("debitorders");
@@ -48,8 +48,9 @@ export default function AppShell({ onLogout }) {
       return (
         <DebitOrders
           key={`debitorders-${debitOrdersPreset.nonce}`}
-          presetSearch={debitOrdersPreset.search}
-          presetFocusCustomerCode={debitOrdersPreset.focusCustomerCode}
+          presetSearch={debitOrdersPreset.presetSearch}
+          focusZohoClientId={debitOrdersPreset.focusZohoClientId}
+          focusEmail={debitOrdersPreset.focusEmail}
         />
       );
     }
@@ -59,7 +60,7 @@ export default function AppShell({ onLogout }) {
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
     return <Dashboard />;
-  }, [activeKey, debitOrdersPreset.nonce, debitOrdersPreset.search, debitOrdersPreset.focusCustomerCode]);
+  }, [activeKey, debitOrdersPreset]);
 
   return (
     <div className="tt-appshell">
