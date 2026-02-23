@@ -118,7 +118,6 @@ const styles = {
   },
 
   dropdownWrap: { position: "relative", display: "inline-flex", alignItems: "center", gap: 10 },
-
   dropdownLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 },
 
   dropdownBtn: (open = false) => ({
@@ -224,6 +223,14 @@ const styles = {
     transform: "translateY(-1px)",
     boxShadow: "0 10px 24px rgba(0,0,0,0.28)",
     background: "rgba(255,255,255,0.04)",
+  },
+
+  // NEW: focused row styling (premium purple)
+  rowFocus: {
+    background: "rgba(168,85,247,0.18)",
+    boxShadow: "0 18px 55px rgba(168,85,247,0.18)",
+    outline: "2px solid rgba(168,85,247,0.35)",
+    outlineOffset: "-2px",
   },
 
   badge: (tone) => {
@@ -420,7 +427,12 @@ function RecordsDropdown({ value, onChange, disabled }) {
   );
 }
 
-export default function DebitOrders() {
+/**
+ * presetSearch:
+ * presetFocusCustomerCode:
+ * Passed by AppShell when opened from Clients.
+ */
+export default function DebitOrders({ presetSearch = "", presetFocusCustomerCode = "" }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [hoverRow, setHoverRow] = useState(null);
@@ -432,6 +444,10 @@ export default function DebitOrders() {
 
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
+
+  // NEW: focus row support
+  const [focusRowId, setFocusRowId] = useState("");
+  const rowRefs = useRef({}); // id -> element
 
   async function load() {
     setLoading(true);
@@ -456,6 +472,14 @@ export default function DebitOrders() {
   useEffect(() => {
     load();
   }, []);
+
+  // Apply preset search coming from Clients
+  useEffect(() => {
+    const s = safeText(presetSearch).trim();
+    if (!s) return;
+    setQuery(s);
+    setPage(1);
+  }, [presetSearch]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -508,8 +532,42 @@ export default function DebitOrders() {
     return filtered.slice(start, end);
   }, [filtered, pageClamped, pageSize]);
 
+  // Focus logic: when presetFocusCustomerCode is present, find the row, jump page, highlight + scroll
+  useEffect(() => {
+    const code = safeText(presetFocusCustomerCode).trim();
+    if (!code) return;
+    if (!rows.length) return;
+
+    const idx = rows.findIndex((r) => safeText(r?.paystackCustomerCode).trim() === code);
+    if (idx < 0) return;
+
+    // Ensure it becomes visible based on current filters and paging.
+    // Easiest reliable behavior: set query to the customer code and reset filters.
+    setStatusFilter("All");
+    setQuery(code);
+
+    // After query filter applies, we will find the visible row and focus it.
+  }, [presetFocusCustomerCode, rows.length]);
+
+  useEffect(() => {
+    const code = safeText(presetFocusCustomerCode).trim();
+    if (!code) return;
+
+    const match = pagedRows.find((r) => safeText(r?.paystackCustomerCode).trim() === code);
+    if (!match) return;
+
+    setFocusRowId(match.id);
+    setSelectedIds([match.id]);
+
+    window.setTimeout(() => {
+      const el = rowRefs.current[match.id];
+      if (el && typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }, 50);
+  }, [presetFocusCustomerCode, pagedRows]);
+
   const allVisibleSelected = pagedRows.length > 0 && pagedRows.every((x) => selectedIds.includes(x.id));
-  const anySelected = selectedIds.length > 0;
 
   function toggleSelect(id) {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -634,8 +692,14 @@ export default function DebitOrders() {
                 );
               })}
 
-              <button style={styles.btn("primary", loading)} type="button" disabled={loading} onClick={load} title="Re-fetch latest data from CRM">
-                Sync to CRM
+              <button
+                style={styles.btn("primary", loading)}
+                type="button"
+                disabled={loading}
+                onClick={load}
+                title="Re-fetch latest data"
+              >
+                {loading ? "Syncing..." : "Sync now"}
               </button>
             </div>
           </div>
@@ -645,11 +709,7 @@ export default function DebitOrders() {
               Export to Excel
             </button>
 
-            <RecordsDropdown
-              value={pageSize}
-              onChange={(v) => setPageSize(Number(v))}
-              disabled={loading}
-            />
+            <RecordsDropdown value={pageSize} onChange={(v) => setPageSize(Number(v))} disabled={loading} />
 
             <button style={styles.btn("primary", pageClamped <= 1)} type="button" disabled={pageClamped <= 1} onClick={goPrev}>
               Back
@@ -688,11 +748,21 @@ export default function DebitOrders() {
               {pagedRows.map((d) => {
                 const isHover = hoverRow === d.id;
                 const isSelected = selectedIds.includes(d.id);
+                const isFocused = focusRowId === d.id;
+
+                const rowStyle = {
+                  ...styles.row(isSelected),
+                  ...(isHover ? styles.rowHover : null),
+                  ...(isFocused ? styles.rowFocus : null),
+                };
 
                 return (
                   <tr
                     key={d.id}
-                    style={{ ...styles.row(isSelected), ...(isHover ? styles.rowHover : null) }}
+                    ref={(el) => {
+                      if (el) rowRefs.current[d.id] = el;
+                    }}
+                    style={rowStyle}
                     onMouseEnter={() => setHoverRow(d.id)}
                     onMouseLeave={() => setHoverRow(null)}
                   >
