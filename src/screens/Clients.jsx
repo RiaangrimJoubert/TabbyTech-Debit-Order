@@ -1,8 +1,8 @@
 // src/screens/Clients.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
-export default function Clients({ onOpenDebitOrders }) {
+export default function Clients() {
   // Live data only
   const [clients, setClients] = useState([]);
   const [selectedId, setSelectedId] = useState("");
@@ -48,7 +48,6 @@ export default function Clients({ onOpenDebitOrders }) {
           (c.primaryEmail || "").toLowerCase().includes(q) ||
           (c.secondaryEmail || "").toLowerCase().includes(q) ||
           (c.zohoClientId || "").toLowerCase().includes(q) ||
-          (c.zohoDebitOrderId || "").toLowerCase().includes(q) ||
           (c.debit?.paystackCustomerCode || "").toLowerCase().includes(q)
         );
       })
@@ -173,26 +172,23 @@ export default function Clients({ onOpenDebitOrders }) {
   function onViewDebitOrders() {
     if (!selected) return;
 
-    // Prefer Zoho CRM client id, then email, then Paystack customer code
-    const focusKey =
-      (selected?.zohoClientId || "").trim() ||
-      (selected?.primaryEmail || "").trim() ||
-      (selected?.debit?.paystackCustomerCode || "").trim();
-
-    if (!focusKey) {
-      showToast("No Zoho client id, email, or customer code available for this client.");
+    // IMPORTANT: use Zoho CRM Client ID (example 6234246000009192082)
+    const crmId = safeText(selected?.zohoClientId).trim() || safeText(selected?.id).trim();
+    if (!crmId) {
+      showToast("No Zoho CRM Client ID found on this client.");
       return;
     }
 
-    // presetSearch should match focusKey so DebitOrders filters down and focus works.
-    const presetSearch = focusKey;
-
-    if (typeof onOpenDebitOrders === "function") {
-      onOpenDebitOrders({ presetSearch, focusKey });
-      return;
-    }
-
-    showToast("Debit Orders navigation is not wired in AppShell yet.");
+    // Ask AppShell to navigate and focus the correct debit order
+    window.dispatchEvent(
+      new CustomEvent("tt:navigate", {
+        detail: {
+          key: "debitorders",
+          presetSearch: "", // keep empty so you do not override existing search UI
+          presetFocusClientId: crmId,
+        },
+      })
+    );
   }
 
   function onViewBatches() {
@@ -203,6 +199,73 @@ export default function Clients({ onOpenDebitOrders }) {
     showToast("Open in Zoho can be wired once we confirm the CRM record URL format.");
   }
 
+  /* Premium dropdown (solid black menu like Dashboard) */
+  function PremiumSelect({ value, onChange, options, ariaLabel, className = "" }) {
+    const [open, setOpen] = useState(false);
+    const wrapRef = useRef(null);
+
+    const selectedOpt = useMemo(() => {
+      return options.find((o) => o.value === value) || options[0];
+    }, [options, value]);
+
+    useEffect(() => {
+      function onDocDown(e) {
+        if (!wrapRef.current) return;
+        if (!wrapRef.current.contains(e.target)) setOpen(false);
+      }
+      function onEsc(e) {
+        if (e.key === "Escape") setOpen(false);
+      }
+      document.addEventListener("mousedown", onDocDown);
+      document.addEventListener("keydown", onEsc);
+      return () => {
+        document.removeEventListener("mousedown", onDocDown);
+        document.removeEventListener("keydown", onEsc);
+      };
+    }, []);
+
+    return (
+      <div ref={wrapRef} className={`ttd-psWrap ${className}`} aria-label={ariaLabel}>
+        <button
+          type="button"
+          className={`ttd-psBtn ${open ? "ttd-psBtn--open" : ""}`}
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span className="ttd-psText">{selectedOpt?.label}</span>
+          <span className="ttd-psChevron" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </button>
+
+        {open && (
+          <div className="ttd-psMenu" role="listbox">
+            {options.map((o) => {
+              const active = o.value === value;
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  className={`ttd-psItem ${active ? "ttd-psItem--active" : ""}`}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="ttd-psItemLabel">{o.label}</span>
+                  {active && <span className="ttd-psCheck">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const css = `
   .tt-clients {
     width: 100%;
@@ -210,8 +273,6 @@ export default function Clients({ onOpenDebitOrders }) {
     color: rgba(255,255,255,0.92);
     --tt-purple: rgba(124,58,237,0.95);
     --tt-purple2: rgba(168,85,247,0.95);
-    --tt-black: rgba(0,0,0,0.55);
-    --tt-black2: rgba(0,0,0,0.35);
   }
 
   .tt-clientsWrap { height: 100%; display: flex; flex-direction: column; gap: 16px; }
@@ -426,6 +487,67 @@ export default function Clients({ onOpenDebitOrders }) {
     max-width: 420px;
   }
 
+  /* PremiumSelect (match Dashboard look) */
+  .ttd-psWrap{ position: relative; width: 100%; min-width: 0; }
+  .ttd-psBtn{
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(168,85,247,0.38);
+    background: rgba(0,0,0,0.70);
+    color: rgba(235,220,255,0.95);
+    font-weight: 950;
+    font-size: 12px;
+    padding: 0 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 10px;
+    cursor:pointer;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.30);
+    min-width: 150px;
+  }
+  .ttd-psBtn:hover{ background: rgba(0,0,0,0.78); }
+  .ttd-psBtn--open{
+    border-color: rgba(168,85,247,0.55);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.30), 0 0 0 3px rgba(168,85,247,0.16);
+  }
+  .ttd-psText{ overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ttd-psChevron{ color: rgba(235,220,255,0.88); display:flex; }
+
+  .ttd-psMenu{
+    position:absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    right: 0;
+    border-radius: 14px;
+    border: 1px solid rgba(168,85,247,0.22);
+    background: #05050A;
+    box-shadow: 0 18px 60px rgba(0,0,0,0.78);
+    overflow: hidden;
+    z-index: 999;
+  }
+
+  .ttd-psItem{
+    width:100%;
+    border:0;
+    background: transparent;
+    color: rgba(255,255,255,0.92);
+    padding: 10px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    cursor:pointer;
+    font-weight: 900;
+    font-size: 13px;
+    text-align:left;
+  }
+  .ttd-psItem:hover{ background: rgba(168,85,247,0.16); }
+  .ttd-psItem--active{
+    background: rgba(168,85,247,0.24);
+    color: rgba(255,255,255,0.98);
+  }
+  .ttd-psCheck{ color: rgba(255,255,255,0.95); font-weight: 950; }
+
   @media (max-width: 1100px) {
     .tt-grid { grid-template-columns: 1fr; }
     .tt-kv { grid-template-columns: 1fr; }
@@ -463,43 +585,21 @@ export default function Clients({ onOpenDebitOrders }) {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 }}>Records</span>
-
-                <select
-                  className="tt-btn"
-                  style={{
-                    height: 34,
-                    borderRadius: 999,
-                    padding: "0 42px 0 14px",
-                    border: "1px solid rgba(124,58,237,0.55)",
-                    background: "rgba(0,0,0,0.55)",
-                    color: "rgba(255,255,255,0.92)",
-                    fontSize: 12,
-                    fontWeight: 900,
-                    letterSpacing: 0.2,
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    MozAppearance: "none",
-                    backgroundImage:
-                      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)), url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='%23A855F7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
-                    backgroundRepeat: "no-repeat, no-repeat",
-                    backgroundPosition: "0 0, right 12px center",
-                    backgroundSize: "auto, 18px 18px",
-                    cursor: "pointer",
-                  }}
+                <PremiumSelect
+                  ariaLabel="Records per page"
                   value={String(perPage)}
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value, 10);
+                  onChange={(v) => {
+                    const n = parseInt(v, 10);
                     setPerPage(Number.isFinite(n) ? n : 10);
                     setPage(1);
                   }}
-                  aria-label="Records per page"
-                >
-                  <option value="10">10 records</option>
-                  <option value="20">20 records</option>
-                  <option value="50">50 records</option>
-                  <option value="100">100 records</option>
-                </select>
+                  options={[
+                    { value: "10", label: "10 records" },
+                    { value: "20", label: "20 records" },
+                    { value: "50", label: "50 records" },
+                    { value: "100", label: "100 records" },
+                  ]}
+                />
 
                 <button type="button" className="tt-btn tt-btnPrimary" onClick={goPrev} disabled={page <= 1}>
                   Back
@@ -688,7 +788,7 @@ export default function Clients({ onOpenDebitOrders }) {
                       <div className="tt-k">Client id</div>
                       <div className="tt-v">{selected.id}</div>
 
-                      <div className="tt-k">Zoho client id</div>
+                      <div className="tt-k">Zoho CRM id</div>
                       <div className="tt-v">{selected.zohoClientId || "Not set"}</div>
 
                       <div className="tt-k">Source</div>
