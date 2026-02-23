@@ -1,11 +1,8 @@
 // src/screens/Clients.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { fetchZohoClients } from "../api/crm";
 
-export default function Clients() {
-  const navigate = useNavigate();
-
+export default function Clients({ onOpenDebitOrders }) {
   // Keep seed only for manual add patterns and shape reference, but do not mount UI with it.
   const seed = useMemo(
     () => [
@@ -210,21 +207,26 @@ export default function Clients() {
     setPage((p) => Math.min(pageCount, p + 1));
   }
 
+  // IMPORTANT FIX:
+  // Admin app does not use router paths for internal pages. AppShell switches screens via activeKey.
+  // So View debit orders must call onOpenDebitOrders, not navigate().
   function onViewDebitOrders() {
     if (!selected) return;
 
-    // Best matching key for Debit Orders search is Paystack Customer Code.
     const code = (selected?.debit?.paystackCustomerCode || "").trim();
-
-    // If we do not have a customer code, fallback to client name (still useful).
     const search = code || (selected?.name || "").trim();
+
     if (!search) {
       showToast("No customer code or name to search with.");
       return;
     }
 
-    // This expects a route like /debit-orders in your router.
-    navigate(`/debit-orders?search=${encodeURIComponent(search)}`);
+    if (typeof onOpenDebitOrders !== "function") {
+      showToast("Debit Orders link is not wired yet in AppShell.");
+      return;
+    }
+
+    onOpenDebitOrders(search);
   }
 
   function onViewBatches() {
@@ -232,7 +234,6 @@ export default function Clients() {
   }
 
   function onOpenZoho() {
-    // You likely do not want hard-coded Zoho URLs in UI yet. Keep as a safe placeholder.
     showToast("Open in Zoho can be wired once we confirm the CRM record URL format.");
   }
 
@@ -761,7 +762,6 @@ export default function Clients() {
                     <div className="tt-divider" />
 
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      {/* These 3 were marked green by you, now purple primary */}
                       <button type="button" className="tt-btn tt-btnPrimary" onClick={onViewDebitOrders}>
                         View debit orders
                       </button>
@@ -814,9 +814,8 @@ export default function Clients() {
 
                     <div className="tt-divider" />
 
-                    {/* Removed the 3 green buttons you asked to remove earlier, because CRM syncs data */}
                     <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
-                      Actions like onboarding will be added later once backend workflows are ready.
+                      Actions will be added later once backend workflows are ready.
                     </div>
                   </div>
 
