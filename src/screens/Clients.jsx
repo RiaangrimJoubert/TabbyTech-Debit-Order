@@ -2,7 +2,45 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
-export default function Clients() {
+export default function Clients({ onOpenDebitOrders }) {
+  // Keep seed only for manual add patterns and shape reference, but do not mount UI with it.
+  useMemo(
+    () => [
+      {
+        id: "CL-10021",
+        source: "zoho",
+        zohoClientId: "642901000001234567",
+        zohoDebitOrderId: "642901000009876543",
+        name: "Mkhize Holdings",
+        primaryEmail: "finance@mkhize.co.za",
+        secondaryEmail: "",
+        emailOptOut: false,
+        owner: "Ops",
+        phone: "010 446 5754",
+        industry: "Commercial",
+        risk: "Low",
+        status: "Active",
+        debit: {
+          billingCycle: "Monthly - 25th",
+          nextChargeDate: "2026-02-25",
+          amountZar: 245000,
+          debitStatus: "Scheduled",
+          paystackCustomerCode: "CUS_f4v3u1n0b7",
+          paystackAuthorizationCode: "AUTH_9q8w7e6r5t",
+          booksInvoiceId: "INV-000184",
+          retryCount: 0,
+          debitRunBatchId: "BATCH-2401",
+          lastAttemptDate: "2026-02-06T22:00:00.000Z",
+          lastTransactionReference: "PAY-DO-778122",
+          failureReason: "",
+        },
+        updatedAt: "2026-02-08T20:26:00.000Z",
+        notes: "High volume accounts. Prefers batch notifications by email.",
+      },
+    ],
+    []
+  );
+
   // Live data only
   const [clients, setClients] = useState([]);
   const [selectedId, setSelectedId] = useState("");
@@ -172,23 +210,20 @@ export default function Clients() {
   function onViewDebitOrders() {
     if (!selected) return;
 
-    // IMPORTANT: use Zoho CRM Client ID (example 6234246000009192082)
-    const crmId = safeText(selected?.zohoClientId).trim() || safeText(selected?.id).trim();
-    if (!crmId) {
-      showToast("No Zoho CRM Client ID found on this client.");
+    // You said client id is the correct key. Example: 6234246000009192082
+    const clientId = String(selected?.id || "").trim();
+    if (!clientId) {
+      showToast("Client id not available.");
       return;
     }
 
-    // Ask AppShell to navigate and focus the correct debit order
-    window.dispatchEvent(
-      new CustomEvent("tt:navigate", {
-        detail: {
-          key: "debitorders",
-          presetSearch: "", // keep empty so you do not override existing search UI
-          presetFocusClientId: crmId,
-        },
-      })
-    );
+    // Switch module via AppShell, do not use react-router here.
+    if (typeof onOpenDebitOrders === "function") {
+      onOpenDebitOrders({ clientId });
+      return;
+    }
+
+    showToast("Debit Orders navigation not wired in AppShell yet.");
   }
 
   function onViewBatches() {
@@ -199,69 +234,87 @@ export default function Clients() {
     showToast("Open in Zoho can be wired once we confirm the CRM record URL format.");
   }
 
-  /* Premium dropdown (solid black menu like Dashboard) */
-  function PremiumSelect({ value, onChange, options, ariaLabel, className = "" }) {
+  // Custom records dropdown to match your premium black menu and purple highlight
+  function useOnClickOutside(ref, handler) {
+    useEffect(() => {
+      function onDown(e) {
+        if (!ref.current) return;
+        if (ref.current.contains(e.target)) return;
+        handler();
+      }
+      window.addEventListener("mousedown", onDown);
+      window.addEventListener("touchstart", onDown);
+      return () => {
+        window.removeEventListener("mousedown", onDown);
+        window.removeEventListener("touchstart", onDown);
+      };
+    }, [ref, handler]);
+  }
+
+  function RecordsDropdown({ value, onChange, disabled }) {
     const [open, setOpen] = useState(false);
     const wrapRef = useRef(null);
+    useOnClickOutside(wrapRef, () => setOpen(false));
 
-    const selectedOpt = useMemo(() => {
-      return options.find((o) => o.value === value) || options[0];
-    }, [options, value]);
+    const options = [
+      { value: 10, label: "10 records" },
+      { value: 20, label: "20 records" },
+      { value: 50, label: "50 records" },
+      { value: 100, label: "100 records" },
+    ];
 
-    useEffect(() => {
-      function onDocDown(e) {
-        if (!wrapRef.current) return;
-        if (!wrapRef.current.contains(e.target)) setOpen(false);
-      }
-      function onEsc(e) {
-        if (e.key === "Escape") setOpen(false);
-      }
-      document.addEventListener("mousedown", onDocDown);
-      document.addEventListener("keydown", onEsc);
-      return () => {
-        document.removeEventListener("mousedown", onDocDown);
-        document.removeEventListener("keydown", onEsc);
-      };
-    }, []);
+    const active = options.find((o) => o.value === value) || options[0];
+
+    function select(v) {
+      onChange(v);
+      setOpen(false);
+    }
 
     return (
-      <div ref={wrapRef} className={`ttd-psWrap ${className}`} aria-label={ariaLabel}>
-        <button
-          type="button"
-          className={`ttd-psBtn ${open ? "ttd-psBtn--open" : ""}`}
-          onClick={() => setOpen((v) => !v)}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-        >
-          <span className="ttd-psText">{selectedOpt?.label}</span>
-          <span className="ttd-psChevron" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-        </button>
+      <div ref={wrapRef} className="tt-ddWrap">
+        <span className="tt-ddLabel">Records</span>
 
-        {open && (
-          <div className="ttd-psMenu" role="listbox">
-            {options.map((o) => {
-              const active = o.value === value;
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  className={`ttd-psItem ${active ? "ttd-psItem--active" : ""}`}
-                  onClick={() => {
-                    onChange(o.value);
-                    setOpen(false);
-                  }}
-                >
-                  <span className="ttd-psItemLabel">{o.label}</span>
-                  {active && <span className="ttd-psCheck">✓</span>}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="tt-ddRel">
+          <button
+            type="button"
+            className={open ? "tt-ddBtn tt-ddBtnOpen" : "tt-ddBtn"}
+            onClick={() => {
+              if (disabled) return;
+              setOpen((x) => !x);
+            }}
+            disabled={disabled}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+          >
+            <span>{active.label}</span>
+            <span className="tt-ddCaret">▾</span>
+          </button>
+
+          {open && (
+            <div className="tt-ddMenu" role="listbox" aria-label="Records per page">
+              {options.map((o, idx) => {
+                const isActive = o.value === value;
+                return (
+                  <div
+                    key={o.value}
+                    role="option"
+                    aria-selected={isActive}
+                    className={isActive ? "tt-ddItem tt-ddItemActive" : "tt-ddItem"}
+                    style={{ borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)" }}
+                    onClick={() => select(o.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") select(o.value);
+                    }}
+                    tabIndex={0}
+                  >
+                    <span>{o.label}</span>
+                    {isActive ? <span className="tt-ddTick">✓</span> : <span style={{ width: 18 }} />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -273,6 +326,8 @@ export default function Clients() {
     color: rgba(255,255,255,0.92);
     --tt-purple: rgba(124,58,237,0.95);
     --tt-purple2: rgba(168,85,247,0.95);
+    --tt-black: rgba(0,0,0,0.55);
+    --tt-black2: rgba(0,0,0,0.35);
   }
 
   .tt-clientsWrap { height: 100%; display: flex; flex-direction: column; gap: 16px; }
@@ -487,66 +542,67 @@ export default function Clients() {
     max-width: 420px;
   }
 
-  /* PremiumSelect (match Dashboard look) */
-  .ttd-psWrap{ position: relative; width: 100%; min-width: 0; }
-  .ttd-psBtn{
+  /* Records dropdown (matches the premium black menu and purple active row) */
+  .tt-ddWrap { display: inline-flex; align-items: center; gap: 10px; }
+  .tt-ddLabel { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 800; }
+  .tt-ddRel { position: relative; display: inline-block; }
+  .tt-ddBtn {
     height: 34px;
+    padding: 0 12px;
     border-radius: 999px;
-    border: 1px solid rgba(168,85,247,0.38);
-    background: rgba(0,0,0,0.70);
-    color: rgba(235,220,255,0.95);
-    font-weight: 950;
-    font-size: 12px;
-    padding: 0 14px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap: 10px;
-    cursor:pointer;
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.30);
-    min-width: 150px;
-  }
-  .ttd-psBtn:hover{ background: rgba(0,0,0,0.78); }
-  .ttd-psBtn--open{
-    border-color: rgba(168,85,247,0.55);
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.30), 0 0 0 3px rgba(168,85,247,0.16);
-  }
-  .ttd-psText{ overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ttd-psChevron{ color: rgba(235,220,255,0.88); display:flex; }
-
-  .ttd-psMenu{
-    position:absolute;
-    top: calc(100% + 10px);
-    left: 0;
-    right: 0;
-    border-radius: 14px;
-    border: 1px solid rgba(168,85,247,0.22);
-    background: #05050A;
-    box-shadow: 0 18px 60px rgba(0,0,0,0.78);
-    overflow: hidden;
-    z-index: 999;
-  }
-
-  .ttd-psItem{
-    width:100%;
-    border:0;
-    background: transparent;
+    border: 1px solid rgba(168,85,247,0.55);
+    background: rgba(0,0,0,0.55);
     color: rgba(255,255,255,0.92);
-    padding: 10px 12px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    cursor:pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 12px;
     font-weight: 900;
+    letter-spacing: 0.2px;
+    min-width: 140px;
+  }
+  .tt-ddBtnOpen { background: rgba(168,85,247,0.16); }
+  .tt-ddCaret { opacity: 0.95; }
+  .tt-ddMenu {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    min-width: 190px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(10,10,14,0.92);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+    z-index: 50;
+  }
+  .tt-ddItem {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
     font-size: 13px;
-    text-align:left;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: rgba(255,255,255,0.88);
+    background: transparent;
   }
-  .ttd-psItem:hover{ background: rgba(168,85,247,0.16); }
-  .ttd-psItem--active{
-    background: rgba(168,85,247,0.24);
-    color: rgba(255,255,255,0.98);
+  .tt-ddItemActive { background: rgba(168,85,247,0.22); }
+  .tt-ddTick {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(168,85,247,0.25);
+    border: 1px solid rgba(168,85,247,0.35);
+    font-weight: 900;
   }
-  .ttd-psCheck{ color: rgba(255,255,255,0.95); font-weight: 950; }
 
   @media (max-width: 1100px) {
     .tt-grid { grid-template-columns: 1fr; }
@@ -584,21 +640,16 @@ export default function Clients() {
                 </p>
               </div>
 
+              {/* IMPORTANT: dropdown inline with purple buttons, placed LEFT of Back */}
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <PremiumSelect
-                  ariaLabel="Records per page"
-                  value={String(perPage)}
-                  onChange={(v) => {
-                    const n = parseInt(v, 10);
-                    setPerPage(Number.isFinite(n) ? n : 10);
+                <RecordsDropdown
+                  value={perPage}
+                  disabled={false}
+                  onChange={(n) => {
+                    const v = Number(n);
+                    setPerPage(Number.isFinite(v) ? v : 10);
                     setPage(1);
                   }}
-                  options={[
-                    { value: "10", label: "10 records" },
-                    { value: "20", label: "20 records" },
-                    { value: "50", label: "50 records" },
-                    { value: "100", label: "100 records" },
-                  ]}
                 />
 
                 <button type="button" className="tt-btn tt-btnPrimary" onClick={goPrev} disabled={page <= 1}>
@@ -787,9 +838,6 @@ export default function Clients() {
 
                       <div className="tt-k">Client id</div>
                       <div className="tt-v">{selected.id}</div>
-
-                      <div className="tt-k">Zoho CRM id</div>
-                      <div className="tt-v">{selected.zohoClientId || "Not set"}</div>
 
                       <div className="tt-k">Source</div>
                       <div className="tt-v">Zoho CRM sync</div>
