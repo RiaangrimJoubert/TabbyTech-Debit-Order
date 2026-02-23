@@ -11,6 +11,8 @@ export const INVOICES = [
     currency: "ZAR",
     subtotal: 1650.0,
     vatRate: 0.15,
+    debitOrderId: "",
+    booksInvoiceId: "",
     items: [
       { description: "Wheel alignment (front + rear)", qty: 1, unitPrice: 950.0 },
       { description: "Balancing", qty: 2, unitPrice: 200.0 },
@@ -28,6 +30,8 @@ export const INVOICES = [
     currency: "ZAR",
     subtotal: 1250.0,
     vatRate: 0.15,
+    debitOrderId: "",
+    booksInvoiceId: "",
     items: [
       { description: "Wheel alignment (front)", qty: 1, unitPrice: 650.0 },
       { description: "Balancing", qty: 2, unitPrice: 300.0 }
@@ -46,6 +50,8 @@ export const INVOICES = [
     currency: "ZAR",
     subtotal: 2499.0,
     vatRate: 0.15,
+    debitOrderId: "",
+    booksInvoiceId: "",
     items: [{ description: "Monthly debit order system setup", qty: 1, unitPrice: 2499.0 }],
     notes: "Payment due within 7 days."
   },
@@ -59,6 +65,8 @@ export const INVOICES = [
     currency: "ZAR",
     subtotal: 1299.0,
     vatRate: 0.15,
+    debitOrderId: "",
+    booksInvoiceId: "",
     items: [{ description: "TabbyPay subscription, monthly", qty: 1, unitPrice: 1299.0 }],
     notes: "Thank you."
   },
@@ -72,6 +80,8 @@ export const INVOICES = [
     currency: "ZAR",
     subtotal: 1299.0,
     vatRate: 0.15,
+    debitOrderId: "",
+    booksInvoiceId: "",
     items: [{ description: "TabbyPay subscription, monthly", qty: 1, unitPrice: 1299.0 }],
     notes: "Please settle to avoid service interruption."
   },
@@ -87,6 +97,8 @@ export const INVOICES = [
     currency: "ZAR",
     subtotal: 5800.0,
     vatRate: 0.15,
+    debitOrderId: "",
+    booksInvoiceId: "",
     items: [{ description: "Campaign management retainer", qty: 1, unitPrice: 5800.0 }],
     notes: "Please settle to avoid service interruption."
   }
