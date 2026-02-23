@@ -425,13 +425,13 @@ export default function DebitOrders() {
               })}
 
               <button
-                style={styles.btn("secondary", loading)}
+                style={styles.btn("primary", loading)}
                 type="button"
                 disabled={loading}
                 onClick={load}
                 title="Re-fetch latest data from CRM"
               >
-                Sync to CRM Debit-Orders
+                Sync to CRM
               </button>
             </div>
           </div>
