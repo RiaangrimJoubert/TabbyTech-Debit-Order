@@ -64,10 +64,7 @@ export default function Clients() {
 
   const [initialLoading, setInitialLoading] = useState(true);
 
-  const selected = useMemo(
-    () => clients.find((c) => c.id === selectedId) || null,
-    [clients, selectedId]
-  );
+  const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
 
   const counts = useMemo(() => {
     const base = { All: clients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
@@ -92,7 +89,9 @@ export default function Clients() {
           (c.id || "").toLowerCase().includes(q) ||
           (c.primaryEmail || "").toLowerCase().includes(q) ||
           (c.secondaryEmail || "").toLowerCase().includes(q) ||
-          (c.zohoClientId || "").toLowerCase().includes(q)
+          (c.zohoClientId || "").toLowerCase().includes(q) ||
+          (c.debit?.paystackCustomerCode || "").toLowerCase().includes(q) ||
+          (c.debit?.paystackAuthorizationCode || "").toLowerCase().includes(q)
         );
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -153,7 +152,7 @@ export default function Clients() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Manual create modal
+  // Manual create modal (kept in code, UI entry button removed to reduce risk)
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: "",
@@ -224,7 +223,7 @@ export default function Clients() {
     showToast("Client created (manual).");
   }
 
-  // Edit modal
+  // Edit modal (UI-only)
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(null);
 
@@ -286,6 +285,85 @@ export default function Clients() {
       prev.map((c) => (c.id === selected.id ? { ...c, status: "Paused", updatedAt: new Date().toISOString() } : c))
     );
     showToast("Client disabled (UI-only).");
+  }
+
+  function downloadCsv(filename, rows) {
+    const csvEscape = (v) => {
+      const s = v === null || v === undefined ? "" : String(v);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+
+    const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+    const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
+  }
+
+  function onExportExcel() {
+    const exportRows = filtered.length > 0 ? filtered : clients;
+
+    const header = [
+      "Client ID",
+      "Client Name",
+      "Primary Email",
+      "Secondary Email",
+      "Phone",
+      "Owner",
+      "Industry",
+      "Risk",
+      "Status",
+      "Source",
+      "Zoho Client ID",
+      "Zoho Debit Order ID",
+      "Debit Status",
+      "Billing Cycle",
+      "Next Charge Date",
+      "Amount (ZAR)",
+      "Paystack Customer Code",
+      "Paystack Authorization Code",
+      "Retry Count",
+      "Last Transaction Reference",
+      "Failure Reason",
+      "Updated At",
+      "Notes",
+    ];
+
+    const body = exportRows.map((c) => [
+      c.id || "",
+      c.name || "",
+      c.primaryEmail || "",
+      c.secondaryEmail || "",
+      c.phone || "",
+      c.owner || "",
+      c.industry || "",
+      c.risk || "",
+      c.status || "",
+      c.source || "",
+      c.zohoClientId || "",
+      c.zohoDebitOrderId || "",
+      c.debit?.debitStatus || "",
+      c.debit?.billingCycle || "",
+      c.debit?.nextChargeDate || "",
+      c.debit?.amountZar ?? "",
+      c.debit?.paystackCustomerCode || "",
+      c.debit?.paystackAuthorizationCode || "",
+      c.debit?.retryCount ?? 0,
+      c.debit?.lastTransactionReference || "",
+      c.debit?.failureReason || "",
+      c.updatedAt || "",
+      c.notes || "",
+    ]);
+
+    downloadCsv(`tabbytech-clients-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...body]);
   }
 
   const css = `
@@ -378,13 +456,14 @@ export default function Clients() {
   .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
 
-  .tt-select {
+  /* Records-dropdown style (matches your purple dropdown look) */
+  .tt-dd {
     height: 34px;
-    border-radius: 999px;
-    border: 1px solid rgba(124,58,237,0.55);
-    background: var(--tt-black);
-    color: rgba(168,85,247,0.95);
-    padding: 0 42px 0 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(168,85,247,0.55);
+    background: rgba(0,0,0,0.22);
+    color: rgba(255,255,255,0.90);
+    padding: 0 40px 0 12px;
     font-size: 12px;
     font-weight: 900;
     letter-spacing: 0.2px;
@@ -402,21 +481,9 @@ export default function Clients() {
     background-position: 0 0, right 12px center;
     background-size: auto, 18px 18px;
   }
-
-  .tt-select:hover {
-    background: rgba(0,0,0,0.62);
-    box-shadow: 0 10px 26px rgba(0,0,0,0.32);
-  }
-
-  .tt-select:focus {
-    border-color: rgba(168,85,247,0.75);
-    box-shadow: 0 0 0 6px rgba(124,58,237,0.18);
-  }
-
-  .tt-select option {
-    background: rgba(0,0,0,0.92);
-    color: rgba(168,85,247,0.95);
-  }
+  .tt-dd:hover { box-shadow: 0 10px 26px rgba(0,0,0,0.32); }
+  .tt-dd:focus { border-color: rgba(168,85,247,0.75); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
+  .tt-dd option { background: rgba(10,10,14,0.98); color: rgba(255,255,255,0.92); }
 
   .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .tt-tableScroll { overflow: auto; height: 100%; }
@@ -520,6 +587,7 @@ export default function Clients() {
     font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.2px;
+    white-space: nowrap;
   }
   .tt-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.14); }
   .tt-btn:active { transform: translateY(0px); }
@@ -566,22 +634,12 @@ export default function Clients() {
         <div className="tt-clientsHeader">
           <div className="tt-clientsTitleWrap">
             <h1 className="tt-clientsH1">Clients</h1>
-            <p className="tt-clientsSub">
-              Most client records sync from Zoho CRM. Manual creation is the exception, used only when a CRM record does not exist yet.
-              This screen pulls live records from your CRM API.
-            </p>
+            <p className="tt-clientsSub">Live data from Zoho CRM.</p>
           </div>
 
           <div className="tt-actionsRow">
-            <button type="button" className="tt-btn" onClick={() => showToast("Export is UI-only on this screen for now.")}>
-              Export
-            </button>
-            <button type="button" className="tt-btn" onClick={() => showToast("Import is UI-only on this screen for now.")}>
-              Import
-            </button>
-            <button type="button" className="tt-btn tt-btnPrimary" onClick={() => setCreateOpen(true)}>
-              <IconPlus />
-              New client
+            <button type="button" className="tt-btn tt-btnPrimary" onClick={onExportExcel}>
+              Export to Excel
             </button>
           </div>
         </div>
@@ -598,7 +656,7 @@ export default function Clients() {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <select className="tt-select" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} aria-label="Source filter">
+                <select className="tt-dd" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} aria-label="Source filter">
                   <option value="All">All sync</option>
                   <option value="Zoho">Zoho CRM</option>
                   <option value="Manual">Manual</option>
@@ -619,7 +677,7 @@ export default function Clients() {
                   className="tt-input"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by name, id, email, or Zoho id"
+                  placeholder="Search by name, id, email, Zoho id, or Paystack codes"
                   aria-label="Search clients"
                 />
               </div>
@@ -665,9 +723,7 @@ export default function Clients() {
                       <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>Loading clients</div>
-                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                            Syncing from Zoho CRM API.
-                          </div>
+                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>Syncing from Zoho CRM API.</div>
                         </div>
                       </td>
                     </tr>
@@ -929,8 +985,8 @@ export default function Clients() {
               <div className="tt-modalBody">
                 {createDuplicate ? (
                   <div className="tt-warn">
-                    Duplicate detected: <b>{createDuplicate.name}</b> already uses <b>{createDuplicate.primaryEmail}</b>.
-                    Create manually only when CRM does not have the record.
+                    Duplicate detected: <b>{createDuplicate.name}</b> already uses <b>{createDuplicate.primaryEmail}</b>. Create manually only when CRM does not have the
+                    record.
                   </div>
                 ) : null}
 
@@ -995,6 +1051,22 @@ export default function Clients() {
             <div className="tt-toast">{toast}</div>
           </div>
         ) : null}
+
+        {editOpen ? (
+          <div className="tt-toastWrap">
+            <div className="tt-toast">
+              Edit modal is still UI-only in this file. If you want it next, tell me and I will convert it to the same glass modal style used elsewhere.
+              <div style={{ marginTop: 10, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button type="button" className="tt-btn" onClick={() => setEditOpen(false)}>
+                  Close
+                </button>
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={saveEdit}>
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1025,14 +1097,6 @@ function IconSearch({ size = 16 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
       <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconPlus({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" stroke="rgba(255,255,255,0.92)" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
