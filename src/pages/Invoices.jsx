@@ -3,9 +3,43 @@ import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { INVOICES, money, calcTotals } from "../data/invoices.js";
 
+function getApiBase() {
+  const base = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
+  return base.endsWith("/") ? base.slice(0, -1) : base;
+}
+
+async function postJson(url, body) {
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+
+  const text = await resp.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!resp.ok) {
+    const msg =
+      (json && (json.error || json.message)) ||
+      `Request failed with status ${resp.status}`;
+    throw new Error(msg);
+  }
+
+  return json;
+}
+
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
+
+  // Per-invoice Books sync status
+  // { [invoiceId]: { state: "idle"|"loading"|"ok"|"error", message: string } }
+  const [booksState, setBooksState] = useState({});
 
   const filteredInvoices = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -31,12 +65,71 @@ export default function Invoices() {
   }, [q, status]);
 
   function onView(invoiceId) {
-  const inv = INVOICES.find((x) => String(x.id) === String(invoiceId));
-  const key = encodeURIComponent(String(inv?.customerEmail || inv?.customer || "").toLowerCase().trim());
-  const url = `/#/portal/${key}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
+    const inv = INVOICES.find((x) => String(x.id) === String(invoiceId));
+    const key = encodeURIComponent(
+      String(inv?.customerEmail || inv?.customer || "")
+        .toLowerCase()
+        .trim()
+    );
+    const url = `/#/portal/${key}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
 
+  async function onSyncToBooks(inv) {
+    const invoiceId = String(inv?.id || "");
+
+    // We only allow syncing when we have a debitOrderId to use.
+    // We do NOT guess this value, because that could sync the wrong client.
+    const debitOrderId = inv?.debitOrderId ? String(inv.debitOrderId) : "";
+    if (!debitOrderId) {
+      setBooksState((prev) => ({
+        ...prev,
+        [invoiceId]: {
+          state: "error",
+          message: "Missing debitOrderId on this invoice row"
+        }
+      }));
+      return;
+    }
+
+    setBooksState((prev) => ({
+      ...prev,
+      [invoiceId]: { state: "loading", message: "Creating invoice in Books..." }
+    }));
+
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) {
+        throw new Error("Missing VITE_API_BASE_URL");
+      }
+
+      const url = `${apiBase}/api/books/invoices/create-from-debit-order`;
+      const out = await postJson(url, { debitOrderId });
+
+      const booksInvoiceId = out?.booksInvoiceId ? String(out.booksInvoiceId) : "";
+      const invoiceNumber = out?.invoiceNumber ? String(out.invoiceNumber) : "";
+
+      const msgParts = [];
+      if (invoiceNumber) msgParts.push(invoiceNumber);
+      if (booksInvoiceId) msgParts.push(booksInvoiceId);
+
+      setBooksState((prev) => ({
+        ...prev,
+        [invoiceId]: {
+          state: "ok",
+          message: msgParts.length ? `Books: ${msgParts.join(" | ")}` : "Books invoice created"
+        }
+      }));
+    } catch (e) {
+      setBooksState((prev) => ({
+        ...prev,
+        [invoiceId]: {
+          state: "error",
+          message: String(e?.message || e)
+        }
+      }));
+    }
+  }
 
   function exportFilteredToExcel() {
     const rows = filteredInvoices.map((inv) => {
@@ -133,7 +226,7 @@ export default function Invoices() {
                 <th style={{ width: 170 }}>Issued</th>
                 <th style={{ width: 170 }}>Due</th>
                 <th style={{ width: 160, textAlign: "right" }}>Total</th>
-                <th style={{ width: 140, textAlign: "right" }}>Action</th>
+                <th style={{ width: 220, textAlign: "right" }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -145,6 +238,9 @@ export default function Invoices() {
                     : inv.status === "Unpaid"
                     ? "unpaid"
                     : "overdue";
+
+                const rowState = booksState[String(inv.id)] || { state: "idle", message: "" };
+                const canSync = Boolean(inv?.debitOrderId);
 
                 return (
                   <tr key={inv.id}>
@@ -161,6 +257,23 @@ export default function Invoices() {
                         <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
                           {inv.customerEmail}
                         </span>
+
+                        {rowState.state !== "idle" && (
+                          <span
+                            style={{
+                              marginTop: 4,
+                              color:
+                                rowState.state === "ok"
+                                  ? "rgba(180,255,210,0.85)"
+                                  : rowState.state === "error"
+                                  ? "rgba(255,170,170,0.85)"
+                                  : "rgba(255,255,255,0.65)",
+                              fontSize: 12
+                            }}
+                          >
+                            {rowState.message}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td>{inv.dateIssued}</td>
@@ -168,8 +281,8 @@ export default function Invoices() {
                     <td style={{ textAlign: "right", fontWeight: 700 }}>
                       {money(totals.total, inv.currency)}
                     </td>
-                    <td>
-                      <div className="tt-actions">
+                    <td style={{ textAlign: "right" }}>
+                      <div className="tt-actions" style={{ justifyContent: "flex-end" }}>
                         <button
                           type="button"
                           className="tt-linkbtn"
@@ -177,6 +290,25 @@ export default function Invoices() {
                           aria-label={`View invoice ${inv.id}`}
                         >
                           View
+                        </button>
+
+                        <button
+                          type="button"
+                          className="tt-linkbtn"
+                          onClick={() => onSyncToBooks(inv)}
+                          disabled={!canSync || rowState.state === "loading"}
+                          aria-label={`Sync invoice ${inv.id} to Books`}
+                          title={
+                            !canSync
+                              ? "This invoice row does not have a debitOrderId mapped yet"
+                              : "Creates or reuses a Books invoice for this debit order"
+                          }
+                          style={{
+                            opacity: !canSync ? 0.45 : 1,
+                            pointerEvents: !canSync ? "none" : "auto"
+                          }}
+                        >
+                          {rowState.state === "loading" ? "Syncing..." : "Sync to Books"}
                         </button>
                       </div>
                     </td>
