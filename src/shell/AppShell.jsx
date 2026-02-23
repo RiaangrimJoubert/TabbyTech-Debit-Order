@@ -22,50 +22,34 @@ const TITLES = {
 export default function AppShell({ onLogout }) {
   const [activeKey, setActiveKey] = useState("dashboard");
 
-  // Presets used when we jump from Clients -> Debit Orders
+  // NEW: store the last "open debit orders" request so DebitOrders can focus + highlight
   const [debitOrdersPreset, setDebitOrdersPreset] = useState({
-    presetSearch: "",
-    presetFocusCustomerCode: "",
+    search: "",
+    focusCustomerCode: "",
+    nonce: 0, // forces refresh even if same customer code clicked again
   });
 
   const pageTitle = useMemo(() => TITLES[activeKey] || "Dashboard", [activeKey]);
 
-  function openDebitOrdersFromClients(payload) {
-    let search = "";
-    let focusCustomerCode = "";
-
-    // Supports BOTH:
-    // onOpenDebitOrders("CUS_xxx")
-    // onOpenDebitOrders({ search: "CUS_xxx", focusCustomerCode: "CUS_xxx" })
-    if (typeof payload === "string") {
-      search = payload;
-      focusCustomerCode = payload;
-    } else if (payload && typeof payload === "object") {
-      search = String(payload.search || payload.presetSearch || "").trim();
-      focusCustomerCode = String(payload.focusCustomerCode || payload.presetFocusCustomerCode || "").trim();
-    }
-
-    const finalSearch = (focusCustomerCode || search || "").trim();
-
+  // NEW: Called by Clients when user clicks "View debit orders"
+  function openDebitOrdersFromClient({ search = "", focusCustomerCode = "" } = {}) {
     setDebitOrdersPreset({
-      presetSearch: finalSearch,
-      presetFocusCustomerCode: (focusCustomerCode || finalSearch || "").trim(),
+      search: String(search || ""),
+      focusCustomerCode: String(focusCustomerCode || ""),
+      nonce: Date.now(),
     });
-
-    // Switch view safely with existing AppShell navigation
     setActiveKey("debitorders");
   }
 
   const content = useMemo(() => {
-    if (activeKey === "clients") {
-      return <Clients onOpenDebitOrders={(payload) => openDebitOrdersFromClients(payload)} />;
-    }
+    if (activeKey === "clients") return <Clients onOpenDebitOrders={openDebitOrdersFromClient} />;
 
     if (activeKey === "debitorders") {
       return (
         <DebitOrders
-          presetSearch={debitOrdersPreset.presetSearch}
-          presetFocusCustomerCode={debitOrdersPreset.presetFocusCustomerCode}
+          key={`debitorders-${debitOrdersPreset.nonce}`}
+          presetSearch={debitOrdersPreset.search}
+          presetFocusCustomerCode={debitOrdersPreset.focusCustomerCode}
         />
       );
     }
@@ -75,11 +59,15 @@ export default function AppShell({ onLogout }) {
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
     return <Dashboard />;
-  }, [activeKey, debitOrdersPreset.presetSearch, debitOrdersPreset.presetFocusCustomerCode]);
+  }, [activeKey, debitOrdersPreset.nonce, debitOrdersPreset.search, debitOrdersPreset.focusCustomerCode]);
 
   return (
     <div className="tt-appshell">
-      <Sidebar activeKey={activeKey} onNavigate={(key) => setActiveKey(key)} onLogout={() => onLogout?.()} />
+      <Sidebar
+        activeKey={activeKey}
+        onNavigate={(key) => setActiveKey(key)}
+        onLogout={() => onLogout?.()}
+      />
 
       <main className="tt-shell-main">
         <header className="tt-shell-topbar">
@@ -91,7 +79,11 @@ export default function AppShell({ onLogout }) {
           <div className="tt-shell-actions">
             <div className="tt-shell-search">
               <span className="tt-shell-searchicon">⌕</span>
-              <input className="tt-shell-searchinput" placeholder="Search clients, batches, reports" aria-label="Search" />
+              <input
+                className="tt-shell-searchinput"
+                placeholder="Search clients, batches, reports"
+                aria-label="Search"
+              />
             </div>
 
             <button className="tt-shell-iconbtn" type="button" aria-label="Notifications">
