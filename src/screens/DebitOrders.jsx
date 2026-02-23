@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request } from "../api";
 
 const styles = {
@@ -117,20 +117,78 @@ const styles = {
     return base;
   },
 
-  select: {
+  dropdownWrap: { position: "relative", display: "inline-flex", alignItems: "center", gap: 10 },
+
+  dropdownLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 },
+
+  dropdownBtn: (open = false) => ({
     height: 38,
     padding: "0 12px",
     borderRadius: 12,
+    border: `1px solid ${open ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.12)"}`,
+    background: open ? "rgba(168,85,247,0.16)" : "rgba(0,0,0,0.18)",
+    color: "rgba(255,255,255,0.90)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    cursor: "pointer",
+    userSelect: "none",
+    transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease, background 160ms ease",
+    fontSize: 13,
+    fontWeight: 900,
+    letterSpacing: 0.2,
+    minWidth: 140,
+  }),
+
+  dropdownMenu: {
+    position: "absolute",
+    top: 44,
+    left: 0,
+    minWidth: 190,
+    borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(0,0,0,0.18)",
-    color: "rgba(255,255,255,0.86)",
-    outline: "none",
+    background: "rgba(10,10,14,0.92)",
+    boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(14px)",
+    overflow: "hidden",
+    zIndex: 50,
+  },
+
+  dropdownItem: (active = false) => ({
+    padding: "10px 12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    cursor: "pointer",
     fontSize: 13,
     fontWeight: 800,
     letterSpacing: 0.2,
-    cursor: "pointer",
+    color: "rgba(255,255,255,0.88)",
+    background: active ? "rgba(168,85,247,0.22)" : "transparent",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+  }),
+
+  dropdownTick: {
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(168,85,247,0.25)",
+    border: "1px solid rgba(168,85,247,0.35)",
   },
-  selectLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 },
+
+  caret: {
+    width: 18,
+    height: 18,
+    opacity: 0.9,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   tableScroll: { overflow: "auto", height: "100%" },
   table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13 },
@@ -213,6 +271,22 @@ function IconSearch({ size = 16 }) {
   );
 }
 
+function IconCaretDown({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 10l5 5 5-5" stroke="rgba(255,255,255,0.82)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconTick({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" stroke="rgba(255,255,255,0.92)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function currencyZar(n) {
   const val = Number(n || 0);
   return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
@@ -249,6 +323,101 @@ function downloadCsv(filename, rows) {
   a.remove();
 
   URL.revokeObjectURL(url);
+}
+
+function useOnClickOutside(ref, handler) {
+  useEffect(() => {
+    function onDown(e) {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target)) return;
+      handler();
+    }
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("touchstart", onDown);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("touchstart", onDown);
+    };
+  }, [ref, handler]);
+}
+
+function RecordsDropdown({ value, onChange, disabled }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const options = [
+    { value: 10, label: "10 records" },
+    { value: 20, label: "20 records" },
+    { value: 50, label: "50 records" },
+    { value: 100, label: "100 records" },
+  ];
+
+  const active = options.find((o) => o.value === value) || options[1];
+
+  function select(v) {
+    onChange(v);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={wrapRef} style={styles.dropdownWrap}>
+      <span style={styles.dropdownLabel}>Records</span>
+
+      <div style={{ position: "relative" }}>
+        <button
+          type="button"
+          style={styles.dropdownBtn(open)}
+          onClick={() => {
+            if (disabled) return;
+            setOpen((x) => !x);
+          }}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span>{active.label}</span>
+          <span style={styles.caret}>
+            <IconCaretDown />
+          </span>
+        </button>
+
+        {open && (
+          <div style={styles.dropdownMenu} role="listbox" aria-label="Records per page">
+            {options.map((o, idx) => {
+              const isActive = o.value === value;
+              return (
+                <div
+                  key={o.value}
+                  role="option"
+                  aria-selected={isActive}
+                  style={{
+                    ...styles.dropdownItem(isActive),
+                    borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                  }}
+                  onClick={() => select(o.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") select(o.value);
+                  }}
+                  tabIndex={0}
+                >
+                  <span>{o.label}</span>
+                  {isActive ? (
+                    <span style={styles.dropdownTick}>
+                      <IconTick />
+                    </span>
+                  ) : (
+                    <span style={{ width: 18, height: 18 }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function DebitOrders() {
@@ -294,7 +463,6 @@ export default function DebitOrders() {
       .filter((d) => (statusFilter === "All" ? true : safeText(d.status) === statusFilter))
       .filter((d) => {
         if (!q) return true;
-
         return (
           safeText(d?.name).toLowerCase().includes(q) ||
           safeText(d?.id).toLowerCase().includes(q) ||
@@ -421,16 +589,12 @@ export default function DebitOrders() {
         <div style={styles.panelHeader}>
           <div>
             <p style={styles.panelTitle}>All debit orders</p>
-            <p style={styles.panelMeta}>
-              {loading ? "Loading..." : `${pagedRows.length} shown`}
-            </p>
+            <p style={styles.panelMeta}>{loading ? "Loading..." : `${pagedRows.length} shown`}</p>
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Selected:</span>
-            <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>
-              {selectedIds.length}
-            </span>
+            <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>{selectedIds.length}</span>
           </div>
         </div>
 
@@ -470,13 +634,7 @@ export default function DebitOrders() {
                 );
               })}
 
-              <button
-                style={styles.btn("primary", loading)}
-                type="button"
-                disabled={loading}
-                onClick={load}
-                title="Re-fetch latest data from CRM"
-              >
+              <button style={styles.btn("primary", loading)} type="button" disabled={loading} onClick={load} title="Re-fetch latest data from CRM">
                 Sync to CRM
               </button>
             </div>
@@ -487,20 +645,11 @@ export default function DebitOrders() {
               Export to Excel
             </button>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={styles.selectLabel}>Records</span>
-              <select
-                style={styles.select}
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                aria-label="Records per page"
-              >
-                <option value={10}>10 records</option>
-                <option value={20}>20 records</option>
-                <option value={50}>50 records</option>
-                <option value={100}>100 records</option>
-              </select>
-            </div>
+            <RecordsDropdown
+              value={pageSize}
+              onChange={(v) => setPageSize(Number(v))}
+              disabled={loading}
+            />
 
             <button style={styles.btn("primary", pageClamped <= 1)} type="button" disabled={pageClamped <= 1} onClick={goPrev}>
               Back
@@ -564,9 +713,7 @@ export default function DebitOrders() {
                       </div>
                     </td>
 
-                    <td style={{ ...styles.td, ...styles.tdCenter }}>
-                      {d?.paystackCustomerCode || ""}
-                    </td>
+                    <td style={{ ...styles.td, ...styles.tdCenter }}>{d?.paystackCustomerCode || ""}</td>
 
                     <td style={styles.td}>
                       <span style={styles.badge(d.status)}>{d.status || "Draft"}</span>
