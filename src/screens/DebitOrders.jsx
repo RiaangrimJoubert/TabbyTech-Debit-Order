@@ -1,10 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request } from "../api";
 
-const TT_EVENTS = {
-  OPEN_DEBIT_ORDERS: "tt:openDebitOrders",
-};
-
 const styles = {
   page: { height: "100%", display: "flex", flexDirection: "column", gap: 16 },
   headerRow: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 },
@@ -30,7 +26,7 @@ const styles = {
     borderBottom: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(0,0,0,0.10)",
   },
-  panelTitle: { margin: 0, fontSize: 14, color: "rgba(255,255,255,0.86)", fontWeight: 800 },
+  panelTitle: { margin: 0, fontSize: 14, color: "rgba(255,255,255,0.86)" },
   panelMeta: { margin: 0, fontSize: 12, color: "rgba(255,255,255,0.55)" },
 
   toolbar: {
@@ -184,7 +180,14 @@ const styles = {
     border: "1px solid rgba(168,85,247,0.35)",
   },
 
-  caret: { width: 18, height: 18, opacity: 0.9, display: "inline-flex", alignItems: "center", justifyContent: "center" },
+  caret: {
+    width: 18,
+    height: 18,
+    opacity: 0.9,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   tableScroll: { overflow: "auto", height: "100%" },
   table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13 },
@@ -216,12 +219,18 @@ const styles = {
     background: active ? "rgba(168,85,247,0.12)" : "transparent",
     transition: "transform 160ms ease, background 160ms ease, box-shadow 160ms ease",
   }),
-  rowHover: { transform: "translateY(-1px)", boxShadow: "0 10px 24px rgba(0,0,0,0.28)", background: "rgba(255,255,255,0.04)" },
+  rowHover: {
+    transform: "translateY(-1px)",
+    boxShadow: "0 10px 24px rgba(0,0,0,0.28)",
+    background: "rgba(255,255,255,0.04)",
+  },
 
-  // Premium purple focus highlight
-  focusRow: {
-    background: "rgba(168,85,247,0.16)",
-    boxShadow: "inset 0 0 0 2px rgba(168,85,247,0.28), 0 18px 42px rgba(124,58,237,0.22)",
+  // premium purple focus line
+  rowFocus: {
+    background: "rgba(168,85,247,0.18)",
+    boxShadow: "0 18px 55px rgba(168,85,247,0.18)",
+    outline: "2px solid rgba(168,85,247,0.35)",
+    outlineOffset: "-2px",
   },
 
   badge: (tone) => {
@@ -251,7 +260,13 @@ const styles = {
   },
 
   checkbox: { width: 16, height: 16, accentColor: "#A855F7", cursor: "pointer" },
-  errorBar: { padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(239,68,68,0.10)", color: "rgba(255,255,255,0.85)", fontSize: 12 },
+  errorBar: {
+    padding: "10px 14px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(239,68,68,0.10)",
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+  },
 };
 
 function IconSearch({ size = 16 }) {
@@ -412,7 +427,53 @@ function RecordsDropdown({ value, onChange, disabled }) {
   );
 }
 
-export default function DebitOrders() {
+// Pull possible Zoho/email identifiers from a debit-order row, regardless of backend field naming.
+function getRowMatchTokens(row) {
+  const tokens = [];
+
+  const push = (v) => {
+    const s = safeText(v).trim();
+    if (s) tokens.push(s);
+  };
+
+  // common
+  push(row?.id);
+  push(row?.name);
+  push(row?.email);
+  push(row?.primaryEmail);
+
+  // paystack
+  push(row?.paystackCustomerCode);
+  push(row?.paystackAuthorizationCode);
+
+  // zoho fields (possible variants)
+  push(row?.zohoClientId);
+  push(row?.zohoCustomerId);
+  push(row?.zoho_contact_id);
+  push(row?.zoho_contactId);
+  push(row?.zohoContactId);
+
+  push(row?.zohoDebitOrderId);
+  push(row?.zoho_debitorder_id);
+  push(row?.zohoDebitorderId);
+
+  // nested client (common)
+  push(row?.client?.id);
+  push(row?.client?.zohoClientId);
+  push(row?.client?.email);
+  push(row?.client?.primaryEmail);
+  push(row?.clientId);
+  push(row?.clientZohoId);
+
+  return tokens;
+}
+
+/**
+ * presetSearch: pre-fill search box
+ * focusZohoClientId: focus row by Zoho CRM contact/account id
+ * focusEmail: backup focus by email
+ */
+export default function DebitOrders({ presetSearch = "", focusZohoClientId = "", focusEmail = "" }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [hoverRow, setHoverRow] = useState(null);
@@ -425,10 +486,8 @@ export default function DebitOrders() {
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
 
-  const [focusSearch, setFocusSearch] = useState("");
-  const [focusId, setFocusId] = useState("");
-
-  const rowRefs = useRef({});
+  const [focusRowId, setFocusRowId] = useState("");
+  const rowRefs = useRef({}); // id -> element
 
   async function load() {
     setLoading(true);
@@ -454,24 +513,13 @@ export default function DebitOrders() {
     load();
   }, []);
 
-  // Listen for "open debit orders from Clients"
+  // Apply preset search (from Clients)
   useEffect(() => {
-    function onOpen(e) {
-      const search = safeText(e?.detail?.search).trim();
-      if (!search) return;
-
-      setFocusSearch(search);
-      setQuery(search);
-      setStatusFilter("All");
-      setPage(1);
-
-      // Clear previous highlight, we will set it after rows filter
-      setFocusId("");
-    }
-
-    window.addEventListener(TT_EVENTS.OPEN_DEBIT_ORDERS, onOpen);
-    return () => window.removeEventListener(TT_EVENTS.OPEN_DEBIT_ORDERS, onOpen);
-  }, []);
+    const s = safeText(presetSearch).trim();
+    if (!s) return;
+    setQuery(s);
+    setPage(1);
+  }, [presetSearch]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -479,12 +527,10 @@ export default function DebitOrders() {
       .filter((d) => (statusFilter === "All" ? true : safeText(d.status) === statusFilter))
       .filter((d) => {
         if (!q) return true;
-        return (
-          safeText(d?.name).toLowerCase().includes(q) ||
-          safeText(d?.id).toLowerCase().includes(q) ||
-          safeText(d?.paystackCustomerCode).toLowerCase().includes(q) ||
-          safeText(d?.paystackAuthorizationCode).toLowerCase().includes(q)
-        );
+
+        // match across a wide set of fields
+        const tokens = getRowMatchTokens(d).map((x) => x.toLowerCase());
+        return tokens.some((t) => t.includes(q));
       });
   }, [rows, query, statusFilter]);
 
@@ -524,41 +570,49 @@ export default function DebitOrders() {
     return filtered.slice(start, end);
   }, [filtered, pageClamped, pageSize]);
 
-  // After filtering, pick the best match and highlight it
+  // Focus logic: prefer Zoho Client ID, fallback email
   useEffect(() => {
-    const s = focusSearch.trim().toLowerCase();
-    if (!s) return;
+    const zohoId = safeText(focusZohoClientId).trim();
+    const email = safeText(focusEmail).trim();
+    if (!zohoId && !email) return;
+    if (!rows.length) return;
 
-    const best =
-      filtered.find((d) => safeText(d?.paystackCustomerCode).toLowerCase() === s) ||
-      filtered.find((d) => safeText(d?.id).toLowerCase() === s) ||
-      filtered.find((d) => safeText(d?.name).toLowerCase().includes(s)) ||
-      filtered.find((d) => safeText(d?.paystackCustomerCode).toLowerCase().includes(s));
-
-    if (!best?.id) return;
-
-    setFocusId(best.id);
-
-    // If the best match is not on current page, jump to its page
-    const idx = filtered.findIndex((x) => x.id === best.id);
-    if (idx >= 0) {
-      const neededPage = Math.floor(idx / pageSize) + 1;
-      if (neededPage !== pageClamped) setPage(neededPage);
+    // make it easiest to find: push query to zoho id first else email
+    if (zohoId) {
+      setStatusFilter("All");
+      setQuery(zohoId);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusSearch, filtered, pageSize]);
+    if (email) {
+      setStatusFilter("All");
+      setQuery(email);
+    }
+  }, [focusZohoClientId, focusEmail, rows.length]);
 
-  // Scroll highlighted row into view when it is visible
   useEffect(() => {
-    if (!focusId) return;
-    const el = rowRefs.current[focusId];
-    if (!el) return;
-    try {
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-    } catch {
-      // ignore
-    }
-  }, [focusId, pageClamped, pageSize]);
+    const zohoId = safeText(focusZohoClientId).trim();
+    const email = safeText(focusEmail).trim();
+    if (!zohoId && !email) return;
+
+    const match = pagedRows.find((r) => {
+      const tokens = getRowMatchTokens(r);
+      if (zohoId) return tokens.some((t) => t === zohoId || t.includes(zohoId));
+      if (email) return tokens.some((t) => t.toLowerCase() === email.toLowerCase() || t.toLowerCase().includes(email.toLowerCase()));
+      return false;
+    });
+
+    if (!match) return;
+
+    setFocusRowId(match.id);
+    setSelectedIds([match.id]);
+
+    window.setTimeout(() => {
+      const el = rowRefs.current[match.id];
+      if (el && typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }, 60);
+  }, [focusZohoClientId, focusEmail, pagedRows]);
 
   const allVisibleSelected = pagedRows.length > 0 && pagedRows.every((x) => selectedIds.includes(x.id));
 
@@ -627,7 +681,10 @@ export default function DebitOrders() {
       <div style={styles.headerRow}>
         <div style={styles.titleWrap}>
           <h1 style={styles.title}>Debit Orders</h1>
-          <p style={styles.subtitle}>Live data from Zoho CRM.{loading ? " Loading..." : ""}</p>
+          <p style={styles.subtitle}>
+            Live data from Zoho CRM.
+            {loading ? " Loading..." : ""}
+          </p>
         </div>
       </div>
 
@@ -656,7 +713,7 @@ export default function DebitOrders() {
                 style={styles.input}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by id or Paystack codes"
+                placeholder="Search by id, Zoho id, email, or Paystack codes"
                 aria-label="Search debit orders"
               />
             </div>
@@ -682,8 +739,8 @@ export default function DebitOrders() {
                 );
               })}
 
-              <button style={styles.btn("primary", loading)} type="button" disabled={loading} onClick={load} title="Re-fetch latest data from CRM">
-                Sync to CRM
+              <button style={styles.btn("primary", loading)} type="button" disabled={loading} onClick={load} title="Re-fetch latest data">
+                {loading ? "Syncing..." : "Sync now"}
               </button>
             </div>
           </div>
@@ -732,7 +789,13 @@ export default function DebitOrders() {
               {pagedRows.map((d) => {
                 const isHover = hoverRow === d.id;
                 const isSelected = selectedIds.includes(d.id);
-                const isFocus = focusId && d.id === focusId;
+                const isFocused = focusRowId === d.id;
+
+                const rowStyle = {
+                  ...styles.row(isSelected),
+                  ...(isHover ? styles.rowHover : null),
+                  ...(isFocused ? styles.rowFocus : null),
+                };
 
                 return (
                   <tr
@@ -740,11 +803,7 @@ export default function DebitOrders() {
                     ref={(el) => {
                       if (el) rowRefs.current[d.id] = el;
                     }}
-                    style={{
-                      ...styles.row(isSelected),
-                      ...(isHover ? styles.rowHover : null),
-                      ...(isFocus ? styles.focusRow : null),
-                    }}
+                    style={rowStyle}
                     onMouseEnter={() => setHoverRow(d.id)}
                     onMouseLeave={() => setHoverRow(null)}
                   >
