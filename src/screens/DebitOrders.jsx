@@ -1,273 +1,825 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { request } from "../api";
+// src/screens/Clients.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { fetchZohoClients } from "../api/crm";
 
-const styles = {
-  page: { height: "100%", display: "flex", flexDirection: "column", gap: 16 },
-  headerRow: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 },
-  titleWrap: { display: "flex", flexDirection: "column", gap: 6 },
-  title: { margin: 0, fontSize: 26, letterSpacing: 0.2, color: "rgba(255,255,255,0.92)" },
-  subtitle: { margin: 0, fontSize: 13, color: "rgba(255,255,255,0.62)", lineHeight: 1.4 },
+export default function Clients({ onOpenDebitOrders }) {
+  // Live data only
+  const [clients, setClients] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [hoverId, setHoverId] = useState("");
 
-  glass: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)",
-    boxShadow: "0 18px 50px rgba(0,0,0,0.35)",
-    backdropFilter: "blur(14px)",
-    overflow: "hidden",
-  },
+  const [toast, setToast] = useState("");
+  function showToast(msg) {
+    setToast(msg);
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => setToast(""), 2200);
+  }
 
-  panelHeader: {
-    padding: "14px 14px 12px 14px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(0,0,0,0.10)",
-  },
-  panelTitle: { margin: 0, fontSize: 14, color: "rgba(255,255,255,0.86)" },
-  panelMeta: { margin: 0, fontSize: 12, color: "rgba(255,255,255,0.55)" },
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
-  toolbar: {
-    padding: 14,
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
+  const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState("");
+  const [lastRequestUrl, setLastRequestUrl] = useState("");
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  leftTools: { display: "flex", flexDirection: "column", gap: 10, flex: "1 1 520px", minWidth: 340 },
-  rightTools: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" },
+  // Records + paging (UI-only paging for now, still one fetch)
+  const [perPage, setPerPage] = useState(10);
+  const [page, setPage] = useState(1);
 
-  inputWrap: { position: "relative", width: "100%", maxWidth: 560 },
-  input: {
-    height: 38,
-    width: "100%",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(0,0,0,0.18)",
-    color: "rgba(255,255,255,0.88)",
-    outline: "none",
-    padding: "0 12px 0 38px",
-    fontSize: 13,
-  },
-  inputIcon: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", opacity: 0.7 },
+  const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
 
-  chipsRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
-
-  chip: (active) => ({
-    height: 34,
-    padding: "0 10px",
-    borderRadius: 999,
-    border: `1px solid ${active ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.12)"}`,
-    background: active ? "rgba(168,85,247,0.16)" : "rgba(255,255,255,0.05)",
-    color: active ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.76)",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    cursor: "pointer",
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: 0.2,
-    userSelect: "none",
-    transition: "transform 160ms ease, box-shadow 160ms ease, background 160ms ease",
-  }),
-
-  btn: (variant = "secondary", disabled = false) => {
-    const base = {
-      height: 38,
-      padding: "0 12px",
-      borderRadius: 12,
-      border: "1px solid rgba(255,255,255,0.12)",
-      background: "rgba(255,255,255,0.06)",
-      color: "rgba(255,255,255,0.86)",
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 10,
-      cursor: disabled ? "not-allowed" : "pointer",
-      userSelect: "none",
-      transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease",
-      fontSize: 13,
-      fontWeight: 700,
-      letterSpacing: 0.2,
-      opacity: disabled ? 0.55 : 1,
-      whiteSpace: "nowrap",
-    };
-
-    if (variant === "primary") {
-      return {
-        ...base,
-        background: "linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95))",
-        border: "1px solid rgba(168,85,247,0.55)",
-        boxShadow: "0 14px 34px rgba(124,58,237,0.28)",
-      };
-    }
-
-    if (variant === "danger") {
-      return {
-        ...base,
-        background: "rgba(239,68,68,0.14)",
-        border: "1px solid rgba(239,68,68,0.35)",
-      };
-    }
-
+  const counts = useMemo(() => {
+    const base = { All: clients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
+    for (const c of clients) base[c.status] = (base[c.status] || 0) + 1;
     return base;
-  },
+  }, [clients]);
 
-  dropdownWrap: { position: "relative", display: "inline-flex", alignItems: "center", gap: 10 },
-  dropdownLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 },
+  const filteredAll = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return clients
+      .filter((c) => (statusFilter === "All" ? true : c.status === statusFilter))
+      .filter((c) => {
+        if (!q) return true;
+        return (
+          (c.name || "").toLowerCase().includes(q) ||
+          (c.id || "").toLowerCase().includes(q) ||
+          (c.primaryEmail || "").toLowerCase().includes(q) ||
+          (c.secondaryEmail || "").toLowerCase().includes(q) ||
+          (c.zohoClientId || "").toLowerCase().includes(q) ||
+          (c.zohoDebitOrderId || "").toLowerCase().includes(q) ||
+          (c.debit?.paystackCustomerCode || "").toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [clients, query, statusFilter]);
 
-  dropdownBtn: (open = false) => ({
-    height: 38,
-    padding: "0 12px",
-    borderRadius: 12,
-    border: `1px solid ${open ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.12)"}`,
-    background: open ? "rgba(168,85,247,0.16)" : "rgba(0,0,0,0.18)",
-    color: "rgba(255,255,255,0.90)",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    cursor: "pointer",
-    userSelect: "none",
-    transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease, background 160ms ease",
-    fontSize: 13,
-    fontWeight: 900,
-    letterSpacing: 0.2,
-    minWidth: 140,
-  }),
+  const pageCount = useMemo(() => {
+    const n = Math.max(1, Math.ceil(filteredAll.length / perPage));
+    return n;
+  }, [filteredAll.length, perPage]);
 
-  dropdownMenu: {
-    position: "absolute",
-    top: 44,
-    left: 0,
-    minWidth: 190,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(10,10,14,0.92)",
-    boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
-    backdropFilter: "blur(14px)",
-    overflow: "hidden",
-    zIndex: 50,
-  },
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
-  dropdownItem: (active = false) => ({
-    padding: "10px 12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 800,
-    letterSpacing: 0.2,
-    color: "rgba(255,255,255,0.88)",
-    background: active ? "rgba(168,85,247,0.22)" : "transparent",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-  }),
+  const filtered = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return filteredAll.slice(start, start + perPage);
+  }, [filteredAll, page, perPage]);
 
-  dropdownTick: {
-    width: 18,
-    height: 18,
-    borderRadius: 6,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(168,85,247,0.25)",
-    border: "1px solid rgba(168,85,247,0.35)",
-  },
+  async function syncFromZoho({ silent = false } = {}) {
+    try {
+      setSyncError("");
+      setSyncing(true);
+      setZohoCrmStatus("Loading");
 
-  caret: {
-    width: 18,
-    height: 18,
-    opacity: 0.9,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      const resp = await fetchZohoClients({ page: 1, perPage: 200 });
+      setLastRequestUrl(resp.requestUrl || "");
 
-  tableScroll: { overflow: "auto", height: "100%" },
-  table: { width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13 },
-  th: {
-    position: "sticky",
-    top: 0,
-    zIndex: 2,
-    textAlign: "left",
-    padding: "12px 14px",
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: 0.2,
-    color: "rgba(255,255,255,0.62)",
-    background: "rgba(10,10,14,0.75)",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    backdropFilter: "blur(10px)",
-  },
-  td: {
-    padding: "12px 14px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.78)",
-    whiteSpace: "nowrap",
-  },
-  thCenter: { textAlign: "center" },
-  tdCenter: { textAlign: "center" },
+      if (!resp.ok) {
+        const msg = resp?.raw?.error || resp?.raw?.message || "Zoho sync failed.";
+        throw new Error(msg);
+      }
 
-  row: (active) => ({
-    cursor: "pointer",
-    background: active ? "rgba(168,85,247,0.12)" : "transparent",
-    transition: "transform 160ms ease, background 160ms ease, box-shadow 160ms ease",
-  }),
-  rowHover: {
-    transform: "translateY(-1px)",
-    boxShadow: "0 10px 24px rgba(0,0,0,0.28)",
-    background: "rgba(255,255,255,0.04)",
-  },
+      const zohoClients = Array.isArray(resp.clients) ? resp.clients : [];
 
-  // premium purple focus line
-  rowFocus: {
-    background: "rgba(168,85,247,0.18)",
-    boxShadow: "0 18px 55px rgba(168,85,247,0.18)",
-    outline: "2px solid rgba(168,85,247,0.35)",
-    outlineOffset: "-2px",
-  },
+      setClients(() => {
+        const next = [...zohoClients];
 
-  badge: (tone) => {
-    const map = {
-      Live: { bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.30)" },
-      Paused: { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.32)" },
-      Cancelled: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)" },
-      Draft: { bg: "rgba(168,85,247,0.16)", bd: "rgba(168,85,247,0.32)" },
-      Scheduled: { bg: "rgba(99,102,241,0.16)", bd: "rgba(99,102,241,0.32)" },
-      Paid: { bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.30)" },
-      Unpaid: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)" },
-    };
-    const t = map[tone] || { bg: "rgba(255,255,255,0.06)", bd: "rgba(255,255,255,0.14)" };
-    return {
-      height: 22,
-      padding: "0 10px",
-      borderRadius: 999,
-      display: "inline-flex",
-      alignItems: "center",
-      border: `1px solid ${t.bd}`,
-      background: t.bg,
-      color: "rgba(255,255,255,0.86)",
-      fontSize: 11,
-      fontWeight: 800,
-      letterSpacing: 0.2,
-    };
-  },
+        const stillExists = next.some((c) => c.id === selectedId);
+        if (!stillExists) {
+          const first = next[0]?.id || "";
+          setSelectedId(first);
+        }
 
-  checkbox: { width: 16, height: 16, accentColor: "#A855F7", cursor: "pointer" },
-  errorBar: {
-    padding: "10px 14px",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(239,68,68,0.10)",
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 12,
-  },
-};
+        if (!selectedId && next[0]?.id) {
+          setSelectedId(next[0].id);
+        }
+
+        return next;
+      });
+
+      setZohoCrmStatus("Connected");
+      if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
+    } catch (e) {
+      const msg = e?.message || String(e);
+      const urlNote = lastRequestUrl ? ` Request: ${lastRequestUrl}` : "";
+      setSyncError(`${msg}${urlNote}`.trim());
+      setZohoCrmStatus("Error");
+      if (!silent) showToast(`Sync failed: ${msg}`);
+    } finally {
+      setSyncing(false);
+      setInitialLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    syncFromZoho({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function onExportExcel() {
+    const exportRows = filteredAll.length ? filteredAll : clients;
+
+    const header = [
+      "Client ID",
+      "Client Name",
+      "Primary Email",
+      "Secondary Email",
+      "Phone",
+      "Status",
+      "Zoho Client ID",
+      "Zoho Debit Order ID",
+      "Billing Cycle",
+      "Next Charge Date",
+      "Debit Status",
+      "Amount",
+      "Paystack Customer Code",
+      "Paystack Authorization Code",
+      "Updated At",
+    ];
+
+    const body = exportRows.map((c) => [
+      c.id || "",
+      c.name || "",
+      c.primaryEmail || "",
+      c.secondaryEmail || "",
+      c.phone || "",
+      c.status || "",
+      c.zohoClientId || "",
+      c.zohoDebitOrderId || "",
+      c.debit?.billingCycle || "",
+      c.debit?.nextChargeDate || "",
+      c.debit?.debitStatus || "",
+      c.debit?.amountZar ?? "",
+      c.debit?.paystackCustomerCode || "",
+      c.debit?.paystackAuthorizationCode || "",
+      c.updatedAt || "",
+    ]);
+
+    downloadCsv(`tabbytech-clients-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...body]);
+    showToast("Exported clients to CSV.");
+  }
+
+  function goPrev() {
+    setPage((p) => Math.max(1, p - 1));
+  }
+  function goNext() {
+    setPage((p) => Math.min(pageCount, p + 1));
+  }
+
+  function onViewDebitOrders() {
+    if (!selected) return;
+
+    // Prefer Zoho CRM client id, then email, then Paystack customer code
+    const focusKey =
+      (selected?.zohoClientId || "").trim() ||
+      (selected?.primaryEmail || "").trim() ||
+      (selected?.debit?.paystackCustomerCode || "").trim();
+
+    if (!focusKey) {
+      showToast("No Zoho client id, email, or customer code available for this client.");
+      return;
+    }
+
+    // presetSearch should match focusKey so DebitOrders filters down and focus works.
+    const presetSearch = focusKey;
+
+    if (typeof onOpenDebitOrders === "function") {
+      onOpenDebitOrders({ presetSearch, focusKey });
+      return;
+    }
+
+    showToast("Debit Orders navigation is not wired in AppShell yet.");
+  }
+
+  function onViewBatches() {
+    showToast("Batches page navigation can be wired next.");
+  }
+
+  function onOpenZoho() {
+    showToast("Open in Zoho can be wired once we confirm the CRM record URL format.");
+  }
+
+  const css = `
+  .tt-clients {
+    width: 100%;
+    height: 100%;
+    color: rgba(255,255,255,0.92);
+    --tt-purple: rgba(124,58,237,0.95);
+    --tt-purple2: rgba(168,85,247,0.95);
+    --tt-black: rgba(0,0,0,0.55);
+    --tt-black2: rgba(0,0,0,0.35);
+  }
+
+  .tt-clientsWrap { height: 100%; display: flex; flex-direction: column; gap: 16px; }
+
+  .tt-clientsHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .tt-clientsTitleWrap { display: flex; flex-direction: column; gap: 6px; }
+  .tt-clientsH1 { margin: 0; font-size: 26px; letter-spacing: 0.2px; color: rgba(255,255,255,0.92); }
+  .tt-clientsSub { margin: 0; font-size: 13px; color: rgba(255,255,255,0.62); line-height: 1.4; max-width: 980px; }
+
+  .tt-actionsRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+
+  .tt-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; min-height: 0; flex: 1; }
+  .tt-glass {
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .tt-panelHeader {
+    padding: 14px 14px 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.10);
+  }
+
+  .tt-phLeft { display: flex; flex-direction: column; gap: 2px; }
+  .tt-phTitle { margin: 0; font-size: 14px; font-weight: 800; color: rgba(255,255,255,0.86); }
+  .tt-phMeta { margin: 0; font-size: 12px; color: rgba(255,255,255,0.55); }
+
+  .tt-controls {
+    padding: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .tt-inputWrap { position: relative; flex: 1 1 320px; max-width: 560px; }
+  .tt-inputIcon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.75; }
+  .tt-input {
+    width: 100%;
+    height: 38px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.18);
+    color: rgba(255,255,255,0.88);
+    outline: none;
+    padding: 0 12px 0 38px;
+    font-size: 13px;
+  }
+  .tt-input:focus { border-color: rgba(124,58,237,0.45); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
+
+  .tt-chipRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tt-chip {
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.76);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    user-select: none;
+    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+  }
+  .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
+  .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
+
+  .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+  .tt-tableScroll { overflow: auto; height: 100%; }
+  .tt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+  .tt-th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    text-align: left;
+    padding: 12px 14px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: rgba(255,255,255,0.62);
+    background: rgba(10,10,14,0.75);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(10px);
+  }
+  .tt-td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.78);
+    white-space: nowrap;
+  }
+  .tt-tr { cursor: pointer; transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease; }
+  .tt-trHover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); background: rgba(255,255,255,0.04); }
+  .tt-trActive { background: rgba(124,58,237,0.14); }
+
+  .tt-nameRow { display: flex; align-items: center; gap: 10px; }
+  .tt-name { font-weight: 900; color: rgba(255,255,255,0.90); }
+  .tt-subId { font-size: 12px; color: rgba(255,255,255,0.55); }
+
+  .tt-pill {
+    height: 22px;
+    padding: 0 10px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.80);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    gap: 6px;
+  }
+  .tt-pillZoho { border-color: rgba(124,58,237,0.38); background: rgba(124,58,237,0.16); }
+
+  .tt-badge { height: 22px; padding: 0 10px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 11px; font-weight: 900; letter-spacing: 0.2px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); }
+  .tt-bActive { border-color: rgba(34,197,94,0.30); background: rgba(34,197,94,0.14); color: rgba(255,255,255,0.86); }
+  .tt-bPaused { border-color: rgba(245,158,11,0.32); background: rgba(245,158,11,0.16); color: rgba(255,255,255,0.86); }
+  .tt-bRisk { border-color: rgba(239,68,68,0.32); background: rgba(239,68,68,0.16); color: rgba(255,255,255,0.86); }
+  .tt-bNew { border-color: rgba(124,58,237,0.32); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.90); }
+
+  .tt-right { padding: 14px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .tt-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .tt-stat {
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
+    padding: 12px;
+  }
+  .tt-statLabel { margin: 0; font-size: 12px; color: rgba(255,255,255,0.55); }
+  .tt-statValue { margin: 6px 0 0 0; font-size: 18px; font-weight: 900; color: rgba(255,255,255,0.90); letter-spacing: 0.2px; }
+
+  .tt-section {
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.14);
+    padding: 12px;
+  }
+  .tt-sectionTitle {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.78);
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+  }
+  .tt-kv { display: grid; grid-template-columns: 170px 1fr; gap: 10px; margin-top: 10px; }
+  .tt-k { font-size: 12px; color: rgba(255,255,255,0.55); }
+  .tt-v { font-size: 13px; color: rgba(255,255,255,0.84); overflow: hidden; text-overflow: ellipsis; }
+
+  .tt-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 10px 0; }
+
+  .tt-btn {
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.88);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+  .tt-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.14); }
+  .tt-btn:active { transform: translateY(0px); }
+  .tt-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .tt-btnPrimary {
+    background: linear-gradient(135deg, var(--tt-purple2), var(--tt-purple));
+    border-color: rgba(124,58,237,0.55);
+    box-shadow: 0 14px 34px rgba(124,58,237,0.28);
+    color: #fff;
+  }
+  .tt-btnPrimary:hover { filter: brightness(1.06); }
+
+  .tt-btnDanger {
+    background: rgba(239,68,68,0.14);
+    border-color: rgba(239,68,68,0.35);
+  }
+
+  .tt-toastWrap { position: fixed; bottom: 24px; right: 24px; z-index: 90; }
+  .tt-toast {
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.70);
+    backdrop-filter: blur(14px);
+    padding: 10px 12px;
+    color: rgba(255,255,255,0.92);
+    font-size: 13px;
+    box-shadow: 0 22px 70px rgba(0,0,0,0.45);
+    max-width: 420px;
+  }
+
+  @media (max-width: 1100px) {
+    .tt-grid { grid-template-columns: 1fr; }
+    .tt-kv { grid-template-columns: 1fr; }
+    .tt-split { grid-template-columns: 1fr; }
+  }
+  `;
+
+  return (
+    <div className="tt-clients">
+      <style>{css}</style>
+
+      <div className="tt-clientsWrap">
+        <div className="tt-clientsHeader">
+          <div className="tt-clientsTitleWrap">
+            <h1 className="tt-clientsH1">Clients</h1>
+            <p className="tt-clientsSub">Live data from Zoho CRM.</p>
+          </div>
+
+          <div className="tt-actionsRow">
+            <button type="button" className="tt-btn tt-btnPrimary" onClick={onExportExcel}>
+              Export to Excel
+            </button>
+          </div>
+        </div>
+
+        <div className="tt-grid">
+          <div className="tt-glass tt-tableWrap">
+            <div className="tt-panelHeader">
+              <div className="tt-phLeft">
+                <p className="tt-phTitle">Client list</p>
+                <p className="tt-phMeta">
+                  {filteredAll.length} total · Showing page {page} of {pageCount} · Zoho CRM: <b>{zohoCrmStatus}</b>
+                  {syncError ? <span style={{ marginLeft: 8, color: "rgba(239,68,68,0.9)" }}>({syncError})</span> : null}
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 }}>Records</span>
+
+                <select
+                  className="tt-btn"
+                  style={{
+                    height: 34,
+                    borderRadius: 999,
+                    padding: "0 42px 0 14px",
+                    border: "1px solid rgba(124,58,237,0.55)",
+                    background: "rgba(0,0,0,0.55)",
+                    color: "rgba(255,255,255,0.92)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: 0.2,
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    MozAppearance: "none",
+                    backgroundImage:
+                      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)), url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='%23A855F7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
+                    backgroundRepeat: "no-repeat, no-repeat",
+                    backgroundPosition: "0 0, right 12px center",
+                    backgroundSize: "auto, 18px 18px",
+                    cursor: "pointer",
+                  }}
+                  value={String(perPage)}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    setPerPage(Number.isFinite(n) ? n : 10);
+                    setPage(1);
+                  }}
+                  aria-label="Records per page"
+                >
+                  <option value="10">10 records</option>
+                  <option value="20">20 records</option>
+                  <option value="50">50 records</option>
+                  <option value="100">100 records</option>
+                </select>
+
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={goPrev} disabled={page <= 1}>
+                  Back
+                </button>
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={goNext} disabled={page >= pageCount}>
+                  Next
+                </button>
+
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={() => syncFromZoho()} disabled={syncing}>
+                  {syncing ? "Syncing..." : "Sync now"}
+                </button>
+              </div>
+            </div>
+
+            <div className="tt-controls">
+              <div className="tt-inputWrap">
+                <span className="tt-inputIcon">
+                  <IconSearch />
+                </span>
+                <input
+                  className="tt-input"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search by name, id, email, Zoho id, or customer code"
+                  aria-label="Search clients"
+                />
+              </div>
+
+              <div className="tt-chipRow">
+                {["All", "Active", "Paused", "Risk", "New"].map((k) => {
+                  const active = statusFilter === k;
+                  return (
+                    <div
+                      key={k}
+                      className={active ? "tt-chip tt-chipActive" : "tt-chip"}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setStatusFilter(k);
+                        setPage(1);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          setStatusFilter(k);
+                          setPage(1);
+                        }
+                      }}
+                      title={`Filter: ${k}`}
+                    >
+                      <span>{k}</span>
+                      <span style={{ opacity: 0.85 }}>{counts[k] ?? 0}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="tt-tableScroll">
+              <table className="tt-table">
+                <thead>
+                  <tr>
+                    <th className="tt-th">Client</th>
+                    <th className="tt-th">Source</th>
+                    <th className="tt-th">Debit status</th>
+                    <th className="tt-th">Next charge</th>
+                    <th className="tt-th">Amount</th>
+                    <th className="tt-th">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {initialLoading && (
+                    <tr>
+                      <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>Loading clients</div>
+                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
+                            Syncing from Zoho CRM API.
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+
+                  {!initialLoading &&
+                    filtered.map((c) => {
+                      const isActive = c.id === selectedId;
+                      const isHover = hoverId === c.id;
+                      const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
+
+                      return (
+                        <tr
+                          key={c.id}
+                          className={trClass}
+                          onMouseEnter={() => setHoverId(c.id)}
+                          onMouseLeave={() => setHoverId("")}
+                          onClick={() => setSelectedId(c.id)}
+                        >
+                          <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <div className="tt-nameRow">
+                                <span className="tt-name">{c.name}</span>
+                                <span className="tt-subId">{c.id}</span>
+                                <span className={statusBadgeClass(c.status)}>{c.status}</span>
+                              </div>
+                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
+                            </div>
+                          </td>
+
+                          <td className="tt-td">
+                            <span className="tt-pill tt-pillZoho">
+                              <Dot />
+                              Zoho
+                            </span>
+                          </td>
+
+                          <td className="tt-td">{c.debit?.debitStatus || "None"}</td>
+                          <td className="tt-td">{c.debit?.nextChargeDate ? fmtDateShort(c.debit.nextChargeDate) : "Not set"}</td>
+                          <td className="tt-td">{currencyZar(c.debit?.amountZar || 0)}</td>
+                          <td className="tt-td">{fmtDateTimeShort(c.updatedAt)}</td>
+                        </tr>
+                      );
+                    })}
+
+                  {!initialLoading && filteredAll.length === 0 && (
+                    <tr>
+                      <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>No clients found</div>
+                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
+                            Try a different search term or adjust the filters.
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="tt-glass" style={{ display: "flex", flexDirection: "column" }}>
+            <div className="tt-panelHeader">
+              <div className="tt-phLeft">
+                <p className="tt-phTitle">Client details</p>
+                <p className="tt-phMeta">Selection updates this panel</p>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <button type="button" className="tt-btn" onClick={() => showToast("Edit stays UI-only for now.")} disabled={!selected}>
+                  Edit
+                </button>
+                <button type="button" className="tt-btn tt-btnDanger" onClick={() => showToast("Disable stays UI-only for now.")} disabled={!selected}>
+                  Disable
+                </button>
+              </div>
+            </div>
+
+            <div className="tt-right">
+              {!selected ? (
+                <div className="tt-section" style={{ color: "rgba(255,255,255,0.70)" }}>
+                  Select a client to view details.
+                </div>
+              ) : (
+                <>
+                  <div className="tt-split">
+                    <div className="tt-stat">
+                      <p className="tt-statLabel">Debit status</p>
+                      <p className="tt-statValue">{selected.debit?.debitStatus || "None"}</p>
+                    </div>
+                    <div className="tt-stat">
+                      <p className="tt-statLabel">Amount</p>
+                      <p className="tt-statValue">{currencyZar(selected.debit?.amountZar || 0)}</p>
+                    </div>
+                  </div>
+
+                  <div className="tt-section">
+                    <p className="tt-sectionTitle">Profile</p>
+
+                    <div className="tt-kv">
+                      <div className="tt-k">Client</div>
+                      <div className="tt-v">{selected.name}</div>
+
+                      <div className="tt-k">Client id</div>
+                      <div className="tt-v">{selected.id}</div>
+
+                      <div className="tt-k">Zoho client id</div>
+                      <div className="tt-v">{selected.zohoClientId || "Not set"}</div>
+
+                      <div className="tt-k">Source</div>
+                      <div className="tt-v">Zoho CRM sync</div>
+
+                      <div className="tt-k">Primary email</div>
+                      <div className="tt-v">{selected.primaryEmail || "Not set"}</div>
+
+                      <div className="tt-k">Secondary email</div>
+                      <div className="tt-v">{selected.secondaryEmail || "Not set"}</div>
+
+                      <div className="tt-k">Email opt out</div>
+                      <div className="tt-v">{selected.emailOptOut ? "Yes" : "No"}</div>
+
+                      <div className="tt-k">Owner</div>
+                      <div className="tt-v">{selected.owner || "Not set"}</div>
+
+                      <div className="tt-k">Phone</div>
+                      <div className="tt-v">{selected.phone || "Not set"}</div>
+
+                      <div className="tt-k">Industry</div>
+                      <div className="tt-v">{selected.industry || "Not set"}</div>
+
+                      <div className="tt-k">Risk</div>
+                      <div className="tt-v">{selected.risk || "Not set"}</div>
+
+                      <div className="tt-k">Updated</div>
+                      <div className="tt-v">{fmtDateTimeLong(selected.updatedAt)}</div>
+                    </div>
+
+                    <div className="tt-divider" />
+
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <button type="button" className="tt-btn tt-btnPrimary" onClick={onViewDebitOrders}>
+                        View debit orders
+                      </button>
+                      <button type="button" className="tt-btn tt-btnPrimary" onClick={onViewBatches}>
+                        View batches
+                      </button>
+                      <button type="button" className="tt-btn tt-btnPrimary" onClick={onOpenZoho}>
+                        Open in Zoho
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="tt-section">
+                    <p className="tt-sectionTitle">Debit profile</p>
+
+                    <div className="tt-kv">
+                      <div className="tt-k">Billing cycle</div>
+                      <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div>
+
+                      <div className="tt-k">Next charge date</div>
+                      <div className="tt-v">{selected.debit?.nextChargeDate ? fmtDateShort(selected.debit.nextChargeDate) : "Not set"}</div>
+
+                      <div className="tt-k">Last attempt date</div>
+                      <div className="tt-v">{selected.debit?.lastAttemptDate ? fmtDateTimeLong(selected.debit.lastAttemptDate) : "Not set"}</div>
+
+                      <div className="tt-k">Last transaction reference</div>
+                      <div className="tt-v">{selected.debit?.lastTransactionReference || "Not set"}</div>
+
+                      <div className="tt-k">Failure reason</div>
+                      <div className="tt-v">{selected.debit?.failureReason || "None"}</div>
+
+                      <div className="tt-k">Status</div>
+                      <div className="tt-v">{selected.debit?.debitStatus || "None"}</div>
+
+                      <div className="tt-k">Books invoice id</div>
+                      <div className="tt-v">{selected.debit?.booksInvoiceId || "Not set"}</div>
+
+                      <div className="tt-k">Retry count</div>
+                      <div className="tt-v">{String(selected.debit?.retryCount ?? 0)}</div>
+
+                      <div className="tt-k">Debit run batch id</div>
+                      <div className="tt-v">{selected.debit?.debitRunBatchId || "Not set"}</div>
+
+                      <div className="tt-k">Paystack customer code</div>
+                      <div className="tt-v">{selected.debit?.paystackCustomerCode || "Not set"}</div>
+
+                      <div className="tt-k">Paystack authorization code</div>
+                      <div className="tt-v">{selected.debit?.paystackAuthorizationCode || "Not set"}</div>
+                    </div>
+
+                    <div className="tt-divider" />
+
+                    <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
+                      Actions like onboarding will be added later once backend workflows are ready.
+                    </div>
+                  </div>
+
+                  <div className="tt-section">
+                    <p className="tt-sectionTitle">Notes</p>
+                    <p style={{ margin: "10px 0 0 0", color: "rgba(255,255,255,0.70)", fontSize: 13, lineHeight: 1.5 }}>
+                      {selected.notes || "No notes yet."}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {toast ? (
+          <div className="tt-toastWrap">
+            <div className="tt-toast">{toast}</div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------
+   Small UI bits
+---------------------------- */
+
+function Dot() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: 999,
+        background: "rgba(255,255,255,0.85)",
+        boxShadow: "0 0 0 6px rgba(124,58,237,0.12)",
+        opacity: 0.9,
+      }}
+    />
+  );
+}
 
 function IconSearch({ size = 16 }) {
   return (
@@ -278,33 +830,9 @@ function IconSearch({ size = 16 }) {
   );
 }
 
-function IconCaretDown({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 10l5 5 5-5" stroke="rgba(255,255,255,0.82)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconTick({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M20 6 9 17l-5-5" stroke="rgba(255,255,255,0.92)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function currencyZar(n) {
-  const val = Number(n || 0);
-  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
-}
-
-function formatDate(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-}
+/* ---------------------------
+   Helpers
+---------------------------- */
 
 function safeText(v) {
   if (v === null || v === undefined) return "";
@@ -332,535 +860,31 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
-function useOnClickOutside(ref, handler) {
-  useEffect(() => {
-    function onDown(e) {
-      if (!ref.current) return;
-      if (ref.current.contains(e.target)) return;
-      handler();
-    }
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("touchstart", onDown);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("touchstart", onDown);
-    };
-  }, [ref, handler]);
+function currencyZar(n) {
+  const val = Number(n || 0);
+  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
 }
 
-function RecordsDropdown({ value, onChange, disabled }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useOnClickOutside(wrapRef, () => setOpen(false));
-
-  const options = [
-    { value: 10, label: "10 records" },
-    { value: 20, label: "20 records" },
-    { value: 50, label: "50 records" },
-    { value: 100, label: "100 records" },
-  ];
-
-  const active = options.find((o) => o.value === value) || options[1];
-
-  function select(v) {
-    onChange(v);
-    setOpen(false);
-  }
-
-  return (
-    <div ref={wrapRef} style={styles.dropdownWrap}>
-      <span style={styles.dropdownLabel}>Records</span>
-
-      <div style={{ position: "relative" }}>
-        <button
-          type="button"
-          style={styles.dropdownBtn(open)}
-          onClick={() => {
-            if (disabled) return;
-            setOpen((x) => !x);
-          }}
-          disabled={disabled}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-        >
-          <span>{active.label}</span>
-          <span style={styles.caret}>
-            <IconCaretDown />
-          </span>
-        </button>
-
-        {open && (
-          <div style={styles.dropdownMenu} role="listbox" aria-label="Records per page">
-            {options.map((o, idx) => {
-              const isActive = o.value === value;
-              return (
-                <div
-                  key={o.value}
-                  role="option"
-                  aria-selected={isActive}
-                  style={{
-                    ...styles.dropdownItem(isActive),
-                    borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
-                  }}
-                  onClick={() => select(o.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") select(o.value);
-                  }}
-                  tabIndex={0}
-                >
-                  <span>{o.label}</span>
-                  {isActive ? (
-                    <span style={styles.dropdownTick}>
-                      <IconTick />
-                    </span>
-                  ) : (
-                    <span style={{ width: 18, height: 18 }} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+function fmtDateShort(yyyyMmDd) {
+  const d = new Date(yyyyMmDd + "T00:00:00.000Z");
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
 }
 
-// Pull possible Zoho/email identifiers from a debit-order row, regardless of backend field naming.
-function getRowMatchTokens(row) {
-  const tokens = [];
-
-  const push = (v) => {
-    const s = safeText(v).trim();
-    if (s) tokens.push(s);
-  };
-
-  // common
-  push(row?.id);
-  push(row?.name);
-  push(row?.email);
-  push(row?.primaryEmail);
-
-  // paystack
-  push(row?.paystackCustomerCode);
-  push(row?.paystackAuthorizationCode);
-
-  // zoho fields (possible variants)
-  push(row?.zohoClientId);
-  push(row?.zohoCustomerId);
-  push(row?.zoho_contact_id);
-  push(row?.zoho_contactId);
-  push(row?.zohoContactId);
-
-  push(row?.zohoDebitOrderId);
-  push(row?.zoho_debitorder_id);
-  push(row?.zohoDebitorderId);
-
-  // nested client (common)
-  push(row?.client?.id);
-  push(row?.client?.zohoClientId);
-  push(row?.client?.email);
-  push(row?.client?.primaryEmail);
-  push(row?.clientId);
-  push(row?.clientZohoId);
-
-  return tokens;
+function fmtDateTimeShort(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
 }
 
-/**
- * presetSearch: pre-fill search box
- * focusZohoClientId: focus row by Zoho CRM contact/account id
- * focusEmail: backup focus by email
- */
-export default function DebitOrders({ presetSearch = "", focusZohoClientId = "", focusEmail = "" }) {
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [hoverRow, setHoverRow] = useState(null);
-  const [selectedIds, setSelectedIds] = useState([]);
+function fmtDateTimeLong(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
 
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState("");
-
-  const [pageSize, setPageSize] = useState(20);
-  const [page, setPage] = useState(1);
-
-  const [focusRowId, setFocusRowId] = useState("");
-  const rowRefs = useRef({}); // id -> element
-
-  async function load() {
-    setLoading(true);
-    setErrorText("");
-    try {
-      const json = await request("/api/debit-orders", { method: "GET" });
-
-      if (!json || json.ok !== true || !Array.isArray(json.data)) {
-        const preview = typeof json?.raw === "string" ? json.raw.slice(0, 140) : "";
-        throw new Error(preview ? `Unexpected response: ${preview}` : "Unexpected response from API");
-      }
-
-      setRows(json.data);
-    } catch (e) {
-      setRows([]);
-      setErrorText(safeText(e?.message || e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  // Apply preset search (from Clients)
-  useEffect(() => {
-    const s = safeText(presetSearch).trim();
-    if (!s) return;
-    setQuery(s);
-    setPage(1);
-  }, [presetSearch]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows
-      .filter((d) => (statusFilter === "All" ? true : safeText(d.status) === statusFilter))
-      .filter((d) => {
-        if (!q) return true;
-
-        // match across a wide set of fields
-        const tokens = getRowMatchTokens(d).map((x) => x.toLowerCase());
-        return tokens.some((t) => t.includes(q));
-      });
-  }, [rows, query, statusFilter]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [query, statusFilter, pageSize]);
-
-  const statusCounts = useMemo(() => {
-    const counts = { All: rows.length };
-    for (const r of rows) {
-      const s = safeText(r?.status) || "Draft";
-      counts[s] = (counts[s] || 0) + 1;
-    }
-    return counts;
-  }, [rows]);
-
-  const statusKeys = useMemo(() => {
-    const preferred = ["All", "Live", "Paused", "Cancelled", "Draft", "Scheduled", "Paid", "Unpaid"];
-    const present = new Set(Object.keys(statusCounts));
-    return preferred.filter((k) => present.has(k) || k === "All");
-  }, [statusCounts]);
-
-  const totalPages = useMemo(() => {
-    const n = Math.ceil((filtered.length || 0) / Number(pageSize || 1));
-    return n <= 0 ? 1 : n;
-  }, [filtered.length, pageSize]);
-
-  const pageClamped = useMemo(() => {
-    if (page < 1) return 1;
-    if (page > totalPages) return totalPages;
-    return page;
-  }, [page, totalPages]);
-
-  const pagedRows = useMemo(() => {
-    const start = (pageClamped - 1) * pageSize;
-    const end = start + pageSize;
-    return filtered.slice(start, end);
-  }, [filtered, pageClamped, pageSize]);
-
-  // Focus logic: prefer Zoho Client ID, fallback email
-  useEffect(() => {
-    const zohoId = safeText(focusZohoClientId).trim();
-    const email = safeText(focusEmail).trim();
-    if (!zohoId && !email) return;
-    if (!rows.length) return;
-
-    // make it easiest to find: push query to zoho id first else email
-    if (zohoId) {
-      setStatusFilter("All");
-      setQuery(zohoId);
-      return;
-    }
-    if (email) {
-      setStatusFilter("All");
-      setQuery(email);
-    }
-  }, [focusZohoClientId, focusEmail, rows.length]);
-
-  useEffect(() => {
-    const zohoId = safeText(focusZohoClientId).trim();
-    const email = safeText(focusEmail).trim();
-    if (!zohoId && !email) return;
-
-    const match = pagedRows.find((r) => {
-      const tokens = getRowMatchTokens(r);
-      if (zohoId) return tokens.some((t) => t === zohoId || t.includes(zohoId));
-      if (email) return tokens.some((t) => t.toLowerCase() === email.toLowerCase() || t.toLowerCase().includes(email.toLowerCase()));
-      return false;
-    });
-
-    if (!match) return;
-
-    setFocusRowId(match.id);
-    setSelectedIds([match.id]);
-
-    window.setTimeout(() => {
-      const el = rowRefs.current[match.id];
-      if (el && typeof el.scrollIntoView === "function") {
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
-      }
-    }, 60);
-  }, [focusZohoClientId, focusEmail, pagedRows]);
-
-  const allVisibleSelected = pagedRows.length > 0 && pagedRows.every((x) => selectedIds.includes(x.id));
-
-  function toggleSelect(id) {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
-
-  function toggleSelectAllVisible() {
-    if (allVisibleSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !pagedRows.some((x) => x.id === id)));
-      return;
-    }
-    setSelectedIds((prev) => {
-      const set = new Set(prev);
-      for (const x of pagedRows) set.add(x.id);
-      return Array.from(set);
-    });
-  }
-
-  function onExportExcel() {
-    const exportRows = filtered.length > 0 ? filtered : rows;
-
-    const header = [
-      "ID",
-      "Name",
-      "Paystack Customer Code",
-      "Amount",
-      "Billing Cycle",
-      "Next Charge Date",
-      "Status",
-      "Paystack Authorization Code",
-      "Retry Count",
-      "Last Transaction Reference",
-      "Failure Reason",
-      "Updated At",
-    ];
-
-    const body = exportRows.map((r) => [
-      r.id,
-      r.name,
-      r.paystackCustomerCode || "",
-      r.amount ?? "",
-      r.billingCycle || "",
-      r.nextChargeDate || "",
-      r.status || "",
-      r.paystackAuthorizationCode || "",
-      r.retryCount ?? 0,
-      r.lastTransactionReference || "",
-      r.failureReason || "",
-      r.updatedAt || "",
-    ]);
-
-    downloadCsv(`tabbytech-debit-orders-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...body]);
-  }
-
-  function goPrev() {
-    setPage((p) => Math.max(1, p - 1));
-  }
-
-  function goNext() {
-    setPage((p) => Math.min(totalPages, p + 1));
-  }
-
-  return (
-    <div style={styles.page}>
-      <div style={styles.headerRow}>
-        <div style={styles.titleWrap}>
-          <h1 style={styles.title}>Debit Orders</h1>
-          <p style={styles.subtitle}>
-            Live data from Zoho CRM.
-            {loading ? " Loading..." : ""}
-          </p>
-        </div>
-      </div>
-
-      <div style={{ ...styles.glass, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        {errorText ? <div style={styles.errorBar}>Error: {errorText}</div> : null}
-
-        <div style={styles.panelHeader}>
-          <div>
-            <p style={styles.panelTitle}>All debit orders</p>
-            <p style={styles.panelMeta}>{loading ? "Loading..." : `${pagedRows.length} shown`}</p>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Selected:</span>
-            <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>{selectedIds.length}</span>
-          </div>
-        </div>
-
-        <div style={styles.toolbar}>
-          <div style={styles.leftTools}>
-            <div style={styles.inputWrap}>
-              <span style={styles.inputIcon}>
-                <IconSearch />
-              </span>
-              <input
-                style={styles.input}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by id, Zoho id, email, or Paystack codes"
-                aria-label="Search debit orders"
-              />
-            </div>
-
-            <div style={styles.chipsRow}>
-              {statusKeys.map((k) => {
-                const active = statusFilter === k;
-                return (
-                  <div
-                    key={k}
-                    style={styles.chip(active)}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setStatusFilter(k)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") setStatusFilter(k);
-                    }}
-                    title={`Filter: ${k}`}
-                  >
-                    <span>{k}</span>
-                    <span style={{ opacity: 0.8 }}>{statusCounts[k] ?? 0}</span>
-                  </div>
-                );
-              })}
-
-              <button style={styles.btn("primary", loading)} type="button" disabled={loading} onClick={load} title="Re-fetch latest data">
-                {loading ? "Syncing..." : "Sync now"}
-              </button>
-            </div>
-          </div>
-
-          <div style={styles.rightTools}>
-            <button style={styles.btn("primary", false)} type="button" onClick={onExportExcel}>
-              Export to Excel
-            </button>
-
-            <RecordsDropdown value={pageSize} onChange={(v) => setPageSize(Number(v))} disabled={loading} />
-
-            <button style={styles.btn("primary", pageClamped <= 1)} type="button" disabled={pageClamped <= 1} onClick={goPrev}>
-              Back
-            </button>
-            <button style={styles.btn("primary", pageClamped >= totalPages)} type="button" disabled={pageClamped >= totalPages} onClick={goNext}>
-              Next
-            </button>
-          </div>
-        </div>
-
-        <div style={styles.tableScroll}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>
-                  <input
-                    style={styles.checkbox}
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleSelectAllVisible}
-                    aria-label="Select all visible"
-                    disabled={loading || pagedRows.length === 0}
-                  />
-                </th>
-                <th style={styles.th}>Debit order</th>
-                <th style={{ ...styles.th, ...styles.thCenter }}>Paystack Customer Code</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Amount</th>
-                <th style={styles.th}>Billing cycle</th>
-                <th style={styles.th}>Next charge</th>
-                <th style={styles.th}>Updated</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {pagedRows.map((d) => {
-                const isHover = hoverRow === d.id;
-                const isSelected = selectedIds.includes(d.id);
-                const isFocused = focusRowId === d.id;
-
-                const rowStyle = {
-                  ...styles.row(isSelected),
-                  ...(isHover ? styles.rowHover : null),
-                  ...(isFocused ? styles.rowFocus : null),
-                };
-
-                return (
-                  <tr
-                    key={d.id}
-                    ref={(el) => {
-                      if (el) rowRefs.current[d.id] = el;
-                    }}
-                    style={rowStyle}
-                    onMouseEnter={() => setHoverRow(d.id)}
-                    onMouseLeave={() => setHoverRow(null)}
-                  >
-                    <td style={{ ...styles.td, width: 42 }} onClick={(e) => e.stopPropagation()}>
-                      <input
-                        style={styles.checkbox}
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(d.id)}
-                        aria-label={`Select ${d.id}`}
-                      />
-                    </td>
-
-                    <td style={styles.td}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>{d.name || d.id}</span>
-                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{d.id}</span>
-                      </div>
-                    </td>
-
-                    <td style={{ ...styles.td, ...styles.tdCenter }}>{d?.paystackCustomerCode || ""}</td>
-
-                    <td style={styles.td}>
-                      <span style={styles.badge(d.status)}>{d.status || "Draft"}</span>
-                    </td>
-                    <td style={styles.td}>{currencyZar(d.amount)}</td>
-                    <td style={styles.td}>{d.billingCycle || ""}</td>
-                    <td style={styles.td}>{formatDate(d.nextChargeDate)}</td>
-                    <td style={styles.td}>{formatDate(d.updatedAt)}</td>
-                  </tr>
-                );
-              })}
-
-              {!loading && pagedRows.length === 0 && (
-                <tr>
-                  <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>No debit orders found</div>
-                      <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                        Try a different search term or adjust the status filter.
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
-
-              {loading && (
-                <tr>
-                  <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
-                    <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 13 }}>Loading debit orders...</div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+function statusBadgeClass(status) {
+  if (status === "Active") return "tt-badge tt-bActive";
+  if (status === "Paused") return "tt-badge tt-bPaused";
+  if (status === "Risk") return "tt-badge tt-bRisk";
+  return "tt-badge tt-bNew";
 }
