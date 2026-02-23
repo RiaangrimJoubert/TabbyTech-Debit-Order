@@ -1,273 +1,46 @@
 // src/screens/Clients.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
-const TT_EVENTS = {
-  OPEN_DEBIT_ORDERS: "tt:openDebitOrders",
-};
-
-function safeText(v) {
-  if (v === null || v === undefined) return "";
-  return String(v);
-}
-
-function downloadCsv(filename, rows) {
-  const csvEscape = (v) => {
-    const s = safeText(v);
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  };
-
-  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  URL.revokeObjectURL(url);
-}
-
-function currencyZar(n) {
-  const val = Number(n || 0);
-  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
-}
-
-function fmtDateShort(yyyyMmDd) {
-  const d = new Date(yyyyMmDd + "T00:00:00.000Z");
-  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-}
-
-function fmtDateTimeShort(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-}
-
-function fmtDateTimeLong(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-function statusBadgeClass(status) {
-  if (status === "Active") return "tt-badge tt-bActive";
-  if (status === "Paused") return "tt-badge tt-bPaused";
-  if (status === "Risk") return "tt-badge tt-bRisk";
-  return "tt-badge tt-bNew";
-}
-
-function Dot() {
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: 999,
-        background: "rgba(255,255,255,0.85)",
-        boxShadow: "0 0 0 6px rgba(124,58,237,0.12)",
-        opacity: 0.9,
-      }}
-    />
-  );
-}
-
-function IconSearch({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
-      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconCaretDown({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 10l5 5 5-5" stroke="rgba(255,255,255,0.82)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconTick({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M20 6 9 17l-5-5" stroke="rgba(255,255,255,0.92)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function useOnClickOutside(ref, handler) {
-  useEffect(() => {
-    function onDown(e) {
-      if (!ref.current) return;
-      if (ref.current.contains(e.target)) return;
-      handler();
-    }
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("touchstart", onDown);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("touchstart", onDown);
-    };
-  }, [ref, handler]);
-}
-
-function RecordsDropdown({ value, onChange, disabled }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useOnClickOutside(wrapRef, () => setOpen(false));
-
-  const styles = {
-    dropdownWrap: { position: "relative", display: "inline-flex", alignItems: "center", gap: 10 },
-    dropdownLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 },
-    dropdownBtn: (isOpen = false) => ({
-      height: 38,
-      padding: "0 12px",
-      borderRadius: 12,
-      border: `1px solid ${isOpen ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.12)"}`,
-      background: isOpen ? "rgba(168,85,247,0.16)" : "rgba(0,0,0,0.18)",
-      color: "rgba(255,255,255,0.90)",
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-      cursor: disabled ? "not-allowed" : "pointer",
-      userSelect: "none",
-      transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease, background 160ms ease",
-      fontSize: 13,
-      fontWeight: 900,
-      letterSpacing: 0.2,
-      minWidth: 140,
-      opacity: disabled ? 0.55 : 1,
-    }),
-    dropdownMenu: {
-      position: "absolute",
-      top: 44,
-      left: 0,
-      minWidth: 190,
-      borderRadius: 14,
-      border: "1px solid rgba(255,255,255,0.12)",
-      background: "rgba(10,10,14,0.92)",
-      boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
-      backdropFilter: "blur(14px)",
-      overflow: "hidden",
-      zIndex: 50,
-    },
-    dropdownItem: (active = false) => ({
-      padding: "10px 12px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-      cursor: "pointer",
-      fontSize: 13,
-      fontWeight: 800,
-      letterSpacing: 0.2,
-      color: "rgba(255,255,255,0.88)",
-      background: active ? "rgba(168,85,247,0.22)" : "transparent",
-      borderBottom: "1px solid rgba(255,255,255,0.06)",
-    }),
-    dropdownTick: {
-      width: 18,
-      height: 18,
-      borderRadius: 6,
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "rgba(168,85,247,0.25)",
-      border: "1px solid rgba(168,85,247,0.35)",
-    },
-    caret: {
-      width: 18,
-      height: 18,
-      opacity: 0.9,
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-  };
-
-  const options = [
-    { value: 10, label: "10 records" },
-    { value: 20, label: "20 records" },
-    { value: 50, label: "50 records" },
-    { value: 100, label: "100 records" },
-  ];
-
-  const active = options.find((o) => o.value === value) || options[0];
-
-  function select(v) {
-    onChange(v);
-    setOpen(false);
-  }
-
-  return (
-    <div ref={wrapRef} style={styles.dropdownWrap}>
-      <span style={styles.dropdownLabel}>Records</span>
-
-      <div style={{ position: "relative" }}>
-        <button
-          type="button"
-          style={styles.dropdownBtn(open)}
-          onClick={() => {
-            if (disabled) return;
-            setOpen((x) => !x);
-          }}
-          disabled={disabled}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-        >
-          <span>{active.label}</span>
-          <span style={styles.caret}>
-            <IconCaretDown />
-          </span>
-        </button>
-
-        {open && (
-          <div style={styles.dropdownMenu} role="listbox" aria-label="Records per page">
-            {options.map((o, idx) => {
-              const isActive = o.value === value;
-              return (
-                <div
-                  key={o.value}
-                  role="option"
-                  aria-selected={isActive}
-                  style={{
-                    ...styles.dropdownItem(isActive),
-                    borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
-                  }}
-                  onClick={() => select(o.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") select(o.value);
-                  }}
-                  tabIndex={0}
-                >
-                  <span>{o.label}</span>
-                  {isActive ? (
-                    <span style={styles.dropdownTick}>
-                      <IconTick />
-                    </span>
-                  ) : (
-                    <span style={{ width: 18, height: 18 }} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function Clients({ onOpenDebitOrders }) {
+  // Keep seed only for manual add patterns and shape reference, but do not mount UI with it.
+  const seed = useMemo(
+    () => [
+      {
+        id: "CL-10021",
+        source: "zoho",
+        zohoClientId: "642901000001234567",
+        zohoDebitOrderId: "642901000009876543",
+        name: "Mkhize Holdings",
+        primaryEmail: "finance@mkhize.co.za",
+        secondaryEmail: "",
+        emailOptOut: false,
+        owner: "Ops",
+        phone: "010 446 5754",
+        industry: "Commercial",
+        risk: "Low",
+        status: "Active",
+        debit: {
+          billingCycle: "Monthly - 25th",
+          nextChargeDate: "2026-02-25",
+          amountZar: 245000,
+          debitStatus: "Scheduled",
+          paystackCustomerCode: "CUS_f4v3u1n0b7",
+          paystackAuthorizationCode: "AUTH_9q8w7e6r5t",
+          booksInvoiceId: "INV-000184",
+          retryCount: 0,
+          debitRunBatchId: "BATCH-2401",
+          lastAttemptDate: "2026-02-06T22:00:00.000Z",
+          lastTransactionReference: "PAY-DO-778122",
+          failureReason: "",
+        },
+        updatedAt: "2026-02-08T20:26:00.000Z",
+        notes: "High volume accounts. Prefers batch notifications by email.",
+      },
+    ],
+    []
+  );
+
   // Live data only
   const [clients, setClients] = useState([]);
   const [selectedId, setSelectedId] = useState("");
@@ -319,7 +92,10 @@ export default function Clients({ onOpenDebitOrders }) {
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [clients, query, statusFilter]);
 
-  const pageCount = useMemo(() => Math.max(1, Math.ceil(filteredAll.length / perPage)), [filteredAll.length, perPage]);
+  const pageCount = useMemo(() => {
+    const n = Math.max(1, Math.ceil(filteredAll.length / perPage));
+    return n;
+  }, [filteredAll.length, perPage]);
 
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
@@ -434,23 +210,30 @@ export default function Clients({ onOpenDebitOrders }) {
   function onViewDebitOrders() {
     if (!selected) return;
 
-    const code = (selected?.debit?.paystackCustomerCode || "").trim();
-    const fallback = (selected?.id || selected?.name || "").trim();
-    const search = code || fallback;
+    // We want focus highlighting, so we prioritise Paystack Customer Code.
+    const code = String(selected?.debit?.paystackCustomerCode || "").trim();
 
-    if (!search) {
-      showToast("No customer code, id, or name to search with.");
+    // Search fallback (if code missing): still open Debit Orders, but no highlight guarantee.
+    const fallbackSearch = String(selected?.name || "").trim();
+
+    if (!onOpenDebitOrders) {
+      showToast("Navigation not wired: onOpenDebitOrders missing.");
       return;
     }
 
-    // Switch tab inside AppShell (safe) and send focus payload to DebitOrders screen.
-    onOpenDebitOrders?.(search);
+    if (code) {
+      // This is the important part: AppShell passes these into DebitOrders which highlights the row.
+      onOpenDebitOrders({ search: code, focusCustomerCode: code });
+      return;
+    }
 
-    window.dispatchEvent(
-      new CustomEvent(TT_EVENTS.OPEN_DEBIT_ORDERS, {
-        detail: { search, prefer: code ? "paystackCustomerCode" : "idOrName" },
-      })
-    );
+    if (fallbackSearch) {
+      onOpenDebitOrders({ search: fallbackSearch, focusCustomerCode: "" });
+      showToast("Client has no Paystack customer code, opened Debit Orders with a name search.");
+      return;
+    }
+
+    showToast("No customer code or name to search with.");
   }
 
   function onViewBatches() {
@@ -550,6 +333,35 @@ export default function Clients({ onOpenDebitOrders }) {
   }
   .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
   .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
+
+  .tt-recordsLabel { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 800; }
+  .tt-select {
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(124,58,237,0.55);
+    background: rgba(0,0,0,0.55);
+    color: rgba(255,255,255,0.92);
+    padding: 0 42px 0 14px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    outline: none;
+    cursor: pointer;
+
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+
+    background-image:
+      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='%23A855F7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat, no-repeat;
+    background-position: 0 0, right 12px center;
+    background-size: auto, 18px 18px;
+  }
+  .tt-select:hover { background: rgba(0,0,0,0.62); box-shadow: 0 10px 26px rgba(0,0,0,0.32); }
+  .tt-select:focus { border-color: rgba(168,85,247,0.75); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
+  .tt-select option { background: rgba(0,0,0,0.92); color: rgba(255,255,255,0.92); }
 
   .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .tt-tableScroll { overflow: auto; height: 100%; }
@@ -659,7 +471,7 @@ export default function Clients({ onOpenDebitOrders }) {
   .tt-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
 
   .tt-btnPrimary {
-    background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
+    background: linear-gradient(135deg, var(--tt-purple2), var(--tt-purple));
     border-color: rgba(124,58,237,0.55);
     box-shadow: 0 14px 34px rgba(124,58,237,0.28);
     color: #fff;
@@ -721,15 +533,22 @@ export default function Clients({ onOpenDebitOrders }) {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <RecordsDropdown
-                  value={perPage}
-                  onChange={(v) => {
-                    const n = Number(v);
+                <span className="tt-recordsLabel">Records</span>
+                <select
+                  className="tt-select"
+                  value={String(perPage)}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
                     setPerPage(Number.isFinite(n) ? n : 10);
                     setPage(1);
                   }}
-                  disabled={syncing}
-                />
+                  aria-label="Records per page"
+                >
+                  <option value="10">10 records</option>
+                  <option value="20">20 records</option>
+                  <option value="50">50 records</option>
+                  <option value="100">100 records</option>
+                </select>
 
                 <button type="button" className="tt-btn tt-btnPrimary" onClick={goPrev} disabled={page <= 1}>
                   Back
@@ -884,7 +703,12 @@ export default function Clients({ onOpenDebitOrders }) {
                 <button type="button" className="tt-btn" onClick={() => showToast("Edit stays UI-only for now.")} disabled={!selected}>
                   Edit
                 </button>
-                <button type="button" className="tt-btn tt-btnDanger" onClick={() => showToast("Disable stays UI-only for now.")} disabled={!selected}>
+                <button
+                  type="button"
+                  className="tt-btn tt-btnDanger"
+                  onClick={() => showToast("Disable stays UI-only for now.")}
+                  disabled={!selected}
+                >
                   Disable
                 </button>
               </div>
@@ -1026,4 +850,92 @@ export default function Clients({ onOpenDebitOrders }) {
       </div>
     </div>
   );
+}
+
+/* ---------------------------
+   Small UI bits
+---------------------------- */
+
+function Dot() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: 999,
+        background: "rgba(255,255,255,0.85)",
+        boxShadow: "0 0 0 6px rgba(124,58,237,0.12)",
+        opacity: 0.9,
+      }}
+    />
+  );
+}
+
+function IconSearch({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
+      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/* ---------------------------
+   Helpers
+---------------------------- */
+
+function safeText(v) {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+function downloadCsv(filename, rows) {
+  const csvEscape = (v) => {
+    const s = safeText(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+function currencyZar(n) {
+  const val = Number(n || 0);
+  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
+}
+
+function fmtDateShort(yyyyMmDd) {
+  const d = new Date(yyyyMmDd + "T00:00:00.000Z");
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function fmtDateTimeShort(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function fmtDateTimeLong(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function statusBadgeClass(status) {
+  if (status === "Active") return "tt-badge tt-bActive";
+  if (status === "Paused") return "tt-badge tt-bPaused";
+  if (status === "Risk") return "tt-badge tt-bRisk";
+  return "tt-badge tt-bNew";
 }
