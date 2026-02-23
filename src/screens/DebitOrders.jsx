@@ -118,16 +118,15 @@ const styles = {
   },
 
   dropdownWrap: { position: "relative", display: "inline-flex", alignItems: "center", gap: 10 },
-
   dropdownLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 800 },
 
   dropdownBtn: (open = false) => ({
     height: 38,
     padding: "0 12px",
-    borderRadius: 14,
+    borderRadius: 12,
     border: `1px solid ${open ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.12)"}`,
-    background: "rgba(0,0,0,0.70)",
-    color: "rgba(235,220,255,0.95)",
+    background: open ? "rgba(168,85,247,0.16)" : "rgba(0,0,0,0.18)",
+    color: "rgba(255,255,255,0.90)",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -138,22 +137,21 @@ const styles = {
     fontSize: 13,
     fontWeight: 900,
     letterSpacing: 0.2,
-    minWidth: 160,
-    boxShadow: open ? "0 0 0 3px rgba(168,85,247,0.16)" : "none",
+    minWidth: 140,
   }),
 
-  // SOLID BLACK MENU like Dashboard (no blue native look)
   dropdownMenu: {
     position: "absolute",
     top: 44,
     left: 0,
-    minWidth: 210,
+    minWidth: 190,
     borderRadius: 14,
-    border: "1px solid rgba(168,85,247,0.22)",
-    background: "#05050A",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.78)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(10,10,14,0.92)",
+    boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(14px)",
     overflow: "hidden",
-    zIndex: 200,
+    zIndex: 50,
   },
 
   dropdownItem: (active = false) => ({
@@ -164,10 +162,10 @@ const styles = {
     gap: 10,
     cursor: "pointer",
     fontSize: 13,
-    fontWeight: 900,
+    fontWeight: 800,
     letterSpacing: 0.2,
-    color: active ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.92)",
-    background: active ? "rgba(168,85,247,0.24)" : "transparent",
+    color: "rgba(255,255,255,0.88)",
+    background: active ? "rgba(168,85,247,0.22)" : "transparent",
     borderBottom: "1px solid rgba(255,255,255,0.06)",
   }),
 
@@ -227,7 +225,6 @@ const styles = {
     background: "rgba(255,255,255,0.04)",
   },
 
-  // Focus row styling (premium purple)
   rowFocus: {
     background: "rgba(168,85,247,0.18)",
     boxShadow: "0 18px 55px rgba(168,85,247,0.18)",
@@ -283,7 +280,7 @@ function IconSearch({ size = 16 }) {
 function IconCaretDown({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 10l5 5 5-5" stroke="rgba(235,220,255,0.88)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7 10l5 5 5-5" stroke="rgba(255,255,255,0.82)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -448,7 +445,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
   const [page, setPage] = useState(1);
 
   const [focusRowId, setFocusRowId] = useState("");
-  const rowRefs = useRef({}); // id -> element
+  const rowRefs = useRef({});
 
   async function load() {
     setLoading(true);
@@ -474,11 +471,12 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     load();
   }, []);
 
-  // Optional preset search
+  // Apply preset search coming from Clients (client id)
   useEffect(() => {
     const s = safeText(presetSearch).trim();
     if (!s) return;
     setQuery(s);
+    setStatusFilter("All");
     setPage(1);
   }, [presetSearch]);
 
@@ -488,15 +486,22 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       .filter((d) => (statusFilter === "All" ? true : safeText(d.status) === statusFilter))
       .filter((d) => {
         if (!q) return true;
-        return (
-          safeText(d?.name).toLowerCase().includes(q) ||
-          safeText(d?.id).toLowerCase().includes(q) ||
-          safeText(d?.paystackCustomerCode).toLowerCase().includes(q) ||
-          safeText(d?.paystackAuthorizationCode).toLowerCase().includes(q) ||
-          safeText(d?.client?.id).toLowerCase().includes(q) ||
-          safeText(d?.clientId).toLowerCase().includes(q) ||
-          safeText(d?.zohoClientId).toLowerCase().includes(q)
-        );
+
+        // Search broadly so client id can hit multiple shapes
+        const candidates = [
+          d?.clientId,
+          d?.zohoClientId,
+          d?.crmClientId,
+          d?.client?.id,
+          d?.id,
+          d?.name,
+          d?.paystackCustomerCode,
+          d?.paystackAuthorizationCode,
+        ]
+          .map((x) => safeText(x).toLowerCase())
+          .filter(Boolean);
+
+        return candidates.some((x) => x.includes(q));
       });
   }, [rows, query, statusFilter]);
 
@@ -536,44 +541,18 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     return filtered.slice(start, end);
   }, [filtered, pageClamped, pageSize]);
 
-  // Find the exact row for the Zoho CRM Client ID and focus it
-  function rowMatchesClientId(row, clientId) {
-    const wanted = safeText(clientId).trim();
-    if (!wanted) return false;
-
-    const a = safeText(row?.client?.id).trim();
-    const b = safeText(row?.clientId).trim();
-    const c = safeText(row?.zohoClientId).trim();
-
-    return a === wanted || b === wanted || c === wanted;
-  }
-
-  useEffect(() => {
-    const clientId = safeText(presetFocusClientId).trim();
-    if (!clientId) return;
-    if (!rows.length) return;
-
-    // Do not change query. We do a direct locate + jump to the correct page in the FULL filtered list.
-    // First, ensure status filter is All so we do not hide it.
-    setStatusFilter("All");
-
-    // We must wait 1 tick for statusFilter to apply
-    window.setTimeout(() => {
-      // Find index in "filtered" list after statusFilter change
-      const idx = filtered.findIndex((r) => rowMatchesClientId(r, clientId));
-      if (idx < 0) return;
-
-      const targetPage = Math.floor(idx / pageSize) + 1;
-      setPage(targetPage);
-    }, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presetFocusClientId, rows.length]);
-
+  // Focus logic: find the matching row by client id and highlight it
   useEffect(() => {
     const clientId = safeText(presetFocusClientId).trim();
     if (!clientId) return;
 
-    const match = pagedRows.find((r) => rowMatchesClientId(r, clientId));
+    const match =
+      pagedRows.find((r) => safeText(r?.clientId).trim() === clientId) ||
+      pagedRows.find((r) => safeText(r?.zohoClientId).trim() === clientId) ||
+      pagedRows.find((r) => safeText(r?.crmClientId).trim() === clientId) ||
+      pagedRows.find((r) => safeText(r?.client?.id).trim() === clientId) ||
+      pagedRows.find((r) => safeText(r?.id).trim() === clientId);
+
     if (!match) return;
 
     setFocusRowId(match.id);
@@ -584,8 +563,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       if (el && typeof el.scrollIntoView === "function") {
         el.scrollIntoView({ block: "center", behavior: "smooth" });
       }
-    }, 80);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, 60);
   }, [presetFocusClientId, pagedRows]);
 
   const allVisibleSelected = pagedRows.length > 0 && pagedRows.every((x) => selectedIds.includes(x.id));
@@ -612,7 +590,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     const header = [
       "ID",
       "Name",
-      "Client CRM ID",
+      "Client ID",
+      "Zoho Client ID",
       "Paystack Customer Code",
       "Amount",
       "Billing Cycle",
@@ -628,7 +607,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     const body = exportRows.map((r) => [
       r.id,
       r.name,
-      safeText(r?.client?.id) || safeText(r?.clientId) || safeText(r?.zohoClientId) || "",
+      r.clientId || "",
+      r.zohoClientId || "",
       r.paystackCustomerCode || "",
       r.amount ?? "",
       r.billingCycle || "",
@@ -686,7 +666,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                 style={styles.input}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by id, client id, or Paystack codes"
+                placeholder="Search by client id, debit order id, or Paystack codes"
                 aria-label="Search debit orders"
               />
             </div>
@@ -712,13 +692,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                 );
               })}
 
-              <button
-                style={styles.btn("primary", loading)}
-                type="button"
-                disabled={loading}
-                onClick={load}
-                title="Re-fetch latest data"
-              >
+              <button style={styles.btn("primary", loading)} type="button" disabled={loading} onClick={load} title="Re-fetch latest data">
                 {loading ? "Syncing..." : "Sync now"}
               </button>
             </div>
@@ -755,6 +729,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                   />
                 </th>
                 <th style={styles.th}>Debit order</th>
+                <th style={{ ...styles.th, ...styles.thCenter }}>Client ID</th>
                 <th style={{ ...styles.th, ...styles.thCenter }}>Paystack Customer Code</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Amount</th>
@@ -775,6 +750,9 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                   ...(isHover ? styles.rowHover : null),
                   ...(isFocused ? styles.rowFocus : null),
                 };
+
+                const clientIdCell =
+                  d?.clientId || d?.zohoClientId || d?.crmClientId || d?.client?.id || "";
 
                 return (
                   <tr
@@ -803,6 +781,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                       </div>
                     </td>
 
+                    <td style={{ ...styles.td, ...styles.tdCenter }}>{clientIdCell}</td>
                     <td style={{ ...styles.td, ...styles.tdCenter }}>{d?.paystackCustomerCode || ""}</td>
 
                     <td style={styles.td}>
@@ -818,7 +797,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
               {!loading && pagedRows.length === 0 && (
                 <tr>
-                  <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
+                  <td style={{ ...styles.td, padding: 20 }} colSpan={9}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>No debit orders found</div>
                       <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
@@ -831,7 +810,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
               {loading && (
                 <tr>
-                  <td style={{ ...styles.td, padding: 20 }} colSpan={8}>
+                  <td style={{ ...styles.td, padding: 20 }} colSpan={9}>
                     <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 13 }}>Loading debit orders...</div>
                   </td>
                 </tr>
