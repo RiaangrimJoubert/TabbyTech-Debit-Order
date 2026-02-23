@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 
 import Dashboard from "./Dashboard";
@@ -22,43 +22,53 @@ const TITLES = {
 export default function AppShell({ onLogout }) {
   const [activeKey, setActiveKey] = useState("dashboard");
 
-  // When you click "View debit orders" in Clients, we set these and jump to Debit Orders.
-  const [debitOrdersPresetSearch, setDebitOrdersPresetSearch] = useState("");
-  const [debitOrdersFocusKey, setDebitOrdersFocusKey] = useState("");
+  // NEW: payload for DebitOrders focus behaviour
+  const [debitOrdersPreset, setDebitOrdersPreset] = useState({
+    presetSearch: "",
+    presetFocusClientId: "",
+  });
+
+  // NEW: listen for cross-module navigation requests (Clients -> Debit Orders)
+  useEffect(() => {
+    function onNav(e) {
+      const detail = e?.detail || {};
+      const key = String(detail.key || "").trim();
+      if (!key) return;
+
+      if (key === "debitorders") {
+        setDebitOrdersPreset({
+          presetSearch: String(detail.presetSearch || ""),
+          presetFocusClientId: String(detail.presetFocusClientId || ""),
+        });
+        setActiveKey("debitorders");
+        return;
+      }
+
+      // Default module nav
+      setActiveKey(key);
+    }
+
+    window.addEventListener("tt:navigate", onNav);
+    return () => window.removeEventListener("tt:navigate", onNav);
+  }, []);
 
   const pageTitle = useMemo(() => TITLES[activeKey] || "Dashboard", [activeKey]);
 
-  function openDebitOrdersFromClient(payload) {
-    const presetSearch = (payload?.presetSearch || "").trim();
-    const focusKey = (payload?.focusKey || "").trim();
-
-    setDebitOrdersPresetSearch(presetSearch);
-    setDebitOrdersFocusKey(focusKey);
-
-    // Switch module using AppShell state, not react-router.
-    setActiveKey("debitorders");
-  }
-
   const content = useMemo(() => {
-    if (activeKey === "clients") {
-      return <Clients onOpenDebitOrders={openDebitOrdersFromClient} />;
-    }
-
-    if (activeKey === "debitorders") {
+    if (activeKey === "clients") return <Clients />;
+    if (activeKey === "debitorders")
       return (
         <DebitOrders
-          presetSearch={debitOrdersPresetSearch}
-          presetFocusKey={debitOrdersFocusKey}
+          presetSearch={debitOrdersPreset.presetSearch}
+          presetFocusClientId={debitOrdersPreset.presetFocusClientId}
         />
       );
-    }
-
     if (activeKey === "batches") return <Batches />;
     if (activeKey === "invoices") return <Invoices />;
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
     return <Dashboard />;
-  }, [activeKey, debitOrdersPresetSearch, debitOrdersFocusKey]);
+  }, [activeKey, debitOrdersPreset.presetSearch, debitOrdersPreset.presetFocusClientId]);
 
   return (
     <div className="tt-appshell">
