@@ -300,6 +300,20 @@
   height: 16px;
 }
 
+.tt-invoices .tt-customer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tt-invoices .tt-view-btn {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 /* Optional class support */
 .tt-invoices .tt-iconbtn.purple:hover,
 .tt-invoices .tt-iconbtn.tt-iconbtn-purple:hover {
