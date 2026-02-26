@@ -4,23 +4,28 @@
 /**
  * TabbyTech CRM API client
  *
- * Correct public endpoint (confirmed working):
- *   https://tabbytechdebitorder-913617844.development.catalystserverless.com/crm_api/api/clients?page=1&perPage=200
- *
  * Key requirements:
- * - Always call CRM API via the Catalyst serverless host (NOT onslate same-origin paths)
+ * - Always call CRM API via a proper API host (your SSL domain or Catalyst host)
  * - Parse response.items (array)
  * - Keep request headers simple to avoid unnecessary preflight/CORS noise
+ *
+ * Env priority:
+ * 1) VITE_API_BASE_URL (new standard for api.tabbytech.co.za)
+ * 2) VITE_CRM_API_BASE (legacy)
+ * 3) FALLBACK_HOST (dev catalyst host)
  */
 
 const FALLBACK_HOST =
   "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
 
-const RAW_BASE = (import.meta?.env?.VITE_CRM_API_BASE || "").trim();
+// Prefer your standard variable name, but also allow legacy name.
+const RAW_BASE =
+  (import.meta?.env?.VITE_API_BASE_URL || import.meta?.env?.VITE_CRM_API_BASE || "")
+    .trim();
 
 /**
  * Normalize to an origin host only.
- * If someone mistakenly provides a full path (like /server/crm_api), we strip it.
+ * If someone mistakenly provides a full path, we strip it.
  */
 function normalizeHost(input) {
   const s = (input || "").trim().replace(/\/+$/, "");
@@ -161,17 +166,13 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
     perPage
   )}`;
 
-  // Confirmed correct gateway path
+  // Confirmed gateway path
   const requestUrl = joinUrl(HOST, `/crm_api/api/clients?${qs}`);
 
   const data = await httpGetJson(requestUrl);
 
   // Backend response structure: { ok, page, perPage, count, items: [...] }
   const items = Array.isArray(data.items) ? data.items : [];
-
-  if (!Array.isArray(items)) {
-    throw new Error("API response did not include items array.");
-  }
 
   return {
     ok: data.ok !== false,
@@ -181,5 +182,7 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
     clients: items.map(mapApiItemToClient),
     raw: data,
     requestUrl,
+    hostUsed: HOST,
+    envUsed: RAW_BASE || "(fallback)",
   };
 }
