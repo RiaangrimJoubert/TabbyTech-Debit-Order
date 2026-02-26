@@ -43,6 +43,22 @@ function makeClientKey(inv) {
   return encodeURIComponent(email || name || String(inv?.id || ""));
 }
 
+const premiumBtnStyle = {
+  padding: "10px 14px",
+  borderRadius: 12,
+  fontWeight: 800,
+  letterSpacing: 0.2,
+  whiteSpace: "nowrap"
+};
+
+const premiumBtnSmallStyle = {
+  padding: "9px 12px",
+  borderRadius: 12,
+  fontWeight: 800,
+  letterSpacing: 0.2,
+  whiteSpace: "nowrap"
+};
+
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
@@ -114,8 +130,22 @@ export default function Invoices() {
     return clients;
   }, [filteredInvoices]);
 
+  const openClient = useMemo(() => {
+    if (!openClientKey) return null;
+    return clientGroups.find((c) => c.key === openClientKey) || null;
+  }, [openClientKey, clientGroups]);
+
   function toggleClient(key) {
     setOpenClientKey((prev) => (prev === key ? "" : key));
+  }
+
+  function closeClientView() {
+    setOpenClientKey("");
+    try {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      window.scrollTo(0, 0);
+    }
   }
 
   function openInvoiceHtml(inv) {
@@ -308,11 +338,49 @@ export default function Invoices() {
               onClick={exportFilteredToExcel}
               aria-label="Export filtered invoices to Excel"
               title="Exports exactly what is currently filtered in the table"
+              style={premiumBtnStyle}
             >
               Export to Excel
             </button>
           </div>
         </div>
+
+        {openClient ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              marginBottom: 14,
+              padding: "14px 14px",
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.03)"
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ fontWeight: 900, fontSize: 14, letterSpacing: 0.2 }}>
+                {openClient.name}
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.68)", fontSize: 12 }}>
+                {openClient.email || " "}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="tt-btn tt-btn-primary"
+                onClick={closeClientView}
+                aria-label="Back to clients list"
+                style={premiumBtnStyle}
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="tt-table-wrap">
           <table className="tt-table" role="table" aria-label="Clients table">
@@ -332,20 +400,21 @@ export default function Invoices() {
                 return (
                   <React.Fragment key={c.key}>
                     <tr>
-                      <td style={{ fontWeight: 700 }}>{c.name}</td>
+                      <td style={{ fontWeight: 800 }}>{c.name}</td>
                       <td style={{ color: "rgba(255,255,255,0.70)" }}>
                         {c.email || " "}
                       </td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+                      <td style={{ textAlign: "right", fontWeight: 800 }}>
                         {c.invoices.length}
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div className="tt-actions" style={{ justifyContent: "flex-end" }}>
                           <button
                             type="button"
-                            className="tt-linkbtn"
+                            className="tt-btn tt-btn-primary"
                             onClick={() => toggleClient(c.key)}
                             aria-label={`View invoices for ${c.name}`}
+                            style={premiumBtnStyle}
                           >
                             {isOpen ? "Hide invoices" : "View invoices"}
                           </button>
@@ -361,10 +430,24 @@ export default function Invoices() {
                               style={{
                                 color: "rgba(255,255,255,0.75)",
                                 fontSize: 12,
-                                marginBottom: 10
+                                marginBottom: 10,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 12
                               }}
                             >
-                              Invoices for {c.name}
+                              <span>Invoices for {c.name}</span>
+
+                              <button
+                                type="button"
+                                className="tt-btn tt-btn-primary"
+                                onClick={closeClientView}
+                                aria-label="Back to clients list"
+                                style={premiumBtnSmallStyle}
+                              >
+                                Back
+                              </button>
                             </div>
 
                             <div style={{ overflowX: "auto" }}>
@@ -376,7 +459,7 @@ export default function Invoices() {
                                     <th style={{ width: 170 }}>Issued</th>
                                     <th style={{ width: 170 }}>Due</th>
                                     <th style={{ width: 160, textAlign: "right" }}>Total</th>
-                                    <th style={{ width: 360, textAlign: "right" }}>Actions</th>
+                                    <th style={{ width: 420, textAlign: "right" }}>Actions</th>
                                   </tr>
                                 </thead>
 
@@ -396,7 +479,7 @@ export default function Invoices() {
 
                                     return (
                                       <tr key={inv.id}>
-                                        <td style={{ fontWeight: 700, letterSpacing: 0.2 }}>
+                                        <td style={{ fontWeight: 800, letterSpacing: 0.2 }}>
                                           {inv.id}
                                           {inv.booksInvoiceId ? (
                                             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.60)", marginTop: 4 }}>
@@ -432,7 +515,7 @@ export default function Invoices() {
                                         <td>{inv.dateIssued}</td>
                                         <td>{inv.dueDate}</td>
 
-                                        <td style={{ textAlign: "right", fontWeight: 700 }}>
+                                        <td style={{ textAlign: "right", fontWeight: 800 }}>
                                           {money(totals.total, inv.currency)}
                                         </td>
 
@@ -447,27 +530,29 @@ export default function Invoices() {
                                           >
                                             <button
                                               type="button"
-                                              className="tt-linkbtn"
+                                              className="tt-btn tt-btn-primary"
                                               onClick={() => openInvoiceHtml(inv)}
                                               aria-label={`Print invoice ${inv.id}`}
                                               title="Opens the HTML invoice in a new tab for printing"
+                                              style={premiumBtnSmallStyle}
                                             >
                                               Print
                                             </button>
 
                                             <button
                                               type="button"
-                                              className="tt-linkbtn"
+                                              className="tt-btn tt-btn-primary"
                                               onClick={() => downloadInvoicePdf(inv)}
                                               aria-label={`Download invoice ${inv.id} as PDF`}
                                               title="Downloads the invoice PDF when available. If not available, it opens the HTML invoice."
+                                              style={premiumBtnSmallStyle}
                                             >
                                               Download
                                             </button>
 
                                             <button
                                               type="button"
-                                              className="tt-linkbtn"
+                                              className="tt-btn tt-btn-primary"
                                               onClick={() => onSyncToBooks(inv)}
                                               disabled={!canSync || rowState.state === "loading"}
                                               aria-label={`Sync invoice ${inv.id} to Books`}
@@ -477,6 +562,7 @@ export default function Invoices() {
                                                   : "Creates or reuses a Books invoice for this debit order"
                                               }
                                               style={{
+                                                ...premiumBtnSmallStyle,
                                                 opacity: !canSync ? 0.45 : 1,
                                                 pointerEvents: !canSync ? "none" : "auto"
                                               }}
@@ -519,7 +605,7 @@ export default function Invoices() {
         </div>
 
         <div className="tt-footer-note">
-          View invoices expands the client row. Print opens the HTML invoice. Download will use PDF once the backend route exists.
+          View invoices expands the client row. Print opens the HTML invoice. Download uses PDF once the backend route exists.
         </div>
       </div>
     </div>
