@@ -33,9 +33,22 @@ async function postJson(url, body) {
   return json;
 }
 
+function normalizeKey(s) {
+  return String(s || "").toLowerCase().trim();
+}
+
+function makeClientKey(inv) {
+  const email = normalizeKey(inv?.customerEmail);
+  const name = normalizeKey(inv?.customer);
+  return encodeURIComponent(email || name || String(inv?.id || ""));
+}
+
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
+
+  // Which client is currently expanded
+  const [openClientKey, setOpenClientKey] = useState("");
 
   // Per-invoice Books sync status
   // { [invoiceId]: { state: "idle"|"loading"|"ok"|"error", message: string } }
@@ -54,7 +67,8 @@ export default function Invoices() {
         inv.customer,
         inv.customerEmail,
         inv.dateIssued,
-        inv.dueDate
+        inv.dueDate,
+        inv.booksInvoiceId
       ]
         .filter(Boolean)
         .join(" ")
@@ -64,15 +78,42 @@ export default function Invoices() {
     });
   }, [q, status]);
 
-  function onView(invoiceId) {
-    const inv = INVOICES.find((x) => String(x.id) === String(invoiceId));
-    const key = encodeURIComponent(
-      String(inv?.customerEmail || inv?.customer || "")
-        .toLowerCase()
-        .trim()
-    );
-    const url = `/#/portal/${key}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+  // Build client groups from invoices
+  const clientGroups = useMemo(() => {
+    const map = new Map();
+
+    filteredInvoices.forEach((inv) => {
+      const key = makeClientKey(inv);
+      const email = String(inv?.customerEmail || "").trim();
+      const name = String(inv?.customer || "").trim() || email || "Client";
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          name,
+          email,
+          invoices: []
+        });
+      }
+
+      map.get(key).invoices.push(inv);
+    });
+
+    const clients = Array.from(map.values());
+
+    // Sort clients by name
+    clients.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+    // Sort invoices inside each client by issued date desc
+    clients.forEach((c) => {
+      c.invoices.sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
+    });
+
+    return clients;
+  }, [filteredInvoices]);
+
+  function toggleClient(key) {
+    setOpenClientKey((prev) => (prev === key ? "" : key));
   }
 
   async function onSyncToBooks(inv) {
@@ -131,11 +172,65 @@ export default function Invoices() {
     }
   }
 
+  function openInvoiceHtml(inv) {
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      alert("Missing VITE_API_BASE_URL");
+      return;
+    }
+
+    const booksInvoiceId = String(inv?.booksInvoiceId || "").trim() || String(inv?.id || "").trim();
+    const url = `${apiBase}/api/invoice-html/${encodeURIComponent(booksInvoiceId)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function downloadInvoicePdf(inv) {
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      alert("Missing VITE_API_BASE_URL");
+      return;
+    }
+
+    const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
+    if (!booksInvoiceId) {
+      // Fallback: open HTML so user can Save as PDF
+      openInvoiceHtml(inv);
+      return;
+    }
+
+    // This route will be added in backend next.
+    // If it does not exist yet, we fallback to opening HTML invoice.
+    const url = `${apiBase}/api/invoice-pdf/${encodeURIComponent(booksInvoiceId)}`;
+
+    try {
+      const resp = await fetch(url, { method: "GET" });
+      if (!resp.ok) {
+        openInvoiceHtml(inv);
+        return;
+      }
+
+      const blob = await resp.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `${String(inv?.id || "invoice")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(objectUrl);
+    } catch {
+      openInvoiceHtml(inv);
+    }
+  }
+
   function exportFilteredToExcel() {
     const rows = filteredInvoices.map((inv) => {
       const totals = calcTotals(inv);
       return {
         "Invoice ID": inv.id,
+        "Books Invoice ID": inv.booksInvoiceId || "",
         Status: inv.status,
         Customer: inv.customer,
         "Customer Email": inv.customerEmail,
@@ -151,6 +246,7 @@ export default function Invoices() {
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
       { wch: 14 },
+      { wch: 20 },
       { wch: 10 },
       { wch: 28 },
       { wch: 30 },
@@ -180,7 +276,9 @@ export default function Invoices() {
         <div className="tt-header">
           <div className="tt-title">
             <h1>Invoices</h1>
-            <p>View opens a portal style invoice page in a new tab for printing and Save as PDF.</p>
+            <p>
+              This view groups invoices by client. Expand a client to print or download invoices.
+            </p>
           </div>
 
           <div className="tt-toolbar">
@@ -188,7 +286,7 @@ export default function Invoices() {
               className="tt-input"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search invoices by ID, customer, email, date..."
+              placeholder="Search client, email, invoice, status, date..."
               aria-label="Search invoices"
             />
 
@@ -217,109 +315,190 @@ export default function Invoices() {
         </div>
 
         <div className="tt-table-wrap">
-          <table className="tt-table" role="table" aria-label="Invoices table">
+          <table className="tt-table" role="table" aria-label="Clients invoices table">
             <thead>
               <tr>
-                <th style={{ width: 160 }}>Invoice</th>
-                <th style={{ width: 140 }}>Status</th>
-                <th>Customer</th>
-                <th style={{ width: 170 }}>Issued</th>
-                <th style={{ width: 170 }}>Due</th>
-                <th style={{ width: 160, textAlign: "right" }}>Total</th>
+                <th>Client</th>
+                <th style={{ width: 280 }}>Email</th>
+                <th style={{ width: 140, textAlign: "right" }}>Invoices</th>
                 <th style={{ width: 220, textAlign: "right" }}>Action</th>
               </tr>
             </thead>
-            <tbody>
-              {filteredInvoices.map((inv) => {
-                const totals = calcTotals(inv);
-                const dotClass =
-                  inv.status === "Paid"
-                    ? "paid"
-                    : inv.status === "Unpaid"
-                    ? "unpaid"
-                    : "overdue";
 
-                const rowState = booksState[String(inv.id)] || { state: "idle", message: "" };
-                const canSync = Boolean(inv?.debitOrderId);
+            <tbody>
+              {clientGroups.map((c) => {
+                const isOpen = openClientKey === c.key;
 
                 return (
-                  <tr key={inv.id}>
-                    <td style={{ fontWeight: 700, letterSpacing: 0.2 }}>{inv.id}</td>
-                    <td>
-                      <span className="tt-badge">
-                        <span className={`tt-dot ${dotClass}`} />
-                        {inv.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontWeight: 600 }}>{inv.customer}</span>
-                        <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
-                          {inv.customerEmail}
-                        </span>
-
-                        {rowState.state !== "idle" && (
-                          <span
-                            style={{
-                              marginTop: 4,
-                              color:
-                                rowState.state === "ok"
-                                  ? "rgba(180,255,210,0.85)"
-                                  : rowState.state === "error"
-                                  ? "rgba(255,170,170,0.85)"
-                                  : "rgba(255,255,255,0.65)",
-                              fontSize: 12
-                            }}
+                  <React.Fragment key={c.key}>
+                    <tr>
+                      <td style={{ fontWeight: 700 }}>
+                        {c.name}
+                      </td>
+                      <td style={{ color: "rgba(255,255,255,0.70)" }}>
+                        {c.email || " "}
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+                        {c.invoices.length}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <div className="tt-actions" style={{ justifyContent: "flex-end" }}>
+                          <button
+                            type="button"
+                            className="tt-linkbtn"
+                            onClick={() => toggleClient(c.key)}
+                            aria-label={`View invoices for ${c.name}`}
                           >
-                            {rowState.message}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td>{inv.dateIssued}</td>
-                    <td>{inv.dueDate}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>
-                      {money(totals.total, inv.currency)}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <div className="tt-actions" style={{ justifyContent: "flex-end" }}>
-                        <button
-                          type="button"
-                          className="tt-linkbtn"
-                          onClick={() => onView(inv.id)}
-                          aria-label={`View invoice ${inv.id}`}
-                        >
-                          View
-                        </button>
+                            {isOpen ? "Hide invoices" : "View invoices"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
 
-                        <button
-                          type="button"
-                          className="tt-linkbtn"
-                          onClick={() => onSyncToBooks(inv)}
-                          disabled={!canSync || rowState.state === "loading"}
-                          aria-label={`Sync invoice ${inv.id} to Books`}
-                          title={
-                            !canSync
-                              ? "This invoice row does not have a debitOrderId mapped yet"
-                              : "Creates or reuses a Books invoice for this debit order"
-                          }
-                          style={{
-                            opacity: !canSync ? 0.45 : 1,
-                            pointerEvents: !canSync ? "none" : "auto"
-                          }}
-                        >
-                          {rowState.state === "loading" ? "Syncing..." : "Sync to Books"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    {isOpen && (
+                      <tr>
+                        <td colSpan={4} style={{ padding: 0 }}>
+                          <div style={{ padding: 14 }}>
+                            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginBottom: 10 }}>
+                              Invoices for {c.name}
+                            </div>
+
+                            <div style={{ overflowX: "auto" }}>
+                              <table className="tt-table" role="table" aria-label={`Invoices for ${c.name}`}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 160 }}>Invoice</th>
+                                    <th style={{ width: 140 }}>Status</th>
+                                    <th style={{ width: 170 }}>Issued</th>
+                                    <th style={{ width: 170 }}>Due</th>
+                                    <th style={{ width: 160, textAlign: "right" }}>Total</th>
+                                    <th style={{ width: 320, textAlign: "right" }}>Actions</th>
+                                  </tr>
+                                </thead>
+
+                                <tbody>
+                                  {c.invoices.map((inv) => {
+                                    const totals = calcTotals(inv);
+
+                                    const dotClass =
+                                      inv.status === "Paid"
+                                        ? "paid"
+                                        : inv.status === "Unpaid"
+                                        ? "unpaid"
+                                        : "overdue";
+
+                                    const rowState = booksState[String(inv.id)] || { state: "idle", message: "" };
+                                    const canSync = Boolean(inv?.debitOrderId);
+
+                                    return (
+                                      <tr key={inv.id}>
+                                        <td style={{ fontWeight: 700, letterSpacing: 0.2 }}>
+                                          {inv.id}
+                                          {inv.booksInvoiceId ? (
+                                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.60)", marginTop: 4 }}>
+                                              Books: {String(inv.booksInvoiceId)}
+                                            </div>
+                                          ) : null}
+
+                                          {rowState.state !== "idle" ? (
+                                            <div
+                                              style={{
+                                                marginTop: 4,
+                                                color:
+                                                  rowState.state === "ok"
+                                                    ? "rgba(180,255,210,0.85)"
+                                                    : rowState.state === "error"
+                                                    ? "rgba(255,170,170,0.85)"
+                                                    : "rgba(255,255,255,0.65)",
+                                                fontSize: 12
+                                              }}
+                                            >
+                                              {rowState.message}
+                                            </div>
+                                          ) : null}
+                                        </td>
+
+                                        <td>
+                                          <span className="tt-badge">
+                                            <span className={`tt-dot ${dotClass}`} />
+                                            {inv.status}
+                                          </span>
+                                        </td>
+
+                                        <td>{inv.dateIssued}</td>
+                                        <td>{inv.dueDate}</td>
+                                        <td style={{ textAlign: "right", fontWeight: 700 }}>
+                                          {money(totals.total, inv.currency)}
+                                        </td>
+
+                                        <td style={{ textAlign: "right" }}>
+                                          <div className="tt-actions" style={{ justifyContent: "flex-end", flexWrap: "wrap", gap: 10 }}>
+                                            <button
+                                              type="button"
+                                              className="tt-linkbtn"
+                                              onClick={() => openInvoiceHtml(inv)}
+                                              aria-label={`Print invoice ${inv.id}`}
+                                              title="Opens the HTML invoice in a new tab for printing"
+                                            >
+                                              Print
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              className="tt-linkbtn"
+                                              onClick={() => downloadInvoicePdf(inv)}
+                                              aria-label={`Download invoice ${inv.id} as PDF`}
+                                              title="Downloads the invoice PDF when available. If not available yet, it opens the HTML invoice."
+                                            >
+                                              Download
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              className="tt-linkbtn"
+                                              onClick={() => onSyncToBooks(inv)}
+                                              disabled={!canSync || rowState.state === "loading"}
+                                              aria-label={`Sync invoice ${inv.id} to Books`}
+                                              title={
+                                                !canSync
+                                                  ? "This invoice row does not have a debitOrderId mapped yet"
+                                                  : "Creates or reuses a Books invoice for this debit order"
+                                              }
+                                              style={{
+                                                opacity: !canSync ? 0.45 : 1,
+                                                pointerEvents: !canSync ? "none" : "auto"
+                                              }}
+                                            >
+                                              {rowState.state === "loading" ? "Syncing..." : "Sync to Books"}
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+
+                                  {c.invoices.length === 0 && (
+                                    <tr>
+                                      <td colSpan={6} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
+                                        No invoices found for this client.
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
 
-              {filteredInvoices.length === 0 && (
+              {clientGroups.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
-                    No invoices match your current filters.
+                  <td colSpan={4} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
+                    No clients match your current filters.
                   </td>
                 </tr>
               )}
@@ -328,7 +507,7 @@ export default function Invoices() {
         </div>
 
         <div className="tt-footer-note">
-          View opens a new tab with the invoice and a list of all invoices for that customer underneath.
+          View invoices expands the client row. Print opens the HTML invoice in a new tab. Download will use PDF when the backend route exists.
         </div>
       </div>
     </div>
