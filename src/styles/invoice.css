@@ -64,7 +64,6 @@
   transition: background-color 5000s ease-in-out 0s;
 }
 
-/* ===== PREMIUM DROPDOWN STYLES ===== */
 /* ===== PREMIUM DROPDOWN STYLES - MATCHING STYLE ===== */
 .tt-select-wrap {
   position: relative;
@@ -143,29 +142,6 @@
 
 .tt-select-wrap-small .tt-select-chevron {
   right: 12px;
-  width: 14px;
-  height: 14px;
-}
-
-/* Dropdown Options Styling */
-.tt-select-premium option {
-  background: #0f1220;
-  color: #fff;
-  padding: 10px;
-  font-weight: 600;
-}
-
-.tt-select-chevron {
-  position: absolute;
-  right: 12px;
-  pointer-events: none;
-  color: rgba(167, 139, 250, 0.8);
-  width: 16px;
-  height: 16px;
-}
-
-.tt-select-wrap-small .tt-select-chevron {
-  right: 10px;
   width: 14px;
   height: 14px;
 }
