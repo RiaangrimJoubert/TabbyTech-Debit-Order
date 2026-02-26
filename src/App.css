@@ -1,3 +1,9 @@
+/* src/App.css */
+/* IMPORTANT:
+   This replaces the Vite starter CSS that was constraining #root and centering everything.
+   This file must NOT set max-width:1280, margin:auto, padding:2rem, or text-align:center on #root.
+*/
+
 html,
 body {
   height: 100%;
@@ -5,11 +11,31 @@ body {
   margin: 0;
 }
 
+body {
+  /* Keep body neutral. Your app shell/theme CSS should handle the premium look. */
+  background: #0b0b14;
+  color: rgba(255, 255, 255, 0.92);
+}
+
 #root {
-  width: 100%;
   height: 100%;
+  width: 100%;
   margin: 0;
   padding: 0;
   max-width: none;
   text-align: left;
+}
+
+/* Make media behave */
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Remove Vite starter leftovers */
+.logo,
+.card,
+.read-the-docs {
+  display: none;
 }
