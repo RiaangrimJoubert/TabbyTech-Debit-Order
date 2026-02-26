@@ -298,7 +298,7 @@ export default function Invoices() {
               onClick={exportFilteredToExcel}
               aria-label="Export filtered invoices to Excel"
             >
-              Export to Excel
+              Export
             </button>
           </div>
         </div>
