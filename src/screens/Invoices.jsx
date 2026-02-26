@@ -71,8 +71,8 @@ function StatusPill({ status }) {
     bg = "rgba(245,158,11,0.18)";
     fg = "rgba(245,158,11,0.95)";
   } else if (s === "Unpaid") {
-    bg = "rgba(99,102,241,0.18)";
-    fg = "rgba(139,92,246,0.95)";
+    bg = "rgba(139,92,246,0.18)";
+    fg = "rgba(199,175,255,0.98)";
   }
 
   return (
@@ -135,18 +135,7 @@ function IconButton({ title, ariaLabel, onClick, tone = "neutral", disabled = fa
         border: `1px solid ${bd}`,
         color: fg,
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.45 : 1,
-        transition: "transform 120ms ease, filter 120ms ease"
-      }}
-      onMouseDown={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.transform = "scale(0.97)";
-      }}
-      onMouseUp={(e) => {
-        e.currentTarget.style.transform = "scale(1)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "scale(1)";
+        opacity: disabled ? 0.45 : 1
       }}
     >
       {children}
@@ -175,18 +164,8 @@ function EyeIcon() {
 function PrintIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M7 8V4h10v4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7 17h10v3H7v-3Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
+      <path d="M7 8V4h10v4" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M7 17h10v3H7v-3Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
       <path
         d="M6 10h12a3 3 0 0 1 3 3v3h-4"
         stroke="currentColor"
@@ -206,24 +185,9 @@ function PrintIcon() {
 function DownloadIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M12 3v10"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M8 11l4 4 4-4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5 21h14"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M12 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 11l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M5 21h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -251,8 +215,6 @@ export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
   const [openClientKey, setOpenClientKey] = useState("");
-
-  // Per-invoice Books sync status
   const [booksState, setBooksState] = useState({});
 
   const filteredInvoices = useMemo(() => {
@@ -315,11 +277,6 @@ export default function Invoices() {
 
   function openClientInvoices(key) {
     setOpenClientKey(key);
-    try {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      window.scrollTo(0, 0);
-    }
   }
 
   function closeClientInvoices() {
@@ -468,6 +425,8 @@ export default function Invoices() {
     XLSX.writeFile(wb, filename, { bookType: "xlsx", compression: true });
   }
 
+  const actionColWidth = 220;
+
   return (
     <div className="tt-page">
       <div className="tt-surface">
@@ -477,91 +436,65 @@ export default function Invoices() {
             <p>Clients first. Use the eye icon to view invoices, then print or download.</p>
           </div>
 
-          <div className="tt-toolbar">
-            <input
-              className="tt-input"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search client, email, invoice, status, date..."
-              aria-label="Search invoices"
-            />
-
-            <select
-              className="tt-select"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              aria-label="Filter by status"
-            >
-              <option value="All">All statuses</option>
-              <option value="Paid">Paid</option>
-              <option value="Unpaid">Unpaid</option>
-              <option value="Overdue">Overdue</option>
-            </select>
-
-            <button
-              type="button"
-              className="tt-btn tt-btn-primary"
-              onClick={exportFilteredToExcel}
-              aria-label="Export filtered invoices to Excel"
-              title="Exports exactly what is currently filtered in the table"
-            >
-              Export to Excel
-            </button>
-          </div>
-        </div>
-
-        {openClient ? (
+          {/* Premium control row like Debit Orders */}
           <div
+            className="tt-toolbar"
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              gap: 12,
-              marginBottom: 12,
-              padding: "14px 14px",
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.03)"
+              gap: 14,
+              flexWrap: "wrap"
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "rgba(139,92,246,0.20)",
-                  border: "1px solid rgba(139,92,246,0.35)",
-                  fontWeight: 900,
-                  color: "rgba(199,175,255,0.98)"
-                }}
-              >
-                {initials(openClient.name)}
-              </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 520px" }}>
+              <input
+                className="tt-input"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search client, email, invoice, status, date..."
+                aria-label="Search invoices"
+                style={{ minWidth: 320, flex: "1 1 auto" }}
+              />
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <div style={{ fontWeight: 900, letterSpacing: 0.2 }}>
-                  {openClient.name}
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
-                  {openClient.email || " "}
-                </div>
-              </div>
+              <select
+                className="tt-select"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                aria-label="Filter by status"
+                style={{ width: 160, flex: "0 0 auto" }}
+              >
+                <option value="All">All statuses</option>
+                <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
+                <option value="Overdue">Overdue</option>
+              </select>
             </div>
 
-            <button
-              type="button"
-              className="tt-btn tt-btn-primary"
-              onClick={closeClientInvoices}
-              aria-label="Back to clients list"
-            >
-              Back
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
+              <button
+                type="button"
+                className="tt-btn tt-btn-primary"
+                onClick={exportFilteredToExcel}
+                aria-label="Export filtered invoices to Excel"
+                title="Exports exactly what is currently filtered in the table"
+              >
+                Export to Excel
+              </button>
+
+              {openClient ? (
+                <button
+                  type="button"
+                  className="tt-btn tt-btn-primary"
+                  onClick={closeClientInvoices}
+                  aria-label="Back to clients list"
+                >
+                  Back
+                </button>
+              ) : null}
+            </div>
           </div>
-        ) : null}
+        </div>
 
         <div className="tt-table-wrap">
           {!openClient ? (
@@ -569,15 +502,15 @@ export default function Invoices() {
               <thead>
                 <tr>
                   <th>Client</th>
-                  <th style={{ width: 320 }}>Invoice To</th>
-                  <th style={{ width: 140, textAlign: "right" }}>Invoices</th>
-                  <th style={{ width: 170, textAlign: "right" }}>Action</th>
+                  <th style={{ width: 360 }}>Invoice To</th>
+                  <th style={{ width: 120, textAlign: "right" }}>Invoices</th>
+                  <th style={{ width: actionColWidth, textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
 
               <tbody>
                 {clientGroups.map((c) => (
-                  <tr key={c.key}>
+                  <tr key={c.key} style={{ height: 56 }}>
                     <td style={{ fontWeight: 800 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <div
@@ -598,7 +531,7 @@ export default function Invoices() {
                         </div>
 
                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ fontWeight: 800 }}>{c.name}</span>
+                          <span style={{ fontWeight: 800, lineHeight: 1.1 }}>{c.name}</span>
                           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.62)" }}>
                             {c.email || " "}
                           </span>
@@ -606,16 +539,19 @@ export default function Invoices() {
                       </div>
                     </td>
 
-                    <td style={{ color: "rgba(255,255,255,0.72)" }}>
-                      {c.email || " "}
-                    </td>
+                    <td style={{ color: "rgba(255,255,255,0.72)" }}>{c.email || " "}</td>
 
-                    <td style={{ textAlign: "right", fontWeight: 800 }}>
-                      {c.invoices.length}
-                    </td>
+                    <td style={{ textAlign: "right", fontWeight: 800 }}>{c.invoices.length}</td>
 
                     <td style={{ textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: 10, justifyContent: "flex-end" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          alignItems: "center",
+                          gap: 10
+                        }}
+                      >
                         <IconButton
                           title="View invoices"
                           ariaLabel={`View invoices for ${c.name}`}
@@ -642,12 +578,12 @@ export default function Invoices() {
             <table className="tt-table" role="table" aria-label={`Invoices for ${openClient.name}`}>
               <thead>
                 <tr>
-                  <th style={{ width: 160 }}>Invoice ID</th>
-                  <th style={{ width: 220 }}>Created On</th>
-                  <th style={{ width: 220 }}>Due Date</th>
-                  <th style={{ width: 160, textAlign: "right" }}>Amount</th>
+                  <th style={{ width: 170 }}>Invoice ID</th>
+                  <th style={{ width: 160 }}>Created On</th>
+                  <th style={{ width: 160 }}>Due Date</th>
+                  <th style={{ width: 170, textAlign: "right" }}>Amount</th>
                   <th style={{ width: 160 }}>Status</th>
-                  <th style={{ width: 220, textAlign: "right" }}>Action</th>
+                  <th style={{ width: actionColWidth, textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
 
@@ -658,31 +594,33 @@ export default function Invoices() {
                   const canSync = Boolean(inv?.debitOrderId);
 
                   return (
-                    <tr key={inv.id}>
+                    <tr key={inv.id} style={{ height: 56 }}>
                       <td style={{ fontWeight: 900, letterSpacing: 0.2 }}>
-                        {inv.id}
-                        {inv.booksInvoiceId ? (
-                          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 4 }}>
-                            Books: {String(inv.booksInvoiceId)}
-                          </div>
-                        ) : null}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span>{inv.id}</span>
 
-                        {rowState.state !== "idle" ? (
-                          <div
-                            style={{
-                              marginTop: 4,
-                              fontSize: 12,
-                              color:
-                                rowState.state === "ok"
-                                  ? "rgba(180,255,210,0.85)"
-                                  : rowState.state === "error"
-                                  ? "rgba(255,170,170,0.85)"
-                                  : "rgba(255,255,255,0.65)"
-                            }}
-                          >
-                            {rowState.message}
-                          </div>
-                        ) : null}
+                          {inv.booksInvoiceId ? (
+                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+                              Books: {String(inv.booksInvoiceId)}
+                            </span>
+                          ) : null}
+
+                          {rowState.state !== "idle" ? (
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color:
+                                  rowState.state === "ok"
+                                    ? "rgba(180,255,210,0.85)"
+                                    : rowState.state === "error"
+                                    ? "rgba(255,170,170,0.85)"
+                                    : "rgba(255,255,255,0.65)"
+                              }}
+                            >
+                              {rowState.message}
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
 
                       <td>{formatDateYmdToDmy(inv.dateIssued)}</td>
@@ -697,7 +635,14 @@ export default function Invoices() {
                       </td>
 
                       <td style={{ textAlign: "right" }}>
-                        <div style={{ display: "inline-flex", gap: 10, justifyContent: "flex-end" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            alignItems: "center",
+                            gap: 10
+                          }}
+                        >
                           <IconButton
                             title="Print (opens HTML)"
                             ariaLabel={`Print invoice ${inv.id}`}
