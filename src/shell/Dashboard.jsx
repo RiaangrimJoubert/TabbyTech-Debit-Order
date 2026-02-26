@@ -41,7 +41,7 @@ function cx(...arr) {
   return arr.filter(Boolean).join(" ");
 }
 
-// SVG Icons as components
+// SVG Icons
 const IconFileInvoice = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -85,20 +85,6 @@ const IconEnvelope = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
     <polyline points="22,6 12,13 2,6"></polyline>
-  </svg>
-);
-
-const IconSearch = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="8"></circle>
-    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-  </svg>
-);
-
-const IconBell = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
   </svg>
 );
 
@@ -200,7 +186,6 @@ function LineChart({ data }) {
         </linearGradient>
       </defs>
 
-      {/* Grid lines */}
       {[0, 1, 2, 3, 4].map(i => (
         <line
           key={i}
@@ -213,17 +198,14 @@ function LineChart({ data }) {
         />
       ))}
 
-      {/* Areas */}
       {createArea('successful')}
       {createArea('failed')}
       {createArea('retry')}
 
-      {/* Lines */}
       <path d={createPath('successful')} fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
       <path d={createPath('failed')} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       <path d={createPath('retry')} fill="none" stroke="#8b5cf6" strokeWidth="2" strokeDasharray="5,5" strokeLinecap="round" strokeLinejoin="round"/>
 
-      {/* Data points */}
       {data.map((d, i) => (
         <g key={i}>
           <circle cx={getX(i)} cy={getY(d.successful)} r="4" fill="#10b981" stroke="#0a0a0f" strokeWidth="2"/>
@@ -232,7 +214,6 @@ function LineChart({ data }) {
         </g>
       ))}
 
-      {/* X Axis labels */}
       {data.map((d, i) => (
         <text
           key={i}
@@ -246,7 +227,6 @@ function LineChart({ data }) {
         </text>
       ))}
 
-      {/* Y Axis labels */}
       {[0, 100, 200, 300].map((val, i) => (
         <text
           key={i}
@@ -330,7 +310,6 @@ function BarChart({ data }) {
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%' }}>
-      {/* Grid lines */}
       {[0, 1, 2, 3].map(i => (
         <line
           key={i}
@@ -343,7 +322,6 @@ function BarChart({ data }) {
         />
       ))}
 
-      {/* Bars */}
       {data.map((d, i) => (
         <g key={i}>
           <rect
@@ -365,7 +343,6 @@ function BarChart({ data }) {
         </g>
       ))}
 
-      {/* X Axis labels */}
       {data.map((d, i) => (
         <text
           key={i}
@@ -382,9 +359,20 @@ function BarChart({ data }) {
   );
 }
 
-function Card({ children, className = "", glow = false }) {
+function Card({ children, style = {}, glow = false }) {
   return (
-    <div className={cx("glass-panel", glow && "glow-border", className)}>
+    <div 
+      className={cx("glass-panel", glow && "glow-border")}
+      style={{
+        background: 'linear-gradient(145deg, rgba(26, 26, 46, 0.4) 0%, rgba(18, 18, 31, 0.6) 100%)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(139, 92, 246, 0.15)',
+        borderRadius: '16px',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+        transition: 'all 0.3s ease',
+        ...style
+      }}
+    >
       {children}
     </div>
   );
@@ -401,7 +389,7 @@ function StatusBadge({ status, children }) {
     sent: { background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.2)' },
   };
   
-  const style = styles[status] || styles.draft;
+  const badgeStyle = styles[status] || styles.draft;
   
   return (
     <span style={{ 
@@ -409,7 +397,7 @@ function StatusBadge({ status, children }) {
       borderRadius: '9999px', 
       fontSize: '0.75rem', 
       fontWeight: 600,
-      ...style
+      ...badgeStyle
     }}>
       {children}
     </span>
@@ -427,7 +415,7 @@ function MetricCard({ title, value, subtext, trend, trendUp, icon: Icon, color =
   const colors = colorClasses[color];
 
   return (
-    <Card style={{ position: 'relative', overflow: 'hidden' }}>
+    <Card style={{ position: 'relative', overflow: 'hidden', padding: '1.25rem' }}>
       <div style={{ 
         position: 'absolute', 
         top: 0, 
@@ -442,12 +430,12 @@ function MetricCard({ title, value, subtext, trend, trendUp, icon: Icon, color =
       
       <div style={{ position: 'relative', zIndex: 10 }}>
         <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>{title}</p>
-        <h3 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem', letterSpacing: '-0.025em' }}>{value}</h3>
+        <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem', letterSpacing: '-0.025em' }}>{value}</h3>
         <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>{subtext}</p>
         
         {trend && (
           <div style={{ 
-            marginTop: '0.75rem', 
+            marginTop: '0.5rem', 
             display: 'flex', 
             alignItems: 'center', 
             gap: '0.25rem', 
@@ -459,19 +447,6 @@ function MetricCard({ title, value, subtext, trend, trendUp, icon: Icon, color =
           </div>
         )}
       </div>
-      
-      {color === "purple" && (
-        <div style={{
-          position: 'absolute',
-          bottom: '-2.5rem',
-          right: '-2.5rem',
-          width: '8rem',
-          height: '8rem',
-          background: 'rgba(139, 92, 246, 0.1)',
-          borderRadius: '50%',
-          filter: 'blur(24px)'
-        }}></div>
-      )}
     </Card>
   );
 }
@@ -577,46 +552,14 @@ export default function Dashboard() {
 
   return (
     <div style={{ 
-      minHeight: '100vh', 
-      backgroundColor: '#0a0a0f', 
-      color: '#d1d5db', 
-      padding: '2rem',
-      fontFamily: "'Montserrat', sans-serif"
+      color: '#d1d5db',
+      fontFamily: "'Montserrat', sans-serif",
+      width: '100%',
+      height: '100%',
+      overflow: 'auto'
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
-        
-        .glass-panel {
-          background: linear-gradient(145deg, rgba(26, 26, 46, 0.6) 0%, rgba(18, 18, 31, 0.8) 100%);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(139, 92, 246, 0.15);
-          border-radius: 20px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-          transition: all 0.3s ease;
-        }
-        
-        .glass-panel:hover {
-          border-color: rgba(139, 92, 246, 0.3);
-          box-shadow: 0 8px 40px rgba(139, 92, 246, 0.15);
-        }
-        
-        .glow-border {
-          position: relative;
-        }
-        
-        .glow-border::before {
-          content: "";
-          position: absolute;
-          inset: -1px;
-          border-radius: 20px;
-          padding: 1px;
-          background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), transparent, rgba(168, 85, 247, 0.1));
-          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          -webkit-mask-composite: xor;
-          mask-composite: exclude;
-          pointer-events: none;
-        }
         
         .cron-indicator {
           position: relative;
@@ -649,9 +592,15 @@ export default function Dashboard() {
       `}</style>
 
       {/* Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <header style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '1.5rem',
+        padding: '0 0.5rem'
+      }}>
         <div>
-          <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem', letterSpacing: '-0.025em' }}>Dashboard Overview</h2>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem', letterSpacing: '-0.025em' }}>Dashboard Overview</h2>
           <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Real-time monitoring and analytics</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -660,34 +609,40 @@ export default function Dashboard() {
               type="text" 
               placeholder="Search orders, batches..." 
               style={{
-                backgroundColor: '#12121f',
+                backgroundColor: 'rgba(18, 18, 31, 0.6)',
                 border: '1px solid rgba(139, 92, 246, 0.2)',
                 borderRadius: '0.75rem',
-                padding: '0.625rem 1rem 0.625rem 2.5rem',
+                padding: '0.5rem 1rem 0.5rem 2.5rem',
                 fontSize: '0.875rem',
                 color: '#d1d5db',
                 width: '16rem',
                 outline: 'none'
               }}
             />
-            <div style={{ position: 'absolute', left: '0.875rem', top: '0.75rem', color: '#6b7280' }}>
-              <IconSearch />
+            <div style={{ position: 'absolute', left: '0.875rem', top: '0.625rem', color: '#6b7280' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
             </div>
           </div>
           <button style={{
             position: 'relative',
-            padding: '0.625rem',
+            padding: '0.5rem',
             borderRadius: '0.75rem',
-            backgroundColor: '#12121f',
+            backgroundColor: 'rgba(18, 18, 31, 0.6)',
             border: '1px solid rgba(139, 92, 246, 0.2)',
             color: '#9ca3af',
             cursor: 'pointer'
           }}>
-            <IconBell />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
             <span style={{
               position: 'absolute',
-              top: '0.375rem',
-              right: '0.5rem',
+              top: '0.25rem',
+              right: '0.375rem',
               width: '0.5rem',
               height: '0.5rem',
               backgroundColor: '#ef4444',
@@ -714,9 +669,9 @@ export default function Dashboard() {
       {/* Top Metrics */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-        gap: '1.5rem', 
-        marginBottom: '2rem' 
+        gridTemplateColumns: 'repeat(4, 1fr)', 
+        gap: '1rem', 
+        marginBottom: '1.5rem' 
       }}>
         <MetricCard 
           title="Active Debit Orders"
@@ -762,16 +717,16 @@ export default function Dashboard() {
       {/* Charts Section */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-        gap: '1.5rem', 
-        marginBottom: '2rem' 
+        gridTemplateColumns: '2fr 1fr', 
+        gap: '1rem', 
+        marginBottom: '1.5rem' 
       }}>
         {/* Main Performance Chart */}
-        <Card style={{ gridColumn: 'span 2', padding: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <Card style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
-              <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>Debit Order Performance</h3>
-              <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Success vs Failed vs Retry Schedule</p>
+              <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>Debit Order Performance</h3>
+              <p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Success vs Failed vs Retry Schedule</p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {["24H", "7D", "30D"].map((r) => (
@@ -785,7 +740,7 @@ export default function Dashboard() {
                     fontWeight: 500,
                     border: 'none',
                     cursor: 'pointer',
-                    backgroundColor: range === r.toLowerCase() ? '#8b5cf6' : '#12121f',
+                    backgroundColor: range === r.toLowerCase() ? '#8b5cf6' : 'rgba(18, 18, 31, 0.6)',
                     color: range === r.toLowerCase() ? 'white' : '#9ca3af'
                   }}
                 >
@@ -795,43 +750,43 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <div style={{ height: '300px' }}>
+          <div style={{ height: '250px' }}>
             <LineChart data={debitPerformanceData} />
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', marginTop: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <div style={{ width: '0.75rem', height: '0.75rem', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
-              <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Successful</span>
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Successful</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <div style={{ width: '0.75rem', height: '0.75rem', borderRadius: '50%', backgroundColor: '#ef4444' }}></div>
-              <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Failed</span>
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Failed</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <div style={{ width: '0.75rem', height: '0.75rem', borderRadius: '50%', backgroundColor: '#8b5cf6' }}></div>
-              <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Scheduled Retry</span>
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Scheduled Retry</span>
             </div>
           </div>
         </Card>
 
         {/* Retry Distribution */}
-        <Card style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>Retry Distribution</h3>
-          <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '1.5rem' }}>Scheduled retry timeline</p>
+        <Card style={{ padding: '1.25rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>Retry Distribution</h3>
+          <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '1rem' }}>Scheduled retry timeline</p>
           
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <DonutChart data={retryDistributionData} />
           </div>
           
-          <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {retryDistributionData.map((item) => (
               <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', backgroundColor: item.color }}></div>
-                  <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>{item.name}</span>
+                  <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{item.name}</span>
                 </div>
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white' }}>{item.value}%</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white' }}>{item.value}%</span>
               </div>
             ))}
           </div>
@@ -841,13 +796,13 @@ export default function Dashboard() {
       {/* Cron & ZeptoMail Section */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-        gap: '1.5rem', 
-        marginBottom: '2rem' 
+        gridTemplateColumns: '1fr 1fr', 
+        gap: '1rem', 
+        marginBottom: '1.5rem' 
       }}>
         {/* Cron Job Monitor */}
-        <Card style={{ padding: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <Card style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{ 
                 padding: '0.5rem', 
@@ -859,12 +814,12 @@ export default function Dashboard() {
                 <IconClock />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white' }}>Cron Job Monitor</h3>
-                <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Real-time job execution status</p>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'white' }}>Cron Job Monitor</h3>
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Real-time job execution status</p>
               </div>
             </div>
             <button style={{ 
-              fontSize: '0.875rem', 
+              fontSize: '0.75rem', 
               color: '#a78bfa', 
               display: 'flex', 
               alignItems: 'center', 
@@ -877,22 +832,22 @@ export default function Dashboard() {
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {cronJobs.map((job) => (
               <div 
                 key={job.id} 
                 className="cron-indicator"
                 style={{
-                  padding: '1rem',
+                  padding: '0.75rem',
                   borderRadius: '0.75rem',
                   border: `1px solid ${job.status === 'failed' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(139, 92, 246, 0.1)'}`,
-                  backgroundColor: job.status === 'failed' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(18, 18, 31, 0.5)',
+                  backgroundColor: job.status === 'failed' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(18, 18, 31, 0.4)',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease'
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <div style={{
                       width: '0.5rem',
                       height: '0.5rem',
@@ -901,7 +856,7 @@ export default function Dashboard() {
                       animation: (job.status === 'running' || job.status === 'failed') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none'
                     }}></div>
                     <div>
-                      <p style={{ fontWeight: 600, color: 'white' }}>{job.name}</p>
+                      <p style={{ fontWeight: 600, color: 'white', fontSize: '0.875rem' }}>{job.name}</p>
                       <p style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: 'monospace' }}>{job.schedule}</p>
                     </div>
                   </div>
@@ -912,18 +867,18 @@ export default function Dashboard() {
                   </StatusBadge>
                 </div>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
                   <span>Last run: {job.lastRun}</span>
                   {job.status === "failed" ? (
                     <button style={{ color: '#f87171', fontSize: '0.75rem', background: 'none', border: 'none', cursor: 'pointer' }}>Retry Now</button>
                   ) : (
-                    <span style={{ color: job.status === "running" ? '#4ade80' : '#6b7280', fontSize: '0.75rem' }}>
+                    <span style={{ color: job.status === "running" ? '#4ade80' : '#6b7280' }}>
                       {job.status === "running" ? "Success" : ""}
                     </span>
                   )}
                 </div>
                 
-                <div style={{ height: '0.25rem', backgroundColor: '#374151', borderRadius: '9999px', overflow: 'hidden' }}>
+                <div style={{ height: '0.25rem', backgroundColor: 'rgba(55, 65, 81, 0.5)', borderRadius: '9999px', overflow: 'hidden' }}>
                   <div 
                     style={{
                       height: '100%',
@@ -947,8 +902,8 @@ export default function Dashboard() {
         </Card>
 
         {/* ZeptoMail Tracker */}
-        <Card style={{ padding: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <Card style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{ 
                 padding: '0.5rem', 
@@ -960,8 +915,8 @@ export default function Dashboard() {
                 <IconEnvelope />
               </div>
               <div>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white' }}>ZeptoMail Tracker</h3>
-                <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Email delivery analytics</p>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'white' }}>ZeptoMail Tracker</h3>
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Email delivery analytics</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -970,27 +925,27 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-            <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(18, 18, 31, 0.5)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>1,245</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(18, 18, 31, 0.4)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>1,245</div>
               <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Sent</div>
             </div>
             <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.25rem' }}>98.2%</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.25rem' }}>98.2%</div>
               <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Delivered</div>
             </div>
             <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem' }}>42%</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem' }}>42%</div>
               <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Opened</div>
             </div>
           </div>
 
-          <div style={{ height: '150px' }}>
+          <div style={{ height: '120px' }}>
             <BarChart data={emailData} />
           </div>
 
-          <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+          <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.625rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ width: '2rem', height: '2rem', borderRadius: '0.5rem', backgroundColor: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <IconPaperPlane />
@@ -1003,7 +958,7 @@ export default function Dashboard() {
               <span style={{ fontSize: '0.75rem', color: '#4ade80', backgroundColor: 'rgba(34, 197, 94, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>Delivered</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.625rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ width: '2rem', height: '2rem', borderRadius: '0.5rem', backgroundColor: 'rgba(249, 115, 22, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <IconAlert />
@@ -1016,7 +971,7 @@ export default function Dashboard() {
               <span style={{ fontSize: '0.75rem', color: '#60a5fa', backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>Opened</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.625rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ width: '2rem', height: '2rem', borderRadius: '0.5rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <IconClose />
@@ -1035,15 +990,15 @@ export default function Dashboard() {
       {/* Original TabbyTech Layout */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-        gap: '1.5rem' 
+        gridTemplateColumns: '2fr 1fr', 
+        gap: '1rem' 
       }}>
         {/* Today's Workflow */}
-        <Card style={{ gridColumn: 'span 2', padding: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white' }}>Today's Workflow</h3>
+        <Card style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'white' }}>Today's Workflow</h3>
             <select style={{
-              backgroundColor: '#12121f',
+              backgroundColor: 'rgba(18, 18, 31, 0.6)',
               border: '1px solid rgba(139, 92, 246, 0.2)',
               borderRadius: '0.75rem',
               padding: '0.5rem 1rem',
@@ -1054,16 +1009,15 @@ export default function Dashboard() {
             </select>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center', 
               padding: '1rem', 
               borderRadius: '0.75rem', 
-              backgroundColor: 'rgba(18, 18, 31, 0.5)', 
-              border: '1px solid rgba(139, 92, 246, 0.1)',
-              transition: 'all 0.3s ease'
+              backgroundColor: 'rgba(18, 18, 31, 0.4)', 
+              border: '1px solid rgba(139, 92, 246, 0.1)'
             }}>
               <div>
                 <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>Review exceptions</h4>
@@ -1072,7 +1026,7 @@ export default function Dashboard() {
               <button style={{
                 padding: '0.5rem 1rem',
                 borderRadius: '0.75rem',
-                backgroundColor: '#1a1a2e',
+                backgroundColor: 'rgba(26, 26, 46, 0.8)',
                 color: 'white',
                 fontSize: '0.75rem',
                 fontWeight: 500,
@@ -1089,9 +1043,8 @@ export default function Dashboard() {
               alignItems: 'center', 
               padding: '1rem', 
               borderRadius: '0.75rem', 
-              backgroundColor: 'rgba(18, 18, 31, 0.5)', 
-              border: '1px solid rgba(139, 92, 246, 0.1)',
-              transition: 'all 0.3s ease'
+              backgroundColor: 'rgba(18, 18, 31, 0.4)', 
+              border: '1px solid rgba(139, 92, 246, 0.1)'
             }}>
               <div>
                 <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>Prepare next batch</h4>
@@ -1118,9 +1071,8 @@ export default function Dashboard() {
               alignItems: 'center', 
               padding: '1rem', 
               borderRadius: '0.75rem', 
-              backgroundColor: 'rgba(18, 18, 31, 0.5)', 
-              border: '1px solid rgba(139, 92, 246, 0.1)',
-              transition: 'all 0.3s ease'
+              backgroundColor: 'rgba(18, 18, 31, 0.4)', 
+              border: '1px solid rgba(139, 92, 246, 0.1)'
             }}>
               <div>
                 <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>Export bank files</h4>
@@ -1129,7 +1081,7 @@ export default function Dashboard() {
               <button style={{
                 padding: '0.5rem 1rem',
                 borderRadius: '0.75rem',
-                backgroundColor: '#1a1a2e',
+                backgroundColor: 'rgba(26, 26, 46, 0.8)',
                 color: 'white',
                 fontSize: '0.75rem',
                 fontWeight: 500,
@@ -1141,36 +1093,36 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid rgba(139, 92, 246, 0.1)', paddingTop: '1.5rem' }}>
+          <div style={{ borderTop: '1px solid rgba(139, 92, 246, 0.1)', paddingTop: '1rem' }}>
             <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', marginBottom: '0.5rem' }}>Subscription tracking</h4>
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.</p>
+            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.75rem' }}>This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.</p>
             
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <select style={{
-                backgroundColor: '#12121f',
+                backgroundColor: 'rgba(18, 18, 31, 0.6)',
                 border: '1px solid rgba(139, 92, 246, 0.2)',
                 borderRadius: '0.75rem',
-                padding: '0.625rem',
+                padding: '0.5rem',
                 fontSize: '0.875rem',
                 color: '#d1d5db'
               }}>
                 <option>Monthly only</option>
               </select>
               <select style={{
-                backgroundColor: '#12121f',
+                backgroundColor: 'rgba(18, 18, 31, 0.6)',
                 border: '1px solid rgba(139, 92, 246, 0.2)',
                 borderRadius: '0.75rem',
-                padding: '0.625rem',
+                padding: '0.5rem',
                 fontSize: '0.875rem',
                 color: '#d1d5db'
               }}>
                 <option>Last 30 days</option>
               </select>
               <select style={{
-                backgroundColor: '#12121f',
+                backgroundColor: 'rgba(18, 18, 31, 0.6)',
                 border: '1px solid rgba(139, 92, 246, 0.2)',
                 borderRadius: '0.75rem',
-                padding: '0.625rem',
+                padding: '0.5rem',
                 fontSize: '0.875rem',
                 color: '#d1d5db'
               }}>
@@ -1191,14 +1143,14 @@ export default function Dashboard() {
         </Card>
 
         {/* Recent Batches */}
-        <Card style={{ padding: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white' }}>Recent Batches</h3>
+        <Card style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'white' }}>Recent Batches</h3>
             <select 
               value={selectedBatch}
               onChange={(e) => setSelectedBatch(e.target.value)}
               style={{
-                backgroundColor: '#12121f',
+                backgroundColor: 'rgba(18, 18, 31, 0.6)',
                 border: '1px solid rgba(139, 92, 246, 0.2)',
                 borderRadius: '0.75rem',
                 padding: '0.375rem 0.75rem',
@@ -1245,7 +1197,7 @@ export default function Dashboard() {
             </table>
           </div>
 
-          <div style={{ marginTop: '1.5rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+          <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
             <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>Selected: {selectedBatch}</p>
             <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.75rem' }}>UI-only actions. Will wire to batch workflows later.</p>
             
@@ -1257,7 +1209,7 @@ export default function Dashboard() {
                 onChange={(e) => setSearch(e.target.value)}
                 style={{
                   width: '100%',
-                  backgroundColor: '#0a0a0f',
+                  backgroundColor: 'rgba(10, 10, 15, 0.6)',
                   border: '1px solid rgba(139, 92, 246, 0.2)',
                   borderRadius: '0.5rem',
                   padding: '0.5rem 0.75rem',
@@ -1272,7 +1224,7 @@ export default function Dashboard() {
                 flex: 1,
                 padding: '0.5rem',
                 borderRadius: '0.75rem',
-                backgroundColor: '#1a1a2e',
+                backgroundColor: 'rgba(26, 26, 46, 0.8)',
                 color: 'white',
                 fontSize: '0.75rem',
                 fontWeight: 500,
@@ -1302,19 +1254,19 @@ export default function Dashboard() {
       {/* Bottom Metrics */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gridTemplateColumns: '1fr 1fr', 
         gap: '1rem', 
-        marginTop: '1.5rem' 
+        marginTop: '1rem' 
       }}>
-        <Card style={{ padding: '1.5rem' }}>
+        <Card style={{ padding: '1.25rem' }}>
           <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>Monthly MRR</p>
-          <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>{formatZAR(data.monthlyMRR)}</h3>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>{formatZAR(data.monthlyMRR)}</h3>
           <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Active {data.monthlyActive} • Churn 7d: 2</p>
         </Card>
 
-        <Card style={{ padding: '1.5rem' }}>
+        <Card style={{ padding: '1.25rem' }}>
           <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>Annual ARR</p>
-          <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>{formatZAR(data.annualARR * 12 + data.monthlyMRR * 12)}</h3>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>{formatZAR(data.annualARR * 12 + data.monthlyMRR * 12)}</h3>
           <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>View monthly • 11 only</p>
         </Card>
       </div>
