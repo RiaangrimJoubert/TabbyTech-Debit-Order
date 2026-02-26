@@ -8,70 +8,42 @@ function getApiBase() {
   return base.endsWith("/") ? base.slice(0, -1) : base;
 }
 
-async function postJson(url, body) {
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {})
-  });
-
-  const text = await resp.text();
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
-  }
-
-  if (!resp.ok) {
-    const msg =
-      (json && (json.error || json.message)) ||
-      `Request failed with status ${resp.status}`;
-    throw new Error(msg);
-  }
-
-  return json;
-}
-
 function normalizeKey(s) {
   return String(s || "").toLowerCase().trim();
 }
 
-function makeClientKey(inv) {
+function makeClientKeyFromInvoice(inv) {
   const email = normalizeKey(inv?.customerEmail);
   const name = normalizeKey(inv?.customer);
   return encodeURIComponent(email || name || String(inv?.id || ""));
 }
 
-function initials(name) {
-  const s = String(name || "").trim();
-  if (!s) return "C";
-  const parts = s.split(/\s+/).filter(Boolean);
-  const a = parts[0]?.[0] || "C";
-  const b = parts[1]?.[0] || "";
-  return (a + b).toUpperCase();
-}
-
-function formatDateYmdToDmy(ymd) {
+function safeDmy(ymd) {
   const s = String(ymd || "").trim();
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (!m) return s;
   return `${m[3]}/${m[2]}/${m[1].slice(2)}`;
 }
 
+/* Premium pill, but still subtle and aligned with your dark UI */
 function StatusPill({ status }) {
   const s = String(status || "").trim();
 
-  let bg = "rgba(255,255,255,0.08)";
-  let fg = "rgba(255,255,255,0.85)";
+  let bg = "rgba(255,255,255,0.06)";
+  let bd = "rgba(255,255,255,0.10)";
+  let fg = "rgba(255,255,255,0.80)";
+
   if (s === "Paid") {
-    bg = "rgba(16,185,129,0.18)";
-    fg = "rgba(16,185,129,0.95)";
+    bg = "rgba(16,185,129,0.14)";
+    bd = "rgba(16,185,129,0.24)";
+    fg = "rgba(167,243,208,0.95)";
   } else if (s === "Overdue") {
-    bg = "rgba(245,158,11,0.18)";
-    fg = "rgba(245,158,11,0.95)";
+    bg = "rgba(245,158,11,0.14)";
+    bd = "rgba(245,158,11,0.26)";
+    fg = "rgba(253,230,138,0.95)";
   } else if (s === "Unpaid") {
-    bg = "rgba(139,92,246,0.18)";
+    bg = "rgba(139,92,246,0.14)";
+    bd = "rgba(139,92,246,0.26)";
     fg = "rgba(199,175,255,0.98)";
   }
 
@@ -86,8 +58,8 @@ function StatusPill({ status }) {
         fontWeight: 900,
         letterSpacing: 0.2,
         background: bg,
+        border: `1px solid ${bd}`,
         color: fg,
-        border: "1px solid rgba(255,255,255,0.10)",
         whiteSpace: "nowrap"
       }}
     >
@@ -96,25 +68,26 @@ function StatusPill({ status }) {
   );
 }
 
+/* Icon actions, same idea you liked, but tuned to sit cleanly in tt-table */
 function IconButton({ title, ariaLabel, onClick, tone = "neutral", disabled = false, children }) {
   let bg = "rgba(255,255,255,0.06)";
   let bd = "rgba(255,255,255,0.10)";
-  let fg = "rgba(255,255,255,0.85)";
+  let fg = "rgba(255,255,255,0.88)";
 
   if (tone === "purple") {
-    bg = "rgba(139,92,246,0.18)";
-    bd = "rgba(139,92,246,0.35)";
+    bg = "rgba(139,92,246,0.14)";
+    bd = "rgba(139,92,246,0.26)";
     fg = "rgba(199,175,255,0.98)";
   }
   if (tone === "green") {
-    bg = "rgba(16,185,129,0.18)";
-    bd = "rgba(16,185,129,0.35)";
+    bg = "rgba(16,185,129,0.14)";
+    bd = "rgba(16,185,129,0.26)";
     fg = "rgba(167,243,208,0.98)";
   }
-  if (tone === "red") {
-    bg = "rgba(239,68,68,0.16)";
-    bd = "rgba(239,68,68,0.30)";
-    fg = "rgba(252,165,165,0.98)";
+  if (tone === "amber") {
+    bg = "rgba(245,158,11,0.14)";
+    bd = "rgba(245,158,11,0.26)";
+    fg = "rgba(253,230,138,0.98)";
   }
 
   return (
@@ -211,6 +184,31 @@ function LinkIcon() {
   );
 }
 
+async function postJson(url, body) {
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+
+  const text = await resp.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!resp.ok) {
+    const msg =
+      (json && (json.error || json.message)) ||
+      `Request failed with status ${resp.status}`;
+    throw new Error(msg);
+  }
+
+  return json;
+}
+
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
@@ -248,7 +246,7 @@ export default function Invoices() {
     const map = new Map();
 
     filteredInvoices.forEach((inv) => {
-      const key = makeClientKey(inv);
+      const key = makeClientKeyFromInvoice(inv);
       const email = String(inv?.customerEmail || "").trim();
       const name = String(inv?.customer || "").trim() || email || "Client";
 
@@ -275,12 +273,47 @@ export default function Invoices() {
     return clientGroups.find((c) => c.key === openClientKey) || null;
   }, [openClientKey, clientGroups]);
 
-  function openClientInvoices(key) {
-    setOpenClientKey(key);
-  }
+  function exportFilteredToExcel() {
+    const rows = filteredInvoices.map((inv) => {
+      const totals = calcTotals(inv);
+      return {
+        "Invoice ID": inv.id,
+        Status: inv.status,
+        Customer: inv.customer,
+        "Customer Email": inv.customerEmail,
+        "Date Issued": inv.dateIssued,
+        "Due Date": inv.dueDate,
+        Currency: inv.currency || "ZAR",
+        Subtotal: Number(totals.subtotal.toFixed(2)),
+        VAT: Number(totals.vat.toFixed(2)),
+        Total: Number(totals.total.toFixed(2))
+      };
+    });
 
-  function closeClientInvoices() {
-    setOpenClientKey("");
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 28 },
+      { wch: 30 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Invoices");
+
+    const stamp = new Date();
+    const yyyy = String(stamp.getFullYear());
+    const mm = String(stamp.getMonth() + 1).padStart(2, "0");
+    const dd = String(stamp.getDate()).padStart(2, "0");
+    const filename = `TabbyTech_Invoices_${yyyy}-${mm}-${dd}.xlsx`;
+
+    XLSX.writeFile(wb, filename, { bookType: "xlsx", compression: true });
   }
 
   function openInvoiceHtml(inv) {
@@ -342,7 +375,7 @@ export default function Invoices() {
     if (!debitOrderId) {
       setBooksState((prev) => ({
         ...prev,
-        [invoiceId]: { state: "error", message: "Missing debitOrderId on this row" }
+        [invoiceId]: { state: "error", message: "Missing debitOrderId on this invoice row" }
       }));
       return;
     }
@@ -363,10 +396,10 @@ export default function Invoices() {
       const invoiceNumber = out?.invoiceNumber ? String(out.invoiceNumber) : "";
 
       const msg = invoiceNumber
-        ? `Books linked: ${invoiceNumber}`
+        ? `Books: ${invoiceNumber}`
         : booksInvoiceId
-        ? `Books linked: ${booksInvoiceId}`
-        : "Books linked";
+        ? `Books: ${booksInvoiceId}`
+        : "Books invoice created";
 
       setBooksState((prev) => ({
         ...prev,
@@ -380,187 +413,92 @@ export default function Invoices() {
     }
   }
 
-  function exportFilteredToExcel() {
-    const rows = filteredInvoices.map((inv) => {
-      const totals = calcTotals(inv);
-      return {
-        "Invoice ID": inv.id,
-        "Books Invoice ID": inv.booksInvoiceId || "",
-        Status: inv.status,
-        Customer: inv.customer,
-        "Customer Email": inv.customerEmail,
-        "Date Issued": inv.dateIssued,
-        "Due Date": inv.dueDate,
-        Currency: inv.currency || "ZAR",
-        Subtotal: Number(totals.subtotal.toFixed(2)),
-        VAT: Number(totals.vat.toFixed(2)),
-        Total: Number(totals.total.toFixed(2))
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [
-      { wch: 14 },
-      { wch: 20 },
-      { wch: 10 },
-      { wch: 28 },
-      { wch: 30 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 10 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 }
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Invoices");
-
-    const stamp = new Date();
-    const yyyy = String(stamp.getFullYear());
-    const mm = String(stamp.getMonth() + 1).padStart(2, "0");
-    const dd = String(stamp.getDate()).padStart(2, "0");
-    const filename = `TabbyTech_Invoices_${yyyy}-${mm}-${dd}.xlsx`;
-
-    XLSX.writeFile(wb, filename, { bookType: "xlsx", compression: true });
-  }
-
-  const actionColWidth = 220;
-
   return (
     <div className="tt-page">
       <div className="tt-surface">
         <div className="tt-header">
           <div className="tt-title">
             <h1>Invoices</h1>
-            <p>Clients first. Use the eye icon to view invoices, then print or download.</p>
+            <p>Clients first. Expand a client to see all invoices, then print or download.</p>
           </div>
 
-          {/* Premium control row like Debit Orders */}
-          <div
-            className="tt-toolbar"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 14,
-              flexWrap: "wrap"
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 520px" }}>
-              <input
-                className="tt-input"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search client, email, invoice, status, date..."
-                aria-label="Search invoices"
-                style={{ minWidth: 320, flex: "1 1 auto" }}
-              />
+          <div className="tt-toolbar">
+            <input
+              className="tt-input"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search client, email, invoice, status, date..."
+              aria-label="Search invoices"
+            />
 
-              <select
-                className="tt-select"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                aria-label="Filter by status"
-                style={{ width: 160, flex: "0 0 auto" }}
-              >
-                <option value="All">All statuses</option>
-                <option value="Paid">Paid</option>
-                <option value="Unpaid">Unpaid</option>
-                <option value="Overdue">Overdue</option>
-              </select>
-            </div>
+            <select
+              className="tt-select"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              aria-label="Filter by status"
+            >
+              <option value="All">All statuses</option>
+              <option value="Paid">Paid</option>
+              <option value="Unpaid">Unpaid</option>
+              <option value="Overdue">Overdue</option>
+            </select>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
+            <button
+              type="button"
+              className="tt-btn tt-btn-primary"
+              onClick={exportFilteredToExcel}
+              aria-label="Export filtered invoices to Excel"
+              title="Exports exactly what is currently filtered in the table"
+            >
+              Export to Excel
+            </button>
+
+            {openClient ? (
               <button
                 type="button"
                 className="tt-btn tt-btn-primary"
-                onClick={exportFilteredToExcel}
-                aria-label="Export filtered invoices to Excel"
-                title="Exports exactly what is currently filtered in the table"
+                onClick={() => setOpenClientKey("")}
+                aria-label="Back to clients list"
               >
-                Export to Excel
+                Back
               </button>
-
-              {openClient ? (
-                <button
-                  type="button"
-                  className="tt-btn tt-btn-primary"
-                  onClick={closeClientInvoices}
-                  aria-label="Back to clients list"
-                >
-                  Back
-                </button>
-              ) : null}
-            </div>
+            ) : null}
           </div>
         </div>
 
         <div className="tt-table-wrap">
           {!openClient ? (
-            <table className="tt-table" role="table" aria-label="Clients table">
+            <table className="tt-table" role="table" aria-label="Clients with invoice counts">
               <thead>
                 <tr>
                   <th>Client</th>
                   <th style={{ width: 360 }}>Invoice To</th>
-                  <th style={{ width: 120, textAlign: "right" }}>Invoices</th>
-                  <th style={{ width: actionColWidth, textAlign: "right" }}>Action</th>
+                  <th style={{ width: 120, textAlign: "center" }}>Invoices</th>
+                  <th style={{ width: 140, textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
-
               <tbody>
                 {clientGroups.map((c) => (
-                  <tr key={c.key} style={{ height: 56 }}>
+                  <tr key={c.key}>
                     <td style={{ fontWeight: 800 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div
-                          style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: 999,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(255,255,255,0.10)",
-                            fontWeight: 900,
-                            color: "rgba(255,255,255,0.90)"
-                          }}
-                        >
-                          {initials(c.name)}
-                        </div>
-
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ fontWeight: 800, lineHeight: 1.1 }}>{c.name}</span>
-                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.62)" }}>
-                            {c.email || " "}
-                          </span>
-                        </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span style={{ fontWeight: 800 }}>{c.name}</span>
+                        <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
+                          {c.email || " "}
+                        </span>
                       </div>
                     </td>
-
                     <td style={{ color: "rgba(255,255,255,0.72)" }}>{c.email || " "}</td>
-
-                    <td style={{ textAlign: "right", fontWeight: 800 }}>{c.invoices.length}</td>
-
+                    <td style={{ textAlign: "center", fontWeight: 900 }}>{c.invoices.length}</td>
                     <td style={{ textAlign: "right" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "flex-end",
-                          alignItems: "center",
-                          gap: 10
-                        }}
+                      <IconButton
+                        title="View invoices"
+                        ariaLabel={`View invoices for ${c.name}`}
+                        onClick={() => setOpenClientKey(c.key)}
+                        tone="purple"
                       >
-                        <IconButton
-                          title="View invoices"
-                          ariaLabel={`View invoices for ${c.name}`}
-                          onClick={() => openClientInvoices(c.key)}
-                          tone="purple"
-                        >
-                          <EyeIcon />
-                        </IconButton>
-                      </div>
+                        <EyeIcon />
+                      </IconButton>
                     </td>
                   </tr>
                 ))}
@@ -583,10 +521,9 @@ export default function Invoices() {
                   <th style={{ width: 160 }}>Due Date</th>
                   <th style={{ width: 170, textAlign: "right" }}>Amount</th>
                   <th style={{ width: 160 }}>Status</th>
-                  <th style={{ width: actionColWidth, textAlign: "right" }}>Action</th>
+                  <th style={{ width: 220, textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
-
               <tbody>
                 {openClient.invoices.map((inv) => {
                   const totals = calcTotals(inv);
@@ -594,17 +531,10 @@ export default function Invoices() {
                   const canSync = Boolean(inv?.debitOrderId);
 
                   return (
-                    <tr key={inv.id} style={{ height: 56 }}>
+                    <tr key={inv.id}>
                       <td style={{ fontWeight: 900, letterSpacing: 0.2 }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                           <span>{inv.id}</span>
-
-                          {inv.booksInvoiceId ? (
-                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-                              Books: {String(inv.booksInvoiceId)}
-                            </span>
-                          ) : null}
-
                           {rowState.state !== "idle" ? (
                             <span
                               style={{
@@ -623,8 +553,8 @@ export default function Invoices() {
                         </div>
                       </td>
 
-                      <td>{formatDateYmdToDmy(inv.dateIssued)}</td>
-                      <td>{formatDateYmdToDmy(inv.dueDate)}</td>
+                      <td>{safeDmy(inv.dateIssued)}</td>
+                      <td>{safeDmy(inv.dueDate)}</td>
 
                       <td style={{ textAlign: "right", fontWeight: 900 }}>
                         {money(totals.total, inv.currency)}
@@ -635,14 +565,7 @@ export default function Invoices() {
                       </td>
 
                       <td style={{ textAlign: "right" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "flex-end",
-                            alignItems: "center",
-                            gap: 10
-                          }}
-                        >
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
                           <IconButton
                             title="Print (opens HTML)"
                             ariaLabel={`Print invoice ${inv.id}`}
@@ -665,7 +588,7 @@ export default function Invoices() {
                             title="Sync to Books"
                             ariaLabel={`Sync invoice ${inv.id} to Books`}
                             onClick={() => onSyncToBooks(inv)}
-                            tone="purple"
+                            tone="amber"
                             disabled={!canSync || rowState.state === "loading"}
                           >
                             <LinkIcon />
@@ -689,7 +612,7 @@ export default function Invoices() {
         </div>
 
         <div className="tt-footer-note">
-          Eye icon opens client invoices. Print opens the HTML invoice. Download uses PDF once the backend route exists.
+          Clients first. View invoices expands the client. Print opens the HTML invoice. Download uses PDF once the backend route exists.
         </div>
       </div>
     </div>
