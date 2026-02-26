@@ -275,7 +275,7 @@ export default function Invoices() {
         </div>
 
         <div className="tt-table-wrap">
-          <table className="tt-table tt-invoices-table" role="table" aria-label="Invoices table">
+          <table className="tt-table" role="table" aria-label="Invoices table">
             <thead>
               <tr>
                 <th style={{ width: 140 }}>Invoice</th>
@@ -411,7 +411,7 @@ export default function Invoices() {
             </div>
 
             <div className="tt-clientpanel-body">
-              <table className="tt-table tt-clientpanel-table" role="table" aria-label="Selected client invoices">
+              <table className="tt-table" role="table" aria-label="Selected client invoices">
                 <thead>
                   <tr>
                     <th style={{ width: 140 }}>Invoice</th>
