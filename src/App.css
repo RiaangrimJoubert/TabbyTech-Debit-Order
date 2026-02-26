@@ -1,42 +1,302 @@
+/* src/App.css */
+/* IMPORTANT:
+   This file replaces the default Vite demo CSS that forces:
+   - max-width: 1280px
+   - centered text
+   - padding around the whole app
+   Those were breaking your premium AppShell layout.
+*/
+
+/* ---------- Base Reset ---------- */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(1200px 700px at 30% 10%, rgba(124, 58, 237, 0.18), transparent 60%),
+    radial-gradient(900px 600px at 80% 0%, rgba(139, 92, 246, 0.16), transparent 55%),
+    linear-gradient(180deg, #070714 0%, #0a0e1a 40%, #070714 100%);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* Root must be full-width for AppShell */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Links */
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+a:hover {
+  text-decoration: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* ---------- Premium Tokens (scoped usage) ---------- */
+:root {
+  --tt-bg0: #070714;
+  --tt-bg1: #0a0e1a;
+  --tt-card: rgba(255, 255, 255, 0.06);
+  --tt-card2: rgba(255, 255, 255, 0.08);
+  --tt-border: rgba(255, 255, 255, 0.10);
+  --tt-border2: rgba(255, 255, 255, 0.14);
+  --tt-text: rgba(255, 255, 255, 0.92);
+  --tt-muted: rgba(255, 255, 255, 0.68);
+
+  --tt-purple: #8b5cf6;
+  --tt-purple2: #7c3aed;
+  --tt-purpleGlow: rgba(139, 92, 246, 0.35);
+
+  --tt-shadow: 0 18px 45px rgba(0, 0, 0, 0.55);
+  --tt-shadow2: 0 10px 24px rgba(0, 0, 0, 0.35);
+
+  --tt-radius: 18px;
+  --tt-radius2: 14px;
 }
 
-.card {
-  padding: 2em;
+/* ---------- Shared Premium UI (only tt-* classes) ---------- */
+.tt-page {
+  width: 100%;
 }
 
-.read-the-docs {
-  color: #888;
+.tt-surface {
+  width: 100%;
+  border-radius: var(--tt-radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--tt-shadow);
+  overflow: hidden;
+}
+
+.tt-header {
+  padding: 18px 18px 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: radial-gradient(900px 260px at 30% 0%, rgba(139, 92, 246, 0.18), transparent 65%),
+    linear-gradient(180deg, rgba(10, 14, 26, 0.70), rgba(10, 14, 26, 0.35));
+}
+
+.tt-title h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.3px;
+}
+
+.tt-title p {
+  margin: 6px 0 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.70);
+}
+
+/* Toolbar layout should match your Debit Orders spacing */
+.tt-toolbar {
+  margin-top: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tt-input,
+.tt-select {
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.08) inset;
+}
+
+.tt-input {
+  min-width: 340px;
+  flex: 1;
+  padding: 0 14px;
+}
+
+.tt-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.tt-input:focus,
+.tt-select:focus {
+  border-color: rgba(139, 92, 246, 0.55);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
+}
+
+.tt-select {
+  padding: 0 12px;
+  min-width: 170px;
+}
+
+/* Primary premium purple button */
+.tt-btn {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.90);
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.tt-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.tt-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.tt-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tt-btn-primary {
+  border: 1px solid rgba(139, 92, 246, 0.55);
+  background: linear-gradient(135deg, var(--tt-purple) 0%, var(--tt-purple2) 100%);
+  box-shadow: 0 14px 30px rgba(139, 92, 246, 0.22);
+}
+
+.tt-btn-primary:hover {
+  box-shadow: 0 18px 40px rgba(139, 92, 246, 0.28);
+}
+
+/* Link-style buttons used as actions */
+.tt-linkbtn {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.tt-linkbtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(139, 92, 246, 0.45);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.30);
+}
+
+.tt-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Tables */
+.tt-table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.tt-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.tt-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 14px 14px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, 0.70);
+  background: rgba(0, 0, 0, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tt-table tbody td {
+  padding: 14px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.86);
+  vertical-align: middle;
+}
+
+.tt-table tbody tr:hover td {
+  background: rgba(139, 92, 246, 0.06);
+}
+
+/* Badges and dots */
+.tt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.22);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.tt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.tt-dot.paid {
+  background: rgba(34, 197, 94, 0.9);
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+}
+
+.tt-dot.unpaid {
+  background: rgba(59, 130, 246, 0.9);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+}
+
+.tt-dot.overdue {
+  background: rgba(245, 158, 11, 0.95);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
+}
+
+/* Footer note */
+.tt-footer-note {
+  padding: 12px 18px 18px 18px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+}
+
+/* Expanded client area on Invoices */
+.tt-invoices .inv-expand {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.10));
+}
+
+/* Better spacing for the invoices toolbar specifically */
+.tt-invoices .tt-invoices-toolbar .tt-input {
+  min-width: 420px;
+}
+
+/* Make the whole admin experience feel premium but do not touch non-tt components */
+button {
+  font-family: inherit;
 }
