@@ -64,67 +64,6 @@
   transition: background-color 5000s ease-in-out 0s;
 }
 
-/* Force white text in all states */
-.tt-search-premium:-webkit-autofill,
-.tt-search-premium:-webkit-autofill:hover,
-.tt-search-premium:-webkit-autofill:focus {
-  -webkit-text-fill-color: #ffffff !important;
-  -webkit-box-shadow: 0 0 0px 1000px rgba(124, 58, 237, 0.35) inset !important;
-  transition: background-color 5000s ease-in-out 0s;
-}
-
-/* ===== PREMIUM DROPDOWN STYLES - NO CHEVRON ===== */
-.tt-select-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.tt-select-wrap-small {
-  min-width: 110px;
-}
-
-.tt-select-premium {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  
-  height: 44px;
-  padding: 0 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(124, 58, 237, 0.6);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.4) 0%, rgba(18, 22, 39, 0.8) 100%);
-  color: #ffffff !important;
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  outline: none;
-  transition: all 140ms ease;
-  min-width: 140px;
-  -webkit-text-fill-color: #ffffff !important;
-  /* Hide default arrow */
-  background-image: none !important;
-}
-
-.tt-select-wrap-small .tt-select-premium {
-  height: 36px;
-  font-size: 12px;
-  padding: 0 14px;
-  min-width: 110px;
-  border: 1px solid rgba(124, 58, 237, 0.5);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.35) 0%, rgba(18, 22, 39, 0.7) 100%);
-}
-
-.tt-select-premium:hover {
-  border-color: rgba(167, 139, 250, 0.9);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.5) 0%, rgba(18, 22, 39, 0.9) 100%);
-}
-
-.tt-select-premium:focus {
-  border-color: rgba(167, 139, 250, 1);
-  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.4);
-}
-
 /* ===== PREMIUM DROPDOWN STYLES - NO CHEVRON ===== */
 .tt-select-wrap {
   position: relative;
@@ -180,22 +119,6 @@
 /* REMOVE CHEVRON - hide the SVG */
 .tt-select-chevron {
   display: none !important;
-}
-
-/* Dropdown Options Styling - Dark Purple Theme */
-.tt-select-premium option {
-  background: #0a0c14;
-  color: #ffffff;
-  padding: 12px;
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.tt-select-premium option:hover,
-.tt-select-premium option:focus,
-.tt-select-premium option:checked {
-  background: rgba(124, 58, 237, 0.6) !important;
-  color: #ffffff !important;
 }
 
 /* Dropdown Options Styling - Dark Purple Theme */
