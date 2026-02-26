@@ -1,0 +1,169 @@
+/* src/styles/invoices.css */
+
+.tt-invoices .tt-toolbar {
+  justify-content: flex-start;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.tt-invoices .tt-input {
+  height: 38px;
+  min-width: 320px;
+  max-width: 380px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.tt-invoices .tt-select {
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* Make native select look more premium */
+.tt-invoices .tt-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.70) 50%),
+    linear-gradient(135deg, rgba(255,255,255,0.70) 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 18px) 16px,
+    calc(100% - 13px) 16px,
+    0 0;
+  background-size:
+    5px 5px,
+    5px 5px,
+    100% 100%;
+  background-repeat: no-repeat;
+}
+
+.tt-invoices .tt-table {
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.18) 100%);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 16px 36px rgba(0,0,0,0.35);
+}
+
+.tt-invoices .tt-table thead th {
+  background: linear-gradient(
+    180deg,
+    rgba(139,92,246,0.18) 0%,
+    rgba(255,255,255,0.04) 60%,
+    rgba(255,255,255,0.03) 100%
+  );
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+.tt-invoices .tt-table tbody td {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.tt-invoices .tt-table tbody tr:hover td {
+  background: rgba(139,92,246,0.06);
+}
+
+.tt-invoices .tt-viewbtn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-weight: 800;
+  border: 1px solid rgba(139,92,246,0.40);
+  background: rgba(139,92,246,0.10);
+  color: rgba(245,240,255,0.92);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.tt-invoices .tt-viewbtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(167,139,250,0.70);
+  background: rgba(139,92,246,0.16);
+}
+
+.tt-invoices .tt-pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.tt-invoices .tt-pager .tt-btn,
+.tt-invoices .tt-pager .tt-btn-primary {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-weight: 900;
+}
+
+.tt-invoices .tt-clientpanel {
+  margin-top: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.03) 100%);
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.32);
+}
+
+.tt-invoices .tt-clientpanel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+
+.tt-invoices .tt-clientpanel-title {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tt-invoices .tt-clientpanel-title .name {
+  font-weight: 950;
+}
+
+.tt-invoices .tt-clientpanel-title .email {
+  font-size: 12px;
+  color: rgba(255,255,255,0.66);
+}
+
+.tt-invoices .tt-iconrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Round icon buttons */
+.tt-invoices .tt-iconbtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.82);
+}
+
+.tt-invoices .tt-iconbtn.purple {
+  border-color: rgba(139,92,246,0.45);
+  background: rgba(139,92,246,0.12);
+  color: rgba(216,196,255,0.95);
+}
+
+.tt-invoices .tt-iconbtn.green {
+  border-color: rgba(34,197,94,0.35);
+  background: rgba(34,197,94,0.12);
+  color: rgba(180,255,210,0.95);
+}
