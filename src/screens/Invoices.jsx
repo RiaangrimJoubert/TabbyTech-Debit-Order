@@ -267,12 +267,13 @@ export default function Invoices() {
             <div className="tt-toolbar-left">
               <div className="tt-search-wrap">
                 <input
-                  className="tt-input tt-invoices-search tt-search-premium"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search invoices"
-                  aria-label="Search invoices"
-                />
+  type="text"  // Add this explicit type
+  className="tt-input tt-invoices-search tt-search-premium"
+  value={q}
+  onChange={(e) => setQ(e.target.value)}
+  placeholder="Search invoices"
+  aria-label="Search invoices"
+/>
               </div>
 
               <div className="tt-select-wrap">
