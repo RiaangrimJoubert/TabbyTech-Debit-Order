@@ -1,5 +1,5 @@
 // src/screens/Invoices.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { INVOICES, money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
@@ -54,14 +54,26 @@ function SvgDownload({ size = 16 }) {
   );
 }
 
+function IconButton({ title, variant, onClick, children }) {
+  return (
+    <button
+      type="button"
+      className={`tt-iconbtn ${variant}`}
+      onClick={onClick}
+      aria-label={title}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
 
-  // View selects a client (panel below)
   const [selectedClientKey, setSelectedClientKey] = useState("");
 
-  // Pager like Debit Orders
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
@@ -109,7 +121,6 @@ export default function Invoices() {
   const selectedClientInvoices = useMemo(() => {
     if (!selectedClientKey) return [];
     const key = normalizeKey(selectedClientKey);
-
     return filteredInvoices
       .filter((inv) => makeClientKeyFromInvoice(inv) === key)
       .sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
@@ -235,30 +246,25 @@ export default function Invoices() {
   const canNext = page < totalPages;
 
   return (
-    <div className="tt-page inv">
+    <div className="tt-page tt-invoices">
       <div className="tt-surface">
-        <div className="inv-header">
-          <div className="inv-title">
+        <div className="tt-header">
+          <div className="tt-title">
             <h1>Invoices</h1>
-            <p>Desktop-first view. Use View to load a client panel, then Print or Download from the right.</p>
+            <p>Use View to load a client panel, then Print or Download from the right.</p>
           </div>
-        </div>
 
-        <div className="inv-controls">
-          <div className="inv-search">
+          <div className="tt-toolbar">
             <input
-              className="tt-input"
+              className="tt-input tt-input-sm"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search invoices by ID, customer, email, status, date..."
               aria-label="Search invoices"
-              style={{ width: "100%" }}
             />
-          </div>
 
-          <div className="inv-actions">
             <select
-              className="tt-select"
+              className="tt-select tt-select-premium"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               aria-label="Filter by status"
@@ -271,7 +277,7 @@ export default function Invoices() {
 
             <button
               type="button"
-              className="tt-btn tt-btn-primary"
+              className="tt-btn tt-btn-primary tt-btn-sm"
               onClick={exportFilteredToExcel}
               aria-label="Export filtered invoices to Excel"
               title="Exports exactly what is currently filtered in the table"
@@ -281,17 +287,17 @@ export default function Invoices() {
           </div>
         </div>
 
-        <div className="inv-table-card">
-          <table className="inv-table" role="table" aria-label="Invoices table">
+        <div className="tt-table-wrap">
+          <table className="tt-table" role="table" aria-label="Invoices table">
             <thead>
               <tr>
                 <th style={{ width: 160 }}>Invoice</th>
-                <th style={{ width: 160 }}>Status</th>
+                <th style={{ width: 140 }}>Status</th>
                 <th>Customer</th>
                 <th style={{ width: 170 }}>Issued</th>
                 <th style={{ width: 170 }}>Due</th>
-                <th className="inv-right" style={{ width: 170 }}>Total</th>
-                <th className="inv-right" style={{ width: 140 }}>Action</th>
+                <th style={{ width: 160, textAlign: "right" }}>Total</th>
+                <th style={{ width: 140, textAlign: "right" }}>Action</th>
               </tr>
             </thead>
 
@@ -303,7 +309,7 @@ export default function Invoices() {
 
                 return (
                   <tr key={invId || Math.random()}>
-                    <td className="inv-id">{invId}</td>
+                    <td style={{ fontWeight: 900, letterSpacing: 0.2 }}>{invId}</td>
 
                     <td>
                       <span className="tt-badge">
@@ -313,19 +319,23 @@ export default function Invoices() {
                     </td>
 
                     <td>
-                      <div className="inv-customer">
-                        <div className="inv-customer-name">{inv.customer}</div>
-                        <div className="inv-customer-email">{inv.customerEmail}</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={{ fontWeight: 800 }}>{inv.customer}</span>
+                        <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
+                          {inv.customerEmail}
+                        </span>
                       </div>
                     </td>
 
                     <td>{inv.dateIssued}</td>
                     <td>{inv.dueDate}</td>
 
-                    <td className="inv-right inv-amount">{money(totals.total, inv.currency)}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <span className="tt-money">{money(totals.total, inv.currency)}</span>
+                    </td>
 
-                    <td className="inv-right">
-                      <button type="button" className="inv-view-btn" onClick={() => onView(inv)}>
+                    <td style={{ textAlign: "right" }}>
+                      <button type="button" className="tt-viewbtn" onClick={() => onView(inv)}>
                         View
                       </button>
                     </td>
@@ -343,78 +353,75 @@ export default function Invoices() {
             </tbody>
           </table>
 
-          <div className="inv-footer-note">
-            View opens the client panel below. Print opens the HTML invoice. Download uses PDF when available.
+          <div className="tt-pagination">
+            <div className="tt-label">Records</div>
+
+            <select
+              className="tt-select tt-select-premium"
+              value={String(pageSize)}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              aria-label="Records per page"
+              style={{ width: 140 }}
+            >
+              <option value="10">10 records</option>
+              <option value="20">20 records</option>
+              <option value="50">50 records</option>
+              <option value="100">100 records</option>
+            </select>
+
+            <button
+              type="button"
+              className="tt-btn tt-btn-primary tt-btn-xs"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={!canPrev}
+              style={{ opacity: canPrev ? 1 : 0.45 }}
+            >
+              Back
+            </button>
+
+            <button
+              type="button"
+              className="tt-btn tt-btn-primary tt-btn-xs"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={!canNext}
+              style={{ opacity: canNext ? 1 : 0.45 }}
+            >
+              Next
+            </button>
           </div>
         </div>
 
-        <div className="inv-pager">
-          <div className="inv-pager-label">Records</div>
-
-          <select
-            className="tt-select"
-            value={String(pageSize)}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            aria-label="Records per page"
-            style={{ width: 140 }}
-          >
-            <option value="10">10 records</option>
-            <option value="20">20 records</option>
-            <option value="50">50 records</option>
-            <option value="100">100 records</option>
-          </select>
-
-          <button
-            type="button"
-            className="tt-btn"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={!canPrev}
-            style={{ opacity: canPrev ? 1 : 0.45, height: 34, padding: "0 12px" }}
-          >
-            Back
-          </button>
-
-          <button
-            type="button"
-            className="tt-btn"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={!canNext}
-            style={{ opacity: canNext ? 1 : 0.45, height: 34, padding: "0 12px" }}
-          >
-            Next
-          </button>
+        <div className="tt-footer-note">
+          View loads a premium client panel below. Print opens the HTML invoice. Download uses PDF when available.
         </div>
 
         {selectedClientKey && (
-          <div id="tt-client-panel" className="inv-panel">
-            <div className="inv-panel-head">
-              <div className="inv-panel-meta">
-                <div className="inv-panel-title">
-                  Invoices for {selectedClientMeta.name || "Client"}
-                </div>
-                <div className="inv-panel-sub">{selectedClientMeta.email || " "}</div>
+          <div id="tt-client-panel" className="tt-client-panel">
+            <div className="tt-client-panel-head">
+              <div className="tt-client-meta">
+                <div className="name">Invoices for {selectedClientMeta.name || "Client"}</div>
+                <div className="email">{selectedClientMeta.email || " "}</div>
               </div>
 
               <button
                 type="button"
-                className="tt-btn tt-btn-primary"
+                className="tt-btn tt-btn-primary tt-btn-xs"
                 onClick={closePanel}
-                style={{ height: 34, padding: "0 14px", borderRadius: 12, fontWeight: 900 }}
               >
                 Back
               </button>
             </div>
 
-            <div className="inv-panel-body">
-              <table className="inv-table" role="table" aria-label="Selected client invoices">
+            <div style={{ padding: 14, overflowX: "auto" }}>
+              <table className="tt-table" role="table" aria-label="Selected client invoices">
                 <thead>
                   <tr>
                     <th style={{ width: 160 }}>Invoice</th>
-                    <th style={{ width: 160 }}>Status</th>
+                    <th style={{ width: 140 }}>Status</th>
                     <th style={{ width: 170 }}>Issued</th>
                     <th style={{ width: 170 }}>Due</th>
-                    <th className="inv-right" style={{ width: 170 }}>Total</th>
-                    <th className="inv-right" style={{ width: 220 }}>Action</th>
+                    <th style={{ width: 160, textAlign: "right" }}>Total</th>
+                    <th style={{ width: 220, textAlign: "right" }}>Action</th>
                   </tr>
                 </thead>
 
@@ -426,7 +433,7 @@ export default function Invoices() {
 
                     return (
                       <tr key={invId || Math.random()}>
-                        <td className="inv-id">{invId}</td>
+                        <td style={{ fontWeight: 900 }}>{invId}</td>
 
                         <td>
                           <span className="tt-badge">
@@ -437,29 +444,24 @@ export default function Invoices() {
 
                         <td>{inv.dateIssued}</td>
                         <td>{inv.dueDate}</td>
-                        <td className="inv-right inv-amount">{money(totals.total, inv.currency)}</td>
 
-                        <td className="inv-right">
-                          <div className="inv-icon-row">
-                            <button
-                              type="button"
-                              className="inv-icon-btn inv-icon-purple"
-                              onClick={() => openInvoiceHtml(inv)}
-                              aria-label={`Print invoice ${invId}`}
-                              title="Print (opens HTML in a new tab)"
-                            >
+                        <td style={{ textAlign: "right" }}>
+                          <span className="tt-money">{money(totals.total, inv.currency)}</span>
+                        </td>
+
+                        <td style={{ textAlign: "right" }}>
+                          <div className="tt-iconrow">
+                            <IconButton title="Print" variant="purple" onClick={() => openInvoiceHtml(inv)}>
                               <SvgPrinter />
-                            </button>
+                            </IconButton>
 
-                            <button
-                              type="button"
-                              className="inv-icon-btn inv-icon-green"
+                            <IconButton
+                              title="Download PDF"
+                              variant="green"
                               onClick={() => downloadInvoicePdf(inv)}
-                              aria-label={`Download invoice ${invId}`}
-                              title="Download PDF (falls back to HTML if PDF is not ready)"
                             >
                               <SvgDownload />
-                            </button>
+                            </IconButton>
                           </div>
                         </td>
                       </tr>
@@ -476,7 +478,7 @@ export default function Invoices() {
                 </tbody>
               </table>
 
-              <div style={{ marginTop: 10, color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
+              <div className="tt-note">
                 Print opens the HTML invoice. Download uses PDF when available. If PDF is not available yet, it opens the HTML invoice so you can Save as PDF.
               </div>
             </div>
