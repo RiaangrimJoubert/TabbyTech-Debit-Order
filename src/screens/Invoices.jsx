@@ -69,6 +69,14 @@ function SvgEye({ size = 18 }) {
   );
 }
 
+function SvgChevronDown({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
@@ -253,30 +261,34 @@ export default function Invoices() {
         <div className="tt-header tt-invoices-header">
           <div className="tt-title">
             <h1>Invoices</h1>
-            <p>Filter, export, then View to open the client panel with Print and Download actions.</p>
           </div>
 
           <div className="tt-toolbar tt-invoices-toolbar">
             <div className="tt-toolbar-left">
-              <input
-                className="tt-input tt-invoices-search tt-search-premium"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search invoices"
-                aria-label="Search invoices"
-              />
+              <div className="tt-search-wrap">
+                <input
+                  className="tt-input tt-invoices-search tt-search-premium"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search invoices"
+                  aria-label="Search invoices"
+                />
+              </div>
 
-              <select
-                className="tt-select tt-invoices-status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                aria-label="Filter by status"
-              >
-                <option value="All">All statuses</option>
-                <option value="Paid">Paid</option>
-                <option value="Unpaid">Unpaid</option>
-                <option value="Overdue">Overdue</option>
-              </select>
+              <div className="tt-select-wrap">
+                <select
+                  className="tt-select tt-invoices-status tt-select-premium"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  aria-label="Filter by status"
+                >
+                  <option value="All">All statuses</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Unpaid">Unpaid</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
+                <SvgChevronDown className="tt-select-chevron" />
+              </div>
             </div>
 
             <button
@@ -284,7 +296,6 @@ export default function Invoices() {
               className="tt-btn tt-btn-primary tt-btn-export"
               onClick={exportFilteredToExcel}
               aria-label="Export filtered invoices to Excel"
-              title="Exports exactly what is currently filtered in the table"
             >
               Export to Excel
             </button>
@@ -300,12 +311,8 @@ export default function Invoices() {
                 <th className="tt-th-customer">Customer</th>
                 <th className="tt-th-issued">Issued</th>
                 <th className="tt-th-due">Due</th>
-                <th className="tt-th-right tt-th-total">
-                  Total
-                </th>
-                <th className="tt-th-right tt-th-action">
-                  Action
-                </th>
+                <th className="tt-th-right tt-th-total">Total</th>
+                <th className="tt-th-right tt-th-action">Action</th>
               </tr>
             </thead>
 
@@ -322,7 +329,7 @@ export default function Invoices() {
                     <td>
                       <span className="tt-badge">
                         <span className={`tt-dot ${dotClass}`} />
-                        {inv.status}
+                        <span className="tt-badge-text">{inv.status}</span>
                       </span>
                     </td>
 
@@ -367,17 +374,20 @@ export default function Invoices() {
             <div className="tt-pager-left">
               <div className="tt-pager-label">Records</div>
 
-              <select
-                className="tt-select tt-select-compact"
-                value={String(pageSize)}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                aria-label="Records per page"
-              >
-                <option value="10">10 records</option>
-                <option value="20">20 records</option>
-                <option value="50">50 records</option>
-                <option value="100">100 records</option>
-              </select>
+              <div className="tt-select-wrap tt-select-wrap-small">
+                <select
+                  className="tt-select tt-select-compact tt-select-premium"
+                  value={String(pageSize)}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  aria-label="Records per page"
+                >
+                  <option value="10">10 records</option>
+                  <option value="20">20 records</option>
+                  <option value="50">50 records</option>
+                  <option value="100">100 records</option>
+                </select>
+                <SvgChevronDown className="tt-select-chevron" />
+              </div>
             </div>
 
             <div className="tt-pager-right">
@@ -406,10 +416,6 @@ export default function Invoices() {
           </div>
         </div>
 
-        <div className="tt-footer-note">
-          View loads a client panel below. Print opens the HTML invoice. Download uses PDF when available.
-        </div>
-
         {selectedClientKey && (
           <div id="tt-client-panel" className="tt-clientpanel">
             <div className="tt-clientpanel-head">
@@ -420,7 +426,7 @@ export default function Invoices() {
 
               <button
                 type="button"
-                className="tt-btn tt-btn-primary tt-btn-compact"
+                className="tt-btn tt-btn-back-small"
                 onClick={closePanel}
                 aria-label="Back to invoices list"
               >
@@ -436,12 +442,8 @@ export default function Invoices() {
                     <th className="tt-th-status">Status</th>
                     <th className="tt-th-issued">Issued</th>
                     <th className="tt-th-due">Due</th>
-                    <th className="tt-th-right tt-th-total">
-                      Total
-                    </th>
-                    <th className="tt-th-right tt-th-action">
-                      Action
-                    </th>
+                    <th className="tt-th-right tt-th-total">Total</th>
+                    <th className="tt-th-right tt-th-action">Action</th>
                   </tr>
                 </thead>
 
@@ -458,7 +460,7 @@ export default function Invoices() {
                         <td>
                           <span className="tt-badge">
                             <span className={`tt-dot ${dotClass}`} />
-                            {inv.status}
+                            <span className="tt-badge-text">{inv.status}</span>
                           </span>
                         </td>
 
@@ -503,10 +505,6 @@ export default function Invoices() {
                   )}
                 </tbody>
               </table>
-
-              <div className="tt-clientpanel-note">
-                Print opens the HTML invoice. Download uses PDF when available. If PDF is not available yet, it opens the HTML invoice so you can Save as PDF.
-              </div>
             </div>
           </div>
         )}
