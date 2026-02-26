@@ -69,14 +69,6 @@ function SvgEye({ size = 18 }) {
   );
 }
 
-function SvgChevronDown({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
@@ -288,7 +280,6 @@ export default function Invoices() {
                   <option value="Unpaid">Unpaid</option>
                   <option value="Overdue">Overdue</option>
                 </select>
-                <SvgChevronDown className="tt-select-chevron" />
               </div>
             </div>
 
@@ -387,7 +378,6 @@ export default function Invoices() {
                   <option value="50">50 records</option>
                   <option value="100">100 records</option>
                 </select>
-                <SvgChevronDown className="tt-select-chevron" />
               </div>
             </div>
 
