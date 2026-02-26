@@ -101,6 +101,12 @@
 }
 
 /* Customer */
+.tt-invoices .tt-customer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .tt-invoices .tt-customer-name {
   font-weight: 600;
   font-size: 13px;
@@ -109,6 +115,12 @@
 .tt-invoices .tt-customer-email {
   color: #64748b;
   font-size: 12px;
+}
+
+/* Prevent Action column from growing */
+.tt-invoices .tt-table th:last-child,
+.tt-invoices .tt-table td:last-child {
+  white-space: nowrap;
 }
 
 /* =========================
@@ -150,15 +162,17 @@
 }
 
 /* =========================
-   SMALLER VIEW BUTTON
+   VIEW BUTTON
+   Only target the View button
 ========================= */
 
-.tt-invoices .tt-table tbody td:last-child .tt-btn {
+.tt-invoices .tt-view-btn {
   height: 26px;
-  padding: 0 10px;
+  padding: 0 12px;
+  border-radius: 8px;
   font-size: 11px;
-  font-weight: 600;
-  border-radius: 6px;
+  font-weight: 800;
+  min-width: 64px;
 
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.10);
@@ -168,7 +182,7 @@
   transition: all 0.2s ease;
 }
 
-.tt-invoices .tt-table tbody td:last-child .tt-btn:hover {
+.tt-invoices .tt-view-btn:hover {
   background: #8b5cf6;
   border-color: #8b5cf6;
   color: #ffffff;
@@ -279,7 +293,8 @@
 
   box-shadow: 0 10px 18px rgba(0, 0, 0, 0.35);
   cursor: pointer;
-  transition: transform 120ms ease, filter 120ms ease, background 120ms ease, border-color 120ms ease;
+  transition: transform 120ms ease, filter 120ms ease, background 120ms ease,
+    border-color 120ms ease;
 }
 
 .tt-invoices .tt-iconbtn:hover {
@@ -298,20 +313,6 @@
   display: block;
   width: 16px;
   height: 16px;
-}
-
-.tt-invoices .tt-customer {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.tt-invoices .tt-view-btn {
-  height: 26px;
-  padding: 0 12px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 800;
 }
 
 /* Optional class support */
@@ -353,13 +354,11 @@
   flex-wrap: wrap;
 }
 
-/* Make the Records select the same height as buttons */
 .tt-invoices .tt-invoices-pager .tt-select {
   height: 34px;
   border-radius: 999px;
 }
 
-/* Back and Next sizing and pill shape */
 .tt-invoices .tt-invoices-pager .tt-btn {
   height: 34px;
   padding: 0 14px;
@@ -367,7 +366,6 @@
   font-weight: 900;
 }
 
-/* Do not look disabled unless disabled */
 .tt-invoices .tt-btn[disabled] {
   opacity: 0.45;
   cursor: not-allowed;
