@@ -1,5 +1,5 @@
 // src/screens/Invoices.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { INVOICES, money, calcTotals } from "../data/invoices.js";
 
@@ -12,7 +12,7 @@ async function postJson(url, body) {
   const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
+    body: JSON.stringify(body || {})
   });
 
   const text = await resp.text();
@@ -35,96 +35,59 @@ function normalizeKey(s) {
   return String(s || "").toLowerCase().trim();
 }
 
-function makeClientKey(inv) {
+function makeClientKeyFromInvoice(inv) {
   const email = normalizeKey(inv?.customerEmail);
   const name = normalizeKey(inv?.customer);
   return email || name || normalizeKey(inv?.id);
 }
 
-function IconEye({ size = 16 }) {
+function StatusPill({ status }) {
+  const s = String(status || "").trim();
+  const dotClass = s === "Paid" ? "paid" : s === "Unpaid" ? "unpaid" : "overdue";
+
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      />
-    </svg>
+    <span className="tt-badge">
+      <span className={`tt-dot ${dotClass}`} />
+      {s || "Unknown"}
+    </span>
   );
 }
 
-function IconPrint({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M7 8V4h10v4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7 18h10v2H7v-2Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M6 10h12a2 2 0 0 1 2 2v4h-3v-3H7v3H4v-4a2 2 0 0 1 2-2Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+function IconBtn({ title, onClick, children, variant }) {
+  const bg =
+    variant === "purple"
+      ? "rgba(132, 86, 255, 0.18)"
+      : variant === "green"
+      ? "rgba(46, 213, 115, 0.16)"
+      : "rgba(120, 180, 255, 0.14)";
 
-function IconDownload({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 3v10"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M8 11l4 4 4-4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5 20h14"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+  const bd =
+    variant === "purple"
+      ? "rgba(132, 86, 255, 0.35)"
+      : variant === "green"
+      ? "rgba(46, 213, 115, 0.30)"
+      : "rgba(120, 180, 255, 0.28)";
 
-function IconSync({ size = 16 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M20 7h-5V2"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M20 7a8 8 0 1 0 2 5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: 999,
+        border: `1px solid ${bd}`,
+        background: bg,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer"
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -132,11 +95,20 @@ export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
 
-  // Selected client panel (the "green" behavior)
+  // selection (View -> shows client invoices panel)
   const [selectedClientKey, setSelectedClientKey] = useState("");
+
+  // pagination
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
 
   // Per-invoice Books sync status
   const [booksState, setBooksState] = useState({});
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [q, status, pageSize]);
 
   const filteredInvoices = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -155,7 +127,7 @@ export default function Invoices() {
         inv.dateIssued,
         inv.dueDate,
         inv.booksInvoiceId,
-        inv.debitOrderId,
+        inv.debitOrderId
       ]
         .filter(Boolean)
         .join(" ")
@@ -165,43 +137,64 @@ export default function Invoices() {
     }).sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
   }, [q, status]);
 
-  const selectedClient = useMemo(() => {
-    if (!selectedClientKey) return null;
+  const totalPages = useMemo(() => {
+    const n = Math.max(1, Math.ceil(filteredInvoices.length / Math.max(1, pageSize)));
+    return n;
+  }, [filteredInvoices.length, pageSize]);
 
-    // Find a representative invoice for display name/email
-    const first = filteredInvoices.find((x) => makeClientKey(x) === selectedClientKey) || null;
-    if (!first) return null;
+  const pagedInvoices = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredInvoices.slice(start, start + pageSize);
+  }, [filteredInvoices, page, pageSize]);
 
-    const name = String(first.customer || "").trim() || "Client";
-    const email = String(first.customerEmail || "").trim();
+  const selectedClientInvoices = useMemo(() => {
+    if (!selectedClientKey) return [];
+    const key = normalizeKey(selectedClientKey);
 
-    const invoices = filteredInvoices
-      .filter((x) => makeClientKey(x) === selectedClientKey)
-      .sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
+    const rows = filteredInvoices.filter((inv) => makeClientKeyFromInvoice(inv) === key);
 
-    return { name, email, invoices };
-  }, [selectedClientKey, filteredInvoices]);
+    return rows.sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
+  }, [filteredInvoices, selectedClientKey]);
 
-  function openClientInvoices(inv) {
-    const key = makeClientKey(inv);
+  const selectedClientMeta = useMemo(() => {
+    if (!selectedClientKey) return { name: "", email: "" };
+    const first = selectedClientInvoices[0];
+    return {
+      name: String(first?.customer || "").trim(),
+      email: String(first?.customerEmail || "").trim()
+    };
+  }, [selectedClientKey, selectedClientInvoices]);
+
+  function onViewClient(inv) {
+    const key = makeClientKeyFromInvoice(inv);
     setSelectedClientKey(key);
+    setTimeout(() => {
+      const el = document.getElementById("tt-client-invoices-panel");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   }
 
-  function closeClientInvoices() {
+  function clearSelectedClient() {
     setSelectedClientKey("");
   }
 
   function openInvoiceHtml(inv) {
-    // Use your PUBLIC route so it does not touch AppShell/login
-    const url = `/#/invoice/${encodeURIComponent(String(inv?.id || ""))}`;
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      alert("Missing VITE_API_BASE_URL");
+      return;
+    }
+
+    // Prefer Books invoice id if present
+    const booksInvoiceId = String(inv?.booksInvoiceId || "").trim() || String(inv?.id || "").trim();
+    const url = `${apiBase}/api/invoice-html/${encodeURIComponent(booksInvoiceId)}`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
   async function downloadInvoicePdf(inv) {
     const apiBase = getApiBase();
     if (!apiBase) {
-      // Fallback: user can still Save as PDF from browser
-      openInvoiceHtml(inv);
+      alert("Missing VITE_API_BASE_URL");
       return;
     }
 
@@ -245,14 +238,14 @@ export default function Invoices() {
     if (!debitOrderId) {
       setBooksState((prev) => ({
         ...prev,
-        [invoiceId]: { state: "error", message: "Missing debitOrderId on this invoice row" },
+        [invoiceId]: { state: "error", message: "Missing debitOrderId on this invoice row" }
       }));
       return;
     }
 
     setBooksState((prev) => ({
       ...prev,
-      [invoiceId]: { state: "loading", message: "Creating invoice in Books..." },
+      [invoiceId]: { state: "loading", message: "Creating invoice in Books..." }
     }));
 
     try {
@@ -273,13 +266,13 @@ export default function Invoices() {
         ...prev,
         [invoiceId]: {
           state: "ok",
-          message: msgParts.length ? `Books: ${msgParts.join(" | ")}` : "Books invoice created",
-        },
+          message: msgParts.length ? `Books: ${msgParts.join(" | ")}` : "Books invoice created"
+        }
       }));
     } catch (e) {
       setBooksState((prev) => ({
         ...prev,
-        [invoiceId]: { state: "error", message: String(e?.message || e) },
+        [invoiceId]: { state: "error", message: String(e?.message || e) }
       }));
     }
   }
@@ -289,6 +282,7 @@ export default function Invoices() {
       const totals = calcTotals(inv);
       return {
         "Invoice ID": inv.id,
+        "Books Invoice ID": inv.booksInvoiceId || "",
         Status: inv.status,
         Customer: inv.customer,
         "Customer Email": inv.customerEmail,
@@ -297,13 +291,14 @@ export default function Invoices() {
         Currency: inv.currency || "ZAR",
         Subtotal: Number(totals.subtotal.toFixed(2)),
         VAT: Number(totals.vat.toFixed(2)),
-        Total: Number(totals.total.toFixed(2)),
+        Total: Number(totals.total.toFixed(2))
       };
     });
 
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
       { wch: 14 },
+      { wch: 20 },
       { wch: 10 },
       { wch: 28 },
       { wch: 30 },
@@ -312,7 +307,7 @@ export default function Invoices() {
       { wch: 10 },
       { wch: 12 },
       { wch: 12 },
-      { wch: 12 },
+      { wch: 12 }
     ];
 
     const wb = XLSX.utils.book_new();
@@ -327,38 +322,8 @@ export default function Invoices() {
     XLSX.writeFile(wb, filename, { bookType: "xlsx", compression: true });
   }
 
-  function statusDotClass(s) {
-    if (s === "Paid") return "paid";
-    if (s === "Unpaid") return "unpaid";
-    return "overdue";
-  }
-
-  // Premium round icon button styling (matches your purple/glass vibe)
-  const iconBtnBase = {
-    width: 34,
-    height: 34,
-    borderRadius: 999,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(130, 87, 229, 0.10)",
-    color: "rgba(210,190,255,0.95)",
-    boxShadow: "0 8px 22px rgba(0,0,0,0.30)",
-    cursor: "pointer",
-  };
-
-  const iconBtnGreen = {
-    ...iconBtnBase,
-    background: "rgba(48, 209, 138, 0.12)",
-    color: "rgba(150, 255, 210, 0.95)",
-  };
-
-  const iconBtnMuted = {
-    ...iconBtnBase,
-    background: "rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.82)",
-  };
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
 
   return (
     <div className="tt-page">
@@ -369,7 +334,8 @@ export default function Invoices() {
             <p>Desktop-first view. Use View to see the client invoices, then print or download.</p>
           </div>
 
-          <div className="tt-toolbar">
+          {/* Toolbar aligned like your other modules */}
+          <div className="tt-toolbar" style={{ alignItems: "center" }}>
             <input
               className="tt-input"
               value={q}
@@ -402,7 +368,7 @@ export default function Invoices() {
           </div>
         </div>
 
-        {/* MAIN TABLE (the green layout) */}
+        {/* Main premium table card */}
         <div className="tt-table-wrap">
           <table className="tt-table" role="table" aria-label="Invoices table">
             <thead>
@@ -418,26 +384,23 @@ export default function Invoices() {
             </thead>
 
             <tbody>
-              {filteredInvoices.map((inv) => {
+              {pagedInvoices.map((inv) => {
                 const totals = calcTotals(inv);
-                const dotClass = statusDotClass(inv.status);
+                const email = String(inv?.customerEmail || "").trim();
 
                 return (
-                  <tr key={String(inv.id)}>
+                  <tr key={inv.id}>
                     <td style={{ fontWeight: 800, letterSpacing: 0.2 }}>{inv.id}</td>
 
                     <td>
-                      <span className="tt-badge">
-                        <span className={`tt-dot ${dotClass}`} />
-                        {inv.status}
-                      </span>
+                      <StatusPill status={inv.status} />
                     </td>
 
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         <span style={{ fontWeight: 700 }}>{inv.customer}</span>
                         <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
-                          {inv.customerEmail}
+                          {email || " "}
                         </span>
                       </div>
                     </td>
@@ -452,14 +415,10 @@ export default function Invoices() {
                     <td style={{ textAlign: "right" }}>
                       <button
                         type="button"
-                        className="tt-btn"
-                        onClick={() => openClientInvoices(inv)}
+                        className="tt-linkbtn"
+                        onClick={() => onViewClient(inv)}
                         aria-label={`View invoices for ${inv.customer}`}
-                        title="View all invoices for this client"
-                        style={{
-                          padding: "8px 14px",
-                          borderRadius: 12,
-                        }}
+                        title="Shows this client invoices below"
                       >
                         View
                       </button>
@@ -468,7 +427,7 @@ export default function Invoices() {
                 );
               })}
 
-              {filteredInvoices.length === 0 && (
+              {pagedInvoices.length === 0 && (
                 <tr>
                   <td colSpan={7} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
                     No invoices match your current filters.
@@ -477,44 +436,101 @@ export default function Invoices() {
               )}
             </tbody>
           </table>
+
+          {/* Footer controls like Debit Orders */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: 10,
+              paddingTop: 12
+            }}
+          >
+            <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 12 }}>Records</div>
+
+            <select
+              className="tt-select"
+              value={String(pageSize)}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              aria-label="Records per page"
+              style={{ width: 140 }}
+            >
+              <option value="10">10 records</option>
+              <option value="20">20 records</option>
+              <option value="50">50 records</option>
+              <option value="100">100 records</option>
+            </select>
+
+            <button
+              type="button"
+              className="tt-btn"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={!canPrev}
+              style={{ opacity: canPrev ? 1 : 0.45 }}
+            >
+              Back
+            </button>
+
+            <button
+              type="button"
+              className="tt-btn"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={!canNext}
+              style={{ opacity: canNext ? 1 : 0.45 }}
+            >
+              Next
+            </button>
+          </div>
         </div>
 
-        {/* SELECTED CLIENT PANEL (print/download on far right) */}
-        {selectedClient && (
-          <div style={{ marginTop: 14 }}>
+        <div className="tt-footer-note">
+          View selects a client and shows all of that client invoices below. Print opens the HTML invoice. Download uses PDF when available.
+        </div>
+
+        {/* Client invoices panel (the red section you like) */}
+        {selectedClientKey && (
+          <div
+            id="tt-client-invoices-panel"
+            style={{
+              marginTop: 14,
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.03)",
+              overflow: "hidden"
+            }}
+          >
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
                 justifyContent: "space-between",
-                padding: "10px 12px",
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.04)",
+                gap: 12,
+                padding: 14,
+                alignItems: "center",
+                borderBottom: "1px solid rgba(255,255,255,0.08)"
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <div style={{ fontWeight: 900, fontSize: 14 }}>
-                  Invoices for {selectedClient.name}
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 12 }}>
-                  {selectedClient.email || " "}
+                <div style={{ fontWeight: 900 }}>Invoices for {selectedClientMeta.name || "Client"}</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+                  {selectedClientMeta.email || " "}
                 </div>
               </div>
 
+              {/* Small back button, styled like your premium buttons */}
               <button
                 type="button"
                 className="tt-btn tt-btn-primary"
-                onClick={closeClientInvoices}
-                aria-label="Back"
-                style={{ padding: "10px 16px", borderRadius: 12 }}
+                onClick={clearSelectedClient}
+                style={{ paddingLeft: 14, paddingRight: 14, height: 34 }}
+                aria-label="Close client invoices panel"
               >
                 Back
               </button>
             </div>
 
-            <div className="tt-table-wrap" style={{ marginTop: 10 }}>
-              <table className="tt-table" role="table" aria-label={`Client invoices for ${selectedClient.name}`}>
+            <div style={{ padding: 14, overflowX: "auto" }}>
+              <table className="tt-table" role="table" aria-label="Selected client invoices">
                 <thead>
                   <tr>
                     <th style={{ width: 160 }}>Invoice</th>
@@ -527,17 +543,21 @@ export default function Invoices() {
                 </thead>
 
                 <tbody>
-                  {selectedClient.invoices.map((inv) => {
+                  {selectedClientInvoices.map((inv) => {
                     const totals = calcTotals(inv);
-                    const dotClass = statusDotClass(inv.status);
-
                     const rowState = booksState[String(inv.id)] || { state: "idle", message: "" };
                     const canSync = Boolean(inv?.debitOrderId);
 
                     return (
-                      <tr key={String(inv.id)}>
-                        <td style={{ fontWeight: 800, letterSpacing: 0.2 }}>
+                      <tr key={inv.id}>
+                        <td style={{ fontWeight: 800 }}>
                           {inv.id}
+                          {inv.booksInvoiceId ? (
+                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.60)", marginTop: 4 }}>
+                              Books: {String(inv.booksInvoiceId)}
+                            </div>
+                          ) : null}
+
                           {rowState.state !== "idle" ? (
                             <div
                               style={{
@@ -548,7 +568,7 @@ export default function Invoices() {
                                     : rowState.state === "error"
                                     ? "rgba(255,170,170,0.85)"
                                     : "rgba(255,255,255,0.65)",
-                                fontSize: 12,
+                                fontSize: 12
                               }}
                             >
                               {rowState.message}
@@ -557,10 +577,7 @@ export default function Invoices() {
                         </td>
 
                         <td>
-                          <span className="tt-badge">
-                            <span className={`tt-dot ${dotClass}`} />
-                            {inv.status}
-                          </span>
+                          <StatusPill status={inv.status} />
                         </td>
 
                         <td>{inv.dateIssued}</td>
@@ -571,69 +588,94 @@ export default function Invoices() {
                         </td>
 
                         <td style={{ textAlign: "right" }}>
-                          <div
-                            className="tt-actions"
-                            style={{
-                              justifyContent: "flex-end",
-                              gap: 10,
-                              alignItems: "center",
-                            }}
-                          >
-                            {/* PRINT */}
-                            <button
-                              type="button"
+                          <div style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+                            {/* Print icon (opens HTML invoice) */}
+                            <IconBtn
+                              variant="purple"
+                              title="Print"
                               onClick={() => openInvoiceHtml(inv)}
-                              aria-label={`Print invoice ${inv.id}`}
-                              title="Print (opens HTML invoice in a new tab)"
-                              style={iconBtnMuted}
                             >
-                              <IconPrint />
-                            </button>
+                              {/* printer icon */}
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path
+                                  d="M7 8V4h10v4"
+                                  stroke="rgba(255,255,255,0.85)"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+                                <path
+                                  d="M7 17h10v3H7v-3Z"
+                                  stroke="rgba(255,255,255,0.85)"
+                                  strokeWidth="2"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M6 17H5a3 3 0 0 1-3-3v-3a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-1"
+                                  stroke="rgba(255,255,255,0.85)"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+                              </svg>
+                            </IconBtn>
 
-                            {/* DOWNLOAD */}
-                            <button
-                              type="button"
+                            {/* Download icon */}
+                            <IconBtn
+                              variant="green"
+                              title="Download PDF"
                               onClick={() => downloadInvoicePdf(inv)}
-                              aria-label={`Download invoice ${inv.id}`}
-                              title="Download PDF (falls back to HTML if not available)"
-                              style={iconBtnGreen}
                             >
-                              <IconDownload />
-                            </button>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path
+                                  d="M12 3v10"
+                                  stroke="rgba(255,255,255,0.85)"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+                                <path
+                                  d="M8 11l4 4 4-4"
+                                  stroke="rgba(255,255,255,0.85)"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M5 21h14"
+                                  stroke="rgba(255,255,255,0.85)"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+                              </svg>
+                            </IconBtn>
 
-                            {/* OPTIONAL: SYNC */}
-                            <button
-                              type="button"
+                            {/* Optional: Sync to Books icon button (kept, but not “delete”) */}
+                            <IconBtn
+                              variant="blue"
+                              title={canSync ? "Sync to Books" : "Missing debitOrderId"}
                               onClick={() => onSyncToBooks(inv)}
-                              disabled={!canSync || rowState.state === "loading"}
-                              aria-label={`Sync invoice ${inv.id} to Books`}
-                              title={!canSync ? "Missing debitOrderId" : "Sync to Books"}
-                              style={{
-                                ...iconBtnBase,
-                                opacity: !canSync ? 0.45 : 1,
-                                pointerEvents: !canSync ? "none" : "auto",
-                              }}
                             >
-                              {rowState.state === "loading" ? "…" : <IconSync />}
-                            </button>
-
-                            {/* VIEW (quick open) */}
-                            <button
-                              type="button"
-                              onClick={() => openInvoiceHtml(inv)}
-                              aria-label={`View invoice ${inv.id}`}
-                              title="View (opens HTML invoice)"
-                              style={iconBtnBase}
-                            >
-                              <IconEye />
-                            </button>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path
+                                  d="M20 12a8 8 0 1 1-2.34-5.66"
+                                  stroke="rgba(255,255,255,0.85)"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+                                <path
+                                  d="M20 4v6h-6"
+                                  stroke="rgba(255,255,255,0.85)"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </IconBtn>
                           </div>
                         </td>
                       </tr>
                     );
                   })}
 
-                  {selectedClient.invoices.length === 0 && (
+                  {selectedClientInvoices.length === 0 && (
                     <tr>
                       <td colSpan={6} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
                         No invoices found for this client.
@@ -642,13 +684,13 @@ export default function Invoices() {
                   )}
                 </tbody>
               </table>
+
+              <div style={{ marginTop: 10, color: "rgba(255,255,255,0.68)", fontSize: 12 }}>
+                Print opens the HTML invoice. Download uses PDF when available. If PDF is not available yet, it opens the HTML invoice so you can Save as PDF.
+              </div>
             </div>
           </div>
         )}
-
-        <div className="tt-footer-note">
-          View selects a client and shows all of that client invoices below. Print opens the HTML invoice. Download uses PDF when available.
-        </div>
       </div>
     </div>
   );
