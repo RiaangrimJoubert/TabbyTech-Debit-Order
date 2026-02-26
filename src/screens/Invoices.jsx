@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { INVOICES, money, calcTotals } from "../data/invoices.js";
-import "../styles/invoices.css";
+import "../styles/invoice.css";
 
 function normalizeKey(s) {
   return String(s || "").toLowerCase().trim();
