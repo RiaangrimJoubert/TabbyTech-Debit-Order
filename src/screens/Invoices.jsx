@@ -1,7 +1,7 @@
 // src/screens/Invoices.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { INVOICES, money, calcTotals } from "../data/invoices.js";
+import { money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
 
 function getApiBase() {
@@ -27,6 +27,110 @@ function statusDotClass(status) {
 
 function safeInvoiceLabel(inv) {
   return String(inv?.id || "Invoice").trim();
+}
+
+/**
+ * Normalise API invoice payload into the SAME SHAPE your UI already uses.
+ * This is what prevents breakage.
+ */
+function normalizeInvoice(inv) {
+  const raw = inv || {};
+
+  const id =
+    String(raw.id || raw.invoiceNo || raw.invoice_number || raw.invoice_id || "").trim() ||
+    `INV-${Math.random().toString(16).slice(2)}`;
+
+  const customer =
+    String(raw.customer || raw.customerName || raw.customer_name || raw.contact_name || "").trim() ||
+    "Customer";
+
+  const customerEmail =
+    String(raw.customerEmail || raw.customer_email || raw.contact_email || raw.email || "").trim();
+
+  const status = String(raw.status || raw.invoice_status || "Unpaid").trim();
+
+  const dateIssued = String(raw.dateIssued || raw.date || raw.issuedDate || "").trim();
+  const dueDate = String(raw.dueDate || raw.due_date || raw.dueDate || "").trim();
+
+  const currency = String(raw.currency || raw.currency_code || "ZAR").trim() || "ZAR";
+
+  const booksInvoiceId = String(raw.booksInvoiceId || raw.invoice_id || "").trim();
+  const debitOrderId = String(raw.debitOrderId || raw.debit_order_id || "").trim();
+
+  const itemsRaw = Array.isArray(raw.items)
+    ? raw.items
+    : Array.isArray(raw.line_items)
+      ? raw.line_items
+      : [];
+
+  const items = itemsRaw.map((it) => {
+    const description = String(it.description || it.name || it.item_name || it.item || "Item");
+    const qty = Number(it.qty ?? it.quantity ?? 1);
+    const unitPrice = Number(it.unitPrice ?? it.rate ?? it.unit_price ?? 0);
+
+    return {
+      description,
+      qty: Number.isFinite(qty) ? qty : 1,
+      unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0
+    };
+  });
+
+  // If your API already gives totals, we still keep calcTotals as the source of truth for UI
+  // to avoid changing your existing logic.
+  return {
+    id,
+    status,
+    customer,
+    customerEmail,
+    dateIssued,
+    dueDate,
+    currency,
+    items,
+    booksInvoiceId,
+    debitOrderId
+  };
+}
+
+async function fetchInvoicesFromApi() {
+  const apiBase = getApiBase();
+  if (!apiBase) throw new Error("Missing VITE_API_BASE_URL");
+
+  // Your backend should expose:
+  // GET {API_BASE}/api/invoices
+  const url = `${apiBase}/api/invoices?page=1&perPage=200`;
+
+  const resp = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  });
+
+  const text = await resp.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!resp.ok) {
+    const msg = json?.error || json?.message || `Request failed (${resp.status})`;
+    throw new Error(msg);
+  }
+
+  if (json && json.status === "failure") {
+    const msg = json?.data?.message || json?.message || "API failure";
+    throw new Error(msg);
+  }
+
+  const items = Array.isArray(json.items)
+    ? json.items
+    : Array.isArray(json.invoices)
+      ? json.invoices
+      : Array.isArray(json.data)
+        ? json.data
+        : [];
+
+  return items.map(normalizeInvoice);
 }
 
 function SvgPrinter({ size = 16 }) {
@@ -64,7 +168,15 @@ function SvgEye({ size = 18 }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle
+        cx="12"
+        cy="12"
+        r="3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -78,6 +190,36 @@ export default function Invoices() {
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
+  // API-driven invoices, same shape as before
+  const [invoices, setInvoices] = useState([]);
+  const [loadErr, setLoadErr] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function run() {
+      setLoading(true);
+      setLoadErr("");
+      try {
+        const items = await fetchInvoicesFromApi();
+        if (!alive) return;
+        setInvoices(items || []);
+      } catch (e) {
+        if (!alive) return;
+        setInvoices([]);
+        setLoadErr(e?.message || "Failed to load invoices");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   useEffect(() => {
     setPage(1);
   }, [q, status, pageSize]);
@@ -85,7 +227,7 @@ export default function Invoices() {
   const filteredInvoices = useMemo(() => {
     const query = normalizeKey(q);
 
-    return (INVOICES || [])
+    return (invoices || [])
       .filter((inv) => {
         const matchesStatus = status === "All" ? true : String(inv.status) === String(status);
         if (!matchesStatus) return false;
@@ -108,7 +250,7 @@ export default function Invoices() {
         return normalizeKey(hay).includes(query);
       })
       .sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
-  }, [q, status]);
+  }, [q, status, invoices]);
 
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil(filteredInvoices.length / Math.max(1, pageSize)));
@@ -294,6 +436,18 @@ export default function Invoices() {
           </div>
         </div>
 
+        {loading && (
+          <div style={{ padding: 12, color: "rgba(255,255,255,0.70)" }}>
+            Loading invoices...
+          </div>
+        )}
+
+        {!loading && loadErr && (
+          <div style={{ padding: 12, color: "rgba(255,255,255,0.70)" }}>
+            {loadErr}
+          </div>
+        )}
+
         <div className="tt-table-wrap">
           <table className="tt-table tt-table-invoices" role="table" aria-label="Invoices table">
             <thead>
@@ -352,7 +506,7 @@ export default function Invoices() {
                 );
               })}
 
-              {pagedInvoices.length === 0 && (
+              {pagedInvoices.length === 0 && !loading && (
                 <tr>
                   <td colSpan={7} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
                     No invoices match your current filters.
@@ -474,7 +628,7 @@ export default function Invoices() {
 
                             <button
                               type="button"
-                              className="tt-iconbtn tt-iconbtn-green"
+                              className="tt-iconbtn tt-iconbtn-purple"
                               onClick={() => downloadInvoicePdf(inv)}
                               aria-label={`Download invoice ${invId}`}
                               title="Download PDF (falls back to HTML if PDF is not ready)"
