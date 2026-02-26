@@ -211,26 +211,56 @@
 }
 
 /* =========================
-   CLIENT PANEL TABLE ALIGNMENT
-   Fix Total + Action line-up
+   CLIENT PANEL GRID ALIGNMENT
+   Make it match main table exactly
 ========================= */
 
 .tt-invoices .tt-clientpanel .tt-table {
-  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
 }
 
-/* Total column (second last) */
+/* Match header spacing exactly */
+.tt-invoices .tt-clientpanel .tt-table thead th {
+  padding: 14px 18px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Match body cell spacing exactly */
+.tt-invoices .tt-clientpanel .tt-table tbody td {
+  padding: 16px 18px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Remove last row border */
+.tt-invoices .tt-clientpanel .tt-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Align Total column properly (second last) */
 .tt-invoices .tt-clientpanel .tt-table thead th:nth-last-child(2),
 .tt-invoices .tt-clientpanel .tt-table tbody td:nth-last-child(2) {
   text-align: right;
-  padding-right: 16px;
+  padding-right: 18px;
+  font-weight: 700;
 }
 
-/* Action column (last) */
+/* Align Action column properly (last) */
 .tt-invoices .tt-clientpanel .tt-table thead th:last-child,
 .tt-invoices .tt-clientpanel .tt-table tbody td:last-child {
   text-align: right;
   padding-right: 18px;
+}
+
+/* Hover consistency */
+.tt-invoices .tt-clientpanel .tt-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 /* =========================
