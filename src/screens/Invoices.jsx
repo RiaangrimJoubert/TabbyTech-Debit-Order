@@ -2,11 +2,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { INVOICES, money, calcTotals } from "../data/invoices.js";
-
-function getApiBase() {
-  const base = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
-  return base.endsWith("/") ? base.slice(0, -1) : base;
-}
+import "../styles/invoices.css";
 
 function normalizeKey(s) {
   return String(s || "").toLowerCase().trim();
@@ -26,6 +22,11 @@ function statusDotClass(status) {
 
 function safeInvoiceLabel(inv) {
   return String(inv?.id || "Invoice").trim();
+}
+
+function getApiBase() {
+  const base = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
+  return base.endsWith("/") ? base.slice(0, -1) : base;
 }
 
 function SvgPrinter({ size = 16 }) {
@@ -54,67 +55,16 @@ function SvgDownload({ size = 16 }) {
 }
 
 function IconRoundButton({ title, onClick, variant = "purple", children }) {
-  const styles =
+  const cls =
     variant === "green"
-      ? {
-          border: "1px solid rgba(34,197,94,0.35)",
-          background: "rgba(34,197,94,0.12)",
-          color: "rgba(180,255,210,0.95)"
-        }
+      ? "tt-iconround tt-iconround-green"
       : variant === "blue"
-      ? {
-          border: "1px solid rgba(59,130,246,0.30)",
-          background: "rgba(59,130,246,0.12)",
-          color: "rgba(200,220,255,0.95)"
-        }
-      : {
-          border: "1px solid rgba(124,58,237,0.45)",
-          background: "rgba(124,58,237,0.12)",
-          color: "rgba(216,196,255,0.95)"
-        };
+      ? "tt-iconround tt-iconround-blue"
+      : "tt-iconround tt-iconround-purple";
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={title}
-      title={title}
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 999,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
-        cursor: "pointer",
-        ...styles
-      }}
-    >
+    <button type="button" className={cls} onClick={onClick} aria-label={title} title={title}>
       {children}
-    </button>
-  );
-}
-
-function PremiumViewButton({ onClick }) {
-  // Dark subtle "View" button like your green reference.
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="tt-linkbtn"
-      aria-label="View"
-      style={{
-        height: 34,
-        padding: "0 14px",
-        borderRadius: 12,
-        fontWeight: 800,
-        border: "1px solid rgba(255,255,255,0.12)",
-        background: "rgba(255,255,255,0.06)",
-        color: "rgba(255,255,255,0.78)"
-      }}
-    >
-      View
     </button>
   );
 }
@@ -123,14 +73,13 @@ export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
 
-  // Selected client (View -> show panel)
+  // Selected client panel (View)
   const [selectedClientKey, setSelectedClientKey] = useState("");
 
-  // Pagination (same concept as Debit Orders)
+  // Pagination
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
-  // Reset page when filters change
   useEffect(() => {
     setPage(1);
   }, [q, status, pageSize]);
@@ -175,6 +124,7 @@ export default function Invoices() {
   const selectedClientInvoices = useMemo(() => {
     if (!selectedClientKey) return [];
     const key = normalizeKey(selectedClientKey);
+
     return filteredInvoices
       .filter((inv) => makeClientKeyFromInvoice(inv) === key)
       .sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
@@ -223,6 +173,8 @@ export default function Invoices() {
     }
 
     const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
+
+    // If not mapped yet, fall back to HTML (user can Save as PDF)
     if (!booksInvoiceId) {
       openInvoiceHtml(inv);
       return;
@@ -305,12 +257,10 @@ export default function Invoices() {
         <div className="tt-header">
           <div className="tt-title">
             <h1>Invoices</h1>
-            <p>Desktop-first view. Use View to see the client invoices, then print or download.</p>
+            <p>Use View to load a client panel, then Print or Download from the right.</p>
           </div>
 
-          {/* IMPORTANT: do NOT right-align everything.
-              Your green reference has balanced spacing. */}
-          <div className="tt-toolbar" style={{ alignItems: "center" }}>
+          <div className="tt-toolbar">
             <input
               className="tt-input"
               value={q}
@@ -319,10 +269,8 @@ export default function Invoices() {
               aria-label="Search invoices"
             />
 
-            {/* If your PremiumSelect uses a different class than tt-select, swap it here.
-                Example: className="tt-select tt-select-premium" (if you have one) */}
             <select
-              className="tt-select"
+              className="tt-select tt-select-premium"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               aria-label="Filter by status"
@@ -366,7 +314,7 @@ export default function Invoices() {
                 const dotClass = statusDotClass(String(inv.status || "Overdue"));
 
                 return (
-                  <tr key={invId || Math.random()}>
+                  <tr key={invId}>
                     <td style={{ fontWeight: 800, letterSpacing: 0.2 }}>{invId}</td>
 
                     <td>
@@ -377,11 +325,9 @@ export default function Invoices() {
                     </td>
 
                     <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontWeight: 700 }}>{inv.customer}</span>
-                        <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
-                          {inv.customerEmail}
-                        </span>
+                      <div className="tt-inv-customer">
+                        <span className="tt-inv-customername">{inv.customer}</span>
+                        <span className="tt-inv-customeremail">{inv.customerEmail}</span>
                       </div>
                     </td>
 
@@ -393,7 +339,15 @@ export default function Invoices() {
                     </td>
 
                     <td style={{ textAlign: "right" }}>
-                      <PremiumViewButton onClick={() => onView(inv)} />
+                      <button
+                        type="button"
+                        className="tt-linkbtn tt-linkbtn-premium"
+                        onClick={() => onView(inv)}
+                        aria-label={`View invoices for ${inv.customer}`}
+                        title="View this client's invoices below"
+                      >
+                        View
+                      </button>
                     </td>
                   </tr>
                 );
@@ -409,24 +363,14 @@ export default function Invoices() {
             </tbody>
           </table>
 
-          {/* Bottom-right pagination like Debit Orders */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              alignItems: "center",
-              gap: 10,
-              paddingTop: 12
-            }}
-          >
-            <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 12 }}>Records</div>
+          <div className="tt-inv-pager">
+            <div className="tt-inv-pagerlabel">Records</div>
 
             <select
-              className="tt-select"
+              className="tt-select tt-select-premium"
               value={String(pageSize)}
               onChange={(e) => setPageSize(Number(e.target.value))}
               aria-label="Records per page"
-              style={{ width: 140 }}
             >
               <option value="10">10 records</option>
               <option value="20">20 records</option>
@@ -439,7 +383,7 @@ export default function Invoices() {
               className="tt-btn"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={!canPrev}
-              style={{ opacity: canPrev ? 1 : 0.45, height: 34, padding: "0 12px" }}
+              style={{ opacity: canPrev ? 1 : 0.45 }}
             >
               Back
             </button>
@@ -449,7 +393,7 @@ export default function Invoices() {
               className="tt-btn"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={!canNext}
-              style={{ opacity: canNext ? 1 : 0.45, height: 34, padding: "0 12px" }}
+              style={{ opacity: canNext ? 1 : 0.45 }}
             >
               Next
             </button>
@@ -457,50 +401,30 @@ export default function Invoices() {
         </div>
 
         <div className="tt-footer-note">
-          View selects a client and shows all of that client invoices below. Print opens the HTML invoice. Download uses PDF when available.
+          View loads a premium client panel below. Print opens the HTML invoice. Download uses PDF when available.
         </div>
 
-        {/* Client invoices panel (your red section style, but aligned and premium) */}
         {selectedClientKey && (
-          <div
-            id="tt-client-panel"
-            style={{
-              marginTop: 14,
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.03)",
-              overflow: "hidden"
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                padding: 14,
-                alignItems: "center",
-                borderBottom: "1px solid rgba(255,255,255,0.08)"
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <div style={{ fontWeight: 900 }}>Invoices for {selectedClientMeta.name || "Client"}</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-                  {selectedClientMeta.email || " "}
+          <div id="tt-client-panel" className="tt-inv-panel">
+            <div className="tt-inv-panelhead">
+              <div className="tt-inv-panelmeta">
+                <div className="tt-inv-paneltitle">
+                  Invoices for {selectedClientMeta.name || "Client"}
                 </div>
+                <div className="tt-inv-panelsubtitle">{selectedClientMeta.email || " "}</div>
               </div>
 
-              {/* Back button should be small (not massive) */}
               <button
                 type="button"
-                className="tt-btn tt-btn-primary"
+                className="tt-btn tt-btn-primary tt-inv-backbtn"
                 onClick={closePanel}
-                style={{ height: 34, padding: "0 14px", borderRadius: 12, fontWeight: 900 }}
+                aria-label="Back to main invoices list"
               >
                 Back
               </button>
             </div>
 
-            <div style={{ padding: 14, overflowX: "auto" }}>
+            <div className="tt-inv-panelbody">
               <table className="tt-table" role="table" aria-label="Selected client invoices">
                 <thead>
                   <tr>
@@ -520,7 +444,7 @@ export default function Invoices() {
                     const dotClass = statusDotClass(String(inv.status || "Overdue"));
 
                     return (
-                      <tr key={invId || Math.random()}>
+                      <tr key={invId}>
                         <td style={{ fontWeight: 800 }}>{invId}</td>
 
                         <td>
@@ -538,12 +462,8 @@ export default function Invoices() {
                         </td>
 
                         <td style={{ textAlign: "right" }}>
-                          <div style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
-                            <IconRoundButton
-                              title="Print"
-                              variant="purple"
-                              onClick={() => openInvoiceHtml(inv)}
-                            >
+                          <div className="tt-inv-iconactions">
+                            <IconRoundButton title="Print" variant="purple" onClick={() => openInvoiceHtml(inv)}>
                               <SvgPrinter />
                             </IconRoundButton>
 
@@ -570,7 +490,7 @@ export default function Invoices() {
                 </tbody>
               </table>
 
-              <div style={{ marginTop: 10, color: "rgba(255,255,255,0.68)", fontSize: 12 }}>
+              <div className="tt-inv-help">
                 Print opens the HTML invoice. Download uses PDF when available. If PDF is not available yet, it opens the HTML invoice so you can Save as PDF.
               </div>
             </div>
