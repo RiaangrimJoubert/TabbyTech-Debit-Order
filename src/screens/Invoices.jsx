@@ -211,9 +211,7 @@ export default function Invoices() {
         ...prev,
         [invoiceId]: {
           state: "ok",
-          message: msgParts.length
-            ? `Books: ${msgParts.join(" | ")}`
-            : "Books invoice created"
+          message: msgParts.length ? `Books: ${msgParts.join(" | ")}` : "Books invoice created"
         }
       }));
     } catch (e) {
@@ -273,15 +271,17 @@ export default function Invoices() {
   }
 
   return (
-    <div className="tt-page tt-invoices">
+    <div className="tt-page">
       <div className="tt-surface">
         <div className="tt-header">
           <div className="tt-title">
             <h1>Invoices</h1>
-            <p>Clients first. Expand a client to see all invoices, then print or download.</p>
+            <p>
+              Clients first. Expand a client to see all invoices, then print or download.
+            </p>
           </div>
 
-          <div className="tt-toolbar tt-invoices-toolbar">
+          <div className="tt-toolbar">
             <input
               className="tt-input"
               value={q}
@@ -314,7 +314,7 @@ export default function Invoices() {
           </div>
         </div>
 
-        <div className="tt-table-wrap tt-invoices-tablewrap">
+        <div className="tt-table-wrap">
           <table className="tt-table" role="table" aria-label="Clients table">
             <thead>
               <tr>
@@ -356,166 +356,148 @@ export default function Invoices() {
                     {isOpen && (
                       <tr>
                         <td colSpan={4} style={{ padding: 0 }}>
-                          <div className="inv-expand">
-                            <div style={{ padding: 14 }}>
-                              <div
-                                style={{
-                                  color: "rgba(255,255,255,0.75)",
-                                  fontSize: 12,
-                                  marginBottom: 10
-                                }}
-                              >
-                                Invoices for {c.name}
-                              </div>
+                          <div style={{ padding: 14 }}>
+                            <div
+                              style={{
+                                color: "rgba(255,255,255,0.75)",
+                                fontSize: 12,
+                                marginBottom: 10
+                              }}
+                            >
+                              Invoices for {c.name}
+                            </div>
 
-                              <div style={{ overflowX: "auto" }}>
-                                <div className="tt-table-wrap">
-                                  <table
-                                    className="tt-table"
-                                    role="table"
-                                    aria-label={`Invoices for ${c.name}`}
-                                  >
-                                    <thead>
-                                      <tr>
-                                        <th style={{ width: 160 }}>Invoice</th>
-                                        <th style={{ width: 140 }}>Status</th>
-                                        <th style={{ width: 170 }}>Issued</th>
-                                        <th style={{ width: 170 }}>Due</th>
-                                        <th style={{ width: 160, textAlign: "right" }}>Total</th>
-                                        <th style={{ width: 360, textAlign: "right" }}>Actions</th>
+                            <div style={{ overflowX: "auto" }}>
+                              <table className="tt-table" role="table" aria-label={`Invoices for ${c.name}`}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 160 }}>Invoice</th>
+                                    <th style={{ width: 140 }}>Status</th>
+                                    <th style={{ width: 170 }}>Issued</th>
+                                    <th style={{ width: 170 }}>Due</th>
+                                    <th style={{ width: 160, textAlign: "right" }}>Total</th>
+                                    <th style={{ width: 360, textAlign: "right" }}>Actions</th>
+                                  </tr>
+                                </thead>
+
+                                <tbody>
+                                  {c.invoices.map((inv) => {
+                                    const totals = calcTotals(inv);
+
+                                    const dotClass =
+                                      inv.status === "Paid"
+                                        ? "paid"
+                                        : inv.status === "Unpaid"
+                                        ? "unpaid"
+                                        : "overdue";
+
+                                    const rowState = booksState[String(inv.id)] || { state: "idle", message: "" };
+                                    const canSync = Boolean(inv?.debitOrderId);
+
+                                    return (
+                                      <tr key={inv.id}>
+                                        <td style={{ fontWeight: 700, letterSpacing: 0.2 }}>
+                                          {inv.id}
+                                          {inv.booksInvoiceId ? (
+                                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.60)", marginTop: 4 }}>
+                                              Books: {String(inv.booksInvoiceId)}
+                                            </div>
+                                          ) : null}
+
+                                          {rowState.state !== "idle" ? (
+                                            <div
+                                              style={{
+                                                marginTop: 4,
+                                                color:
+                                                  rowState.state === "ok"
+                                                    ? "rgba(180,255,210,0.85)"
+                                                    : rowState.state === "error"
+                                                    ? "rgba(255,170,170,0.85)"
+                                                    : "rgba(255,255,255,0.65)",
+                                                fontSize: 12
+                                              }}
+                                            >
+                                              {rowState.message}
+                                            </div>
+                                          ) : null}
+                                        </td>
+
+                                        <td>
+                                          <span className="tt-badge">
+                                            <span className={`tt-dot ${dotClass}`} />
+                                            {inv.status}
+                                          </span>
+                                        </td>
+
+                                        <td>{inv.dateIssued}</td>
+                                        <td>{inv.dueDate}</td>
+
+                                        <td style={{ textAlign: "right", fontWeight: 700 }}>
+                                          {money(totals.total, inv.currency)}
+                                        </td>
+
+                                        <td style={{ textAlign: "right" }}>
+                                          <div
+                                            className="tt-actions"
+                                            style={{
+                                              justifyContent: "flex-end",
+                                              flexWrap: "wrap",
+                                              gap: 10
+                                            }}
+                                          >
+                                            <button
+                                              type="button"
+                                              className="tt-linkbtn"
+                                              onClick={() => openInvoiceHtml(inv)}
+                                              aria-label={`Print invoice ${inv.id}`}
+                                              title="Opens the HTML invoice in a new tab for printing"
+                                            >
+                                              Print
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              className="tt-linkbtn"
+                                              onClick={() => downloadInvoicePdf(inv)}
+                                              aria-label={`Download invoice ${inv.id} as PDF`}
+                                              title="Downloads the invoice PDF when available. If not available, it opens the HTML invoice."
+                                            >
+                                              Download
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              className="tt-linkbtn"
+                                              onClick={() => onSyncToBooks(inv)}
+                                              disabled={!canSync || rowState.state === "loading"}
+                                              aria-label={`Sync invoice ${inv.id} to Books`}
+                                              title={
+                                                !canSync
+                                                  ? "This invoice row does not have a debitOrderId mapped yet"
+                                                  : "Creates or reuses a Books invoice for this debit order"
+                                              }
+                                              style={{
+                                                opacity: !canSync ? 0.45 : 1,
+                                                pointerEvents: !canSync ? "none" : "auto"
+                                              }}
+                                            >
+                                              {rowState.state === "loading" ? "Syncing..." : "Sync to Books"}
+                                            </button>
+                                          </div>
+                                        </td>
                                       </tr>
-                                    </thead>
+                                    );
+                                  })}
 
-                                    <tbody>
-                                      {c.invoices.map((inv) => {
-                                        const totals = calcTotals(inv);
-
-                                        const dotClass =
-                                          inv.status === "Paid"
-                                            ? "paid"
-                                            : inv.status === "Unpaid"
-                                            ? "unpaid"
-                                            : "overdue";
-
-                                        const rowState = booksState[String(inv.id)] || {
-                                          state: "idle",
-                                          message: ""
-                                        };
-                                        const canSync = Boolean(inv?.debitOrderId);
-
-                                        return (
-                                          <tr key={inv.id}>
-                                            <td style={{ fontWeight: 700, letterSpacing: 0.2 }}>
-                                              {inv.id}
-
-                                              {inv.booksInvoiceId ? (
-                                                <div
-                                                  style={{
-                                                    fontSize: 12,
-                                                    color: "rgba(255,255,255,0.60)",
-                                                    marginTop: 4
-                                                  }}
-                                                >
-                                                  Books: {String(inv.booksInvoiceId)}
-                                                </div>
-                                              ) : null}
-
-                                              {rowState.state !== "idle" ? (
-                                                <div
-                                                  style={{
-                                                    marginTop: 4,
-                                                    color:
-                                                      rowState.state === "ok"
-                                                        ? "rgba(180,255,210,0.85)"
-                                                        : rowState.state === "error"
-                                                        ? "rgba(255,170,170,0.85)"
-                                                        : "rgba(255,255,255,0.65)",
-                                                    fontSize: 12
-                                                  }}
-                                                >
-                                                  {rowState.message}
-                                                </div>
-                                              ) : null}
-                                            </td>
-
-                                            <td>
-                                              <span className="tt-badge">
-                                                <span className={`tt-dot ${dotClass}`} />
-                                                {inv.status}
-                                              </span>
-                                            </td>
-
-                                            <td>{inv.dateIssued}</td>
-                                            <td>{inv.dueDate}</td>
-
-                                            <td style={{ textAlign: "right", fontWeight: 700 }}>
-                                              {money(totals.total, inv.currency)}
-                                            </td>
-
-                                            <td style={{ textAlign: "right" }}>
-                                              <div
-                                                className="tt-actions"
-                                                style={{
-                                                  justifyContent: "flex-end",
-                                                  flexWrap: "wrap",
-                                                  gap: 10
-                                                }}
-                                              >
-                                                <button
-                                                  type="button"
-                                                  className="tt-linkbtn"
-                                                  onClick={() => openInvoiceHtml(inv)}
-                                                  aria-label={`Print invoice ${inv.id}`}
-                                                  title="Opens the HTML invoice in a new tab for printing"
-                                                >
-                                                  Print
-                                                </button>
-
-                                                <button
-                                                  type="button"
-                                                  className="tt-linkbtn"
-                                                  onClick={() => downloadInvoicePdf(inv)}
-                                                  aria-label={`Download invoice ${inv.id} as PDF`}
-                                                  title="Downloads the invoice PDF when available. If not available, it opens the HTML invoice."
-                                                >
-                                                  Download
-                                                </button>
-
-                                                <button
-                                                  type="button"
-                                                  className="tt-linkbtn"
-                                                  onClick={() => onSyncToBooks(inv)}
-                                                  disabled={!canSync || rowState.state === "loading"}
-                                                  aria-label={`Sync invoice ${inv.id} to Books`}
-                                                  title={
-                                                    !canSync
-                                                      ? "This invoice row does not have a debitOrderId mapped yet"
-                                                      : "Creates or reuses a Books invoice for this debit order"
-                                                  }
-                                                  style={{
-                                                    opacity: !canSync ? 0.45 : 1,
-                                                    pointerEvents: !canSync ? "none" : "auto"
-                                                  }}
-                                                >
-                                                  {rowState.state === "loading" ? "Syncing..." : "Sync to Books"}
-                                                </button>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-
-                                      {c.invoices.length === 0 && (
-                                        <tr>
-                                          <td colSpan={6} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
-                                            No invoices found for this client.
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
+                                  {c.invoices.length === 0 && (
+                                    <tr>
+                                      <td colSpan={6} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
+                                        No invoices found for this client.
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
                             </div>
                           </div>
                         </td>
