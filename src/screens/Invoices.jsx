@@ -54,6 +54,21 @@ function SvgDownload({ size = 16 }) {
   );
 }
 
+function SvgEye({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
@@ -242,29 +257,31 @@ export default function Invoices() {
           </div>
 
           <div className="tt-toolbar tt-invoices-toolbar">
-            <input
-              className="tt-input tt-invoices-search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search invoices"
-              aria-label="Search invoices"
-            />
+            <div className="tt-toolbar-left">
+              <input
+                className="tt-input tt-invoices-search tt-search-premium"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search invoices"
+                aria-label="Search invoices"
+              />
 
-            <select
-              className="tt-select tt-invoices-status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              aria-label="Filter by status"
-            >
-              <option value="All">All statuses</option>
-              <option value="Paid">Paid</option>
-              <option value="Unpaid">Unpaid</option>
-              <option value="Overdue">Overdue</option>
-            </select>
+              <select
+                className="tt-select tt-invoices-status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                aria-label="Filter by status"
+              >
+                <option value="All">All statuses</option>
+                <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
+                <option value="Overdue">Overdue</option>
+              </select>
+            </div>
 
             <button
               type="button"
-              className="tt-btn tt-btn-primary"
+              className="tt-btn tt-btn-primary tt-btn-export"
               onClick={exportFilteredToExcel}
               aria-label="Export filtered invoices to Excel"
               title="Exports exactly what is currently filtered in the table"
@@ -275,18 +292,18 @@ export default function Invoices() {
         </div>
 
         <div className="tt-table-wrap">
-          <table className="tt-table" role="table" aria-label="Invoices table">
+          <table className="tt-table tt-table-invoices" role="table" aria-label="Invoices table">
             <thead>
               <tr>
-                <th style={{ width: 140 }}>Invoice</th>
-                <th style={{ width: 140 }}>Status</th>
-                <th>Customer</th>
-                <th style={{ width: 150 }}>Issued</th>
-                <th style={{ width: 150 }}>Due</th>
-                <th className="tt-th-right" style={{ width: 140 }}>
+                <th className="tt-th-invoice">Invoice</th>
+                <th className="tt-th-status">Status</th>
+                <th className="tt-th-customer">Customer</th>
+                <th className="tt-th-issued">Issued</th>
+                <th className="tt-th-due">Due</th>
+                <th className="tt-th-right tt-th-total">
                   Total
                 </th>
-                <th className="tt-th-right" style={{ width: 110 }}>
+                <th className="tt-th-right tt-th-action">
                   Action
                 </th>
               </tr>
@@ -324,11 +341,12 @@ export default function Invoices() {
                     <td className="tt-td-right">
                       <button
                         type="button"
-                        className="tt-btn tt-btn-primary tt-btn-compact tt-view-btn"
+                        className="tt-iconbtn tt-iconbtn-view"
                         onClick={() => onView(inv)}
                         aria-label={`View invoices for ${inv.customer}`}
+                        title="View client invoices"
                       >
-                        View
+                        <SvgEye />
                       </button>
                     </td>
                   </tr>
@@ -369,7 +387,7 @@ export default function Invoices() {
 
               <button
                 type="button"
-                className="tt-btn tt-btn-primary tt-btn-compact"
+                className="tt-btn tt-btn-pager"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={!canPrev}
               >
@@ -378,7 +396,7 @@ export default function Invoices() {
 
               <button
                 type="button"
-                className="tt-btn tt-btn-primary tt-btn-compact"
+                className="tt-btn tt-btn-pager"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={!canNext}
               >
@@ -411,17 +429,17 @@ export default function Invoices() {
             </div>
 
             <div className="tt-clientpanel-body">
-              <table className="tt-table" role="table" aria-label="Selected client invoices">
+              <table className="tt-table tt-table-client" role="table" aria-label="Selected client invoices">
                 <thead>
                   <tr>
-                    <th style={{ width: 140 }}>Invoice</th>
-                    <th style={{ width: 140 }}>Status</th>
-                    <th style={{ width: 150 }}>Issued</th>
-                    <th style={{ width: 150 }}>Due</th>
-                    <th className="tt-th-right" style={{ width: 140 }}>
+                    <th className="tt-th-invoice">Invoice</th>
+                    <th className="tt-th-status">Status</th>
+                    <th className="tt-th-issued">Issued</th>
+                    <th className="tt-th-due">Due</th>
+                    <th className="tt-th-right tt-th-total">
                       Total
                     </th>
-                    <th className="tt-th-right" style={{ width: 140 }}>
+                    <th className="tt-th-right tt-th-action">
                       Action
                     </th>
                   </tr>
