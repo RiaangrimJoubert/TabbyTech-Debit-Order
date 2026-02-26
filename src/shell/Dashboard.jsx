@@ -41,6 +41,118 @@ function cx(...arr) {
   return arr.filter(Boolean).join(" ");
 }
 
+// SVG Icons as components
+const IconFileInvoice = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+    <polyline points="14 2 14 8 20 8"></polyline>
+    <line x1="16" y1="13" x2="8" y2="13"></line>
+    <line x1="16" y1="17" x2="8" y2="17"></line>
+    <polyline points="10 9 9 9 8 9"></polyline>
+  </svg>
+);
+
+const IconCheckCircle = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+  </svg>
+);
+
+const IconRedo = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="1 4 1 10 7 10"></polyline>
+    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+  </svg>
+);
+
+const IconWallet = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path>
+    <path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path>
+    <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path>
+  </svg>
+);
+
+const IconClock = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <polyline points="12 6 12 12 16 14"></polyline>
+  </svg>
+);
+
+const IconEnvelope = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+    <polyline points="22,6 12,13 2,6"></polyline>
+  </svg>
+);
+
+const IconSearch = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  </svg>
+);
+
+const IconBell = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+  </svg>
+);
+
+const IconArrowRight = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+    <polyline points="12 5 19 12 12 19"></polyline>
+  </svg>
+);
+
+const IconExclamation = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="12" y1="8" x2="12" y2="12"></line>
+    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+  </svg>
+);
+
+const IconPaperPlane = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"></line>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+  </svg>
+);
+
+const IconAlert = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+    <line x1="12" y1="9" x2="12" y2="13"></line>
+    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+  </svg>
+);
+
+const IconClose = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+);
+
+const IconArrowUp = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="19" x2="12" y2="5"></line>
+    <polyline points="5 12 12 5 19 12"></polyline>
+  </svg>
+);
+
+const IconArrowDown = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19"></line>
+    <polyline points="19 12 12 19 5 12"></polyline>
+  </svg>
+);
+
 // SVG Line Chart Component
 function LineChart({ data }) {
   const width = 600;
@@ -59,7 +171,7 @@ function LineChart({ data }) {
     return data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d[key])}`).join(' ');
   };
 
-  const createArea = (key, color) => {
+  const createArea = (key) => {
     const path = createPath(key);
     const closePath = `L ${getX(data.length - 1)} ${height - padding} L ${getX(0)} ${height - padding} Z`;
     return (
@@ -72,7 +184,7 @@ function LineChart({ data }) {
   };
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%' }}>
       <defs>
         <linearGradient id="gradient-successful" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#10b981" stopOpacity="0.4"/>
@@ -190,13 +302,13 @@ function DonutChart({ data }) {
   };
 
   return (
-    <div className="relative flex items-center justify-center">
-      <svg viewBox={`0 0 ${size} ${size}`} className="w-48 h-48 transform -rotate-90">
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '12rem', height: '12rem', transform: 'rotate(-90deg)' }}>
         {data.map((item, index) => createArc(item.value, item.color, index))}
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center flex-col">
-        <div className="text-3xl font-bold text-white">23</div>
-        <div className="text-xs text-gray-400">Total</div>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+        <div style={{ fontSize: '1.875rem', fontWeight: 'bold', color: 'white' }}>23</div>
+        <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Total</div>
       </div>
     </div>
   );
@@ -217,7 +329,7 @@ function BarChart({ data }) {
   const getHeight = (value) => (value / maxValue) * chartHeight;
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%' }}>
       {/* Grid lines */}
       {[0, 1, 2, 3].map(i => (
         <line
@@ -280,17 +392,25 @@ function Card({ children, className = "", glow = false }) {
 
 function StatusBadge({ status, children }) {
   const styles = {
-    running: "bg-green-500/10 text-green-400 border-green-500/20",
-    queued: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    active: "bg-green-500/10 text-green-400 border-green-500/20",
-    failed: "bg-red-500/10 text-red-400 border-red-500/20",
-    draft: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    exported: "bg-green-500/10 text-green-400 border-green-500/20",
-    sent: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    running: { background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.2)' },
+    queued: { background: 'rgba(234, 179, 8, 0.1)', color: '#facc15', border: '1px solid rgba(234, 179, 8, 0.2)' },
+    active: { background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.2)' },
+    failed: { background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)' },
+    draft: { background: 'rgba(139, 92, 246, 0.1)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.2)' },
+    exported: { background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.2)' },
+    sent: { background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.2)' },
   };
   
+  const style = styles[status] || styles.draft;
+  
   return (
-    <span className={cx("px-2.5 py-1 rounded-full text-xs font-semibold border", styles[status] || styles.draft)}>
+    <span style={{ 
+      padding: '0.25rem 0.75rem', 
+      borderRadius: '9999px', 
+      fontSize: '0.75rem', 
+      fontWeight: 600,
+      ...style
+    }}>
       {children}
     </span>
   );
@@ -298,47 +418,63 @@ function StatusBadge({ status, children }) {
 
 function MetricCard({ title, value, subtext, trend, trendUp, icon: Icon, color = "purple" }) {
   const colorClasses = {
-    purple: "from-purple-500/20 to-purple-600/5 text-purple-400",
-    green: "from-green-500/20 to-green-600/5 text-green-400",
-    orange: "from-orange-500/20 to-orange-600/5 text-orange-400",
-    blue: "from-blue-500/20 to-blue-600/5 text-blue-400",
+    purple: { gradient: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(124, 58, 237, 0.05))', text: '#a78bfa' },
+    green: { gradient: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.05))', text: '#4ade80' },
+    orange: { gradient: 'linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(234, 88, 12, 0.05))', text: '#fb923c' },
+    blue: { gradient: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.05))', text: '#60a5fa' },
   };
 
+  const colors = colorClasses[color];
+
   return (
-    <Card className="p-6 relative overflow-hidden group">
-      <div className={cx("absolute top-0 right-0 p-3 rounded-bl-2xl bg-gradient-to-br", colorClasses[color])}>
-        <Icon size={20} />
+    <Card style={{ position: 'relative', overflow: 'hidden' }}>
+      <div style={{ 
+        position: 'absolute', 
+        top: 0, 
+        right: 0, 
+        padding: '0.75rem', 
+        borderBottomLeftRadius: '1rem',
+        background: colors.gradient,
+        color: colors.text
+      }}>
+        <Icon />
       </div>
       
-      <div className="relative z-10">
-        <p className="text-sm text-gray-400 mb-2">{title}</p>
-        <h3 className="text-3xl font-bold text-white mb-1 tracking-tight">{value}</h3>
-        <p className="text-xs text-gray-500">{subtext}</p>
+      <div style={{ position: 'relative', zIndex: 10 }}>
+        <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>{title}</p>
+        <h3 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem', letterSpacing: '-0.025em' }}>{value}</h3>
+        <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>{subtext}</p>
         
         {trend && (
-          <div className={cx("mt-3 flex items-center gap-1 text-xs", trendUp ? "text-green-400" : "text-red-400")}>
-            <i className={cx("fas", trendUp ? "fa-arrow-up" : "fa-arrow-down")}></i>
+          <div style={{ 
+            marginTop: '0.75rem', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '0.25rem', 
+            fontSize: '0.75rem',
+            color: trendUp ? '#4ade80' : '#f87171'
+          }}>
+            {trendUp ? <IconArrowUp /> : <IconArrowDown />}
             <span>{trend}</span>
           </div>
         )}
       </div>
       
       {color === "purple" && (
-        <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-all duration-500"></div>
+        <div style={{
+          position: 'absolute',
+          bottom: '-2.5rem',
+          right: '-2.5rem',
+          width: '8rem',
+          height: '8rem',
+          background: 'rgba(139, 92, 246, 0.1)',
+          borderRadius: '50%',
+          filter: 'blur(24px)'
+        }}></div>
       )}
     </Card>
   );
 }
-
-// Icons as components
-const Icons = {
-  FileInvoice: () => <i className="fas fa-file-invoice-dollar"></i>,
-  CheckCircle: () => <i className="fas fa-check-circle"></i>,
-  Redo: () => <i className="fas fa-redo-alt"></i>,
-  Wallet: () => <i className="fas fa-wallet"></i>,
-  Clock: () => <i className="fas fa-clock"></i>,
-  Envelope: () => <i className="fas fa-envelope"></i>,
-};
 
 export default function Dashboard() {
   const [search, setSearch] = useLocalStorageState(LS.search, "");
@@ -440,10 +576,15 @@ export default function Dashboard() {
   }, [data, search]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-300 p-8" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+    <div style={{ 
+      minHeight: '100vh', 
+      backgroundColor: '#0a0a0f', 
+      color: '#d1d5db', 
+      padding: '2rem',
+      fontFamily: "'Montserrat', sans-serif"
+    }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
-        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
         
         .glass-panel {
           background: linear-gradient(145deg, rgba(26, 26, 46, 0.6) 0%, rgba(18, 18, 31, 0.8) 100%);
@@ -496,43 +637,94 @@ export default function Dashboard() {
         @keyframes shimmer {
           100% { left: 100%; }
         }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: .5; }
+        }
+        
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
       `}</style>
 
       {/* Header */}
-      <header className="flex justify-between items-center mb-8">
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
-          <h2 className="text-3xl font-bold text-white mb-1 tracking-tight">Dashboard Overview</h2>
-          <p className="text-sm text-gray-400">Real-time monitoring and analytics</p>
+          <h2 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem', letterSpacing: '-0.025em' }}>Dashboard Overview</h2>
+          <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Real-time monitoring and analytics</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ position: 'relative' }}>
             <input 
               type="text" 
               placeholder="Search orders, batches..." 
-              className="bg-[#12121f] border border-purple-500/20 rounded-xl px-4 py-2.5 pl-10 text-sm focus:outline-none focus:border-purple-500/50 w-64 transition-all text-gray-300"
+              style={{
+                backgroundColor: '#12121f',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: '0.75rem',
+                padding: '0.625rem 1rem 0.625rem 2.5rem',
+                fontSize: '0.875rem',
+                color: '#d1d5db',
+                width: '16rem',
+                outline: 'none'
+              }}
             />
-            <i className="fas fa-search absolute left-3.5 top-3 text-gray-500"></i>
+            <div style={{ position: 'absolute', left: '0.875rem', top: '0.75rem', color: '#6b7280' }}>
+              <IconSearch />
+            </div>
           </div>
-          <button className="relative p-2.5 rounded-xl bg-[#12121f] border border-purple-500/20 text-gray-400 hover:text-white transition-all">
-            <i className="fas fa-bell"></i>
-            <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+          <button style={{
+            position: 'relative',
+            padding: '0.625rem',
+            borderRadius: '0.75rem',
+            backgroundColor: '#12121f',
+            border: '1px solid rgba(139, 92, 246, 0.2)',
+            color: '#9ca3af',
+            cursor: 'pointer'
+          }}>
+            <IconBell />
+            <span style={{
+              position: 'absolute',
+              top: '0.375rem',
+              right: '0.5rem',
+              width: '0.5rem',
+              height: '0.5rem',
+              backgroundColor: '#ef4444',
+              borderRadius: '50%'
+            }}></span>
           </button>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.375rem 0.75rem',
+            borderRadius: '9999px',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            border: '1px solid rgba(34, 197, 94, 0.2)',
+            color: '#4ade80',
+            fontSize: '0.875rem'
+          }}>
+            <span className="animate-pulse" style={{ width: '0.5rem', height: '0.5rem', backgroundColor: '#22c55e', borderRadius: '50%' }}></span>
             Live
           </div>
         </div>
       </header>
 
       {/* Top Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gap: '1.5rem', 
+        marginBottom: '2rem' 
+      }}>
         <MetricCard 
           title="Active Debit Orders"
           value="1,289"
           subtext="1,180 Running"
           trend="12%"
           trendUp={true}
-          icon={Icons.FileInvoice}
+          icon={IconFileInvoice}
           color="purple"
         />
         
@@ -542,7 +734,7 @@ export default function Dashboard() {
           subtext="Successful transactions"
           trend="4.2%"
           trendUp={true}
-          icon={Icons.CheckCircle}
+          icon={IconCheckCircle}
           color="green"
         />
         
@@ -552,7 +744,7 @@ export default function Dashboard() {
           subtext="Next retry: 08:00"
           trend="Needs Attention"
           trendUp={false}
-          icon={Icons.Redo}
+          icon={IconRedo}
           color="orange"
         />
         
@@ -562,31 +754,40 @@ export default function Dashboard() {
           subtext="Scheduled Total R 520,000"
           trend="8.4%"
           trendUp={true}
-          icon={Icons.Wallet}
+          icon={IconWallet}
           color="purple"
         />
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gap: '1.5rem', 
+        marginBottom: '2rem' 
+      }}>
         {/* Main Performance Chart */}
-        <Card className="lg:col-span-2 p-6">
-          <div className="flex justify-between items-center mb-6">
+        <Card style={{ gridColumn: 'span 2', padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <div>
-              <h3 className="text-lg font-bold text-white mb-1">Debit Order Performance</h3>
-              <p className="text-sm text-gray-400">Success vs Failed vs Retry Schedule</p>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>Debit Order Performance</h3>
+              <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Success vs Failed vs Retry Schedule</p>
             </div>
-            <div className="flex gap-2">
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
               {["24H", "7D", "30D"].map((r) => (
                 <button
                   key={r}
                   onClick={() => setRange(r.toLowerCase())}
-                  className={cx(
-                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                    range === r.toLowerCase() 
-                      ? "bg-purple-500 text-white" 
-                      : "bg-[#12121f] text-gray-400 hover:text-white"
-                  )}
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: range === r.toLowerCase() ? '#8b5cf6' : '#12121f',
+                    color: range === r.toLowerCase() ? 'white' : '#9ca3af'
+                  }}
                 >
                   {r}
                 </button>
@@ -594,43 +795,43 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <div className="h-[300px]">
+          <div style={{ height: '300px' }}>
             <LineChart data={debitPerformanceData} />
           </div>
           
-          <div className="flex justify-center gap-6 mt-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span className="text-sm text-gray-400">Successful</span>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', marginTop: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ width: '0.75rem', height: '0.75rem', borderRadius: '50%', backgroundColor: '#10b981' }}></div>
+              <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Successful</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <span className="text-sm text-gray-400">Failed</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ width: '0.75rem', height: '0.75rem', borderRadius: '50%', backgroundColor: '#ef4444' }}></div>
+              <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Failed</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-              <span className="text-sm text-gray-400">Scheduled Retry</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ width: '0.75rem', height: '0.75rem', borderRadius: '50%', backgroundColor: '#8b5cf6' }}></div>
+              <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Scheduled Retry</span>
             </div>
           </div>
         </Card>
 
         {/* Retry Distribution */}
-        <Card className="p-6">
-          <h3 className="text-lg font-bold text-white mb-1">Retry Distribution</h3>
-          <p className="text-sm text-gray-400 mb-6">Scheduled retry timeline</p>
+        <Card style={{ padding: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>Retry Distribution</h3>
+          <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '1.5rem' }}>Scheduled retry timeline</p>
           
-          <div className="flex justify-center">
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
             <DonutChart data={retryDistributionData} />
           </div>
           
-          <div className="space-y-3 mt-6">
+          <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {retryDistributionData.map((item) => (
-              <div key={item.name} className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></div>
-                  <span className="text-sm text-gray-400">{item.name}</span>
+              <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', backgroundColor: item.color }}></div>
+                  <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>{item.name}</span>
                 </div>
-                <span className="text-sm font-semibold text-white">{item.value}%</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white' }}>{item.value}%</span>
               </div>
             ))}
           </div>
@@ -638,47 +839,70 @@ export default function Dashboard() {
       </div>
 
       {/* Cron & ZeptoMail Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gap: '1.5rem', 
+        marginBottom: '2rem' 
+      }}>
         {/* Cron Job Monitor */}
-        <Card className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                <Icons.Clock />
+        <Card style={{ padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ 
+                padding: '0.5rem', 
+                borderRadius: '0.5rem', 
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                color: '#a78bfa'
+              }}>
+                <IconClock />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Cron Job Monitor</h3>
-                <p className="text-sm text-gray-400">Real-time job execution status</p>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white' }}>Cron Job Monitor</h3>
+                <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Real-time job execution status</p>
               </div>
             </div>
-            <button className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1">
-              View All <i className="fas fa-arrow-right"></i>
+            <button style={{ 
+              fontSize: '0.875rem', 
+              color: '#a78bfa', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.25rem',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer'
+            }}>
+              View All <IconArrowRight />
             </button>
           </div>
 
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {cronJobs.map((job) => (
               <div 
                 key={job.id} 
-                className={cx(
-                  "cron-indicator p-4 rounded-xl border transition-all cursor-pointer group",
-                  job.status === "failed" 
-                    ? "bg-red-500/5 border-red-500/20" 
-                    : "bg-[#12121f]/50 border-purple-500/10 hover:border-purple-500/30"
-                )}
+                className="cron-indicator"
+                style={{
+                  padding: '1rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${job.status === 'failed' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(139, 92, 246, 0.1)'}`,
+                  backgroundColor: job.status === 'failed' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(18, 18, 31, 0.5)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
               >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className={cx(
-                      "w-2 h-2 rounded-full",
-                      job.status === "running" && "bg-green-500 animate-pulse",
-                      job.status === "queued" && "bg-yellow-500",
-                      job.status === "active" && "bg-green-500",
-                      job.status === "failed" && "bg-red-500 animate-pulse"
-                    )}></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{
+                      width: '0.5rem',
+                      height: '0.5rem',
+                      borderRadius: '50%',
+                      backgroundColor: job.status === 'running' || job.status === 'active' ? '#22c55e' : job.status === 'queued' ? '#eab308' : '#ef4444',
+                      animation: (job.status === 'running' || job.status === 'failed') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none'
+                    }}></div>
                     <div>
-                      <p className="font-semibold text-white group-hover:text-purple-400 transition-colors">{job.name}</p>
-                      <p className="text-xs text-gray-500 font-mono">{job.schedule}</p>
+                      <p style={{ fontWeight: 600, color: 'white' }}>{job.name}</p>
+                      <p style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: 'monospace' }}>{job.schedule}</p>
                     </div>
                   </div>
                   <StatusBadge status={job.status}>
@@ -688,33 +912,32 @@ export default function Dashboard() {
                   </StatusBadge>
                 </div>
                 
-                <div className="flex justify-between items-center text-sm text-gray-400 mb-2">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
                   <span>Last run: {job.lastRun}</span>
                   {job.status === "failed" ? (
-                    <button className="text-red-400 hover:text-red-300 text-xs">Retry Now</button>
+                    <button style={{ color: '#f87171', fontSize: '0.75rem', background: 'none', border: 'none', cursor: 'pointer' }}>Retry Now</button>
                   ) : (
-                    <span className={cx(
-                      "text-xs",
-                      job.status === "running" ? "text-green-400" : "text-gray-500"
-                    )}>
+                    <span style={{ color: job.status === "running" ? '#4ade80' : '#6b7280', fontSize: '0.75rem' }}>
                       {job.status === "running" ? "Success" : ""}
                     </span>
                   )}
                 </div>
                 
-                <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                <div style={{ height: '0.25rem', backgroundColor: '#374151', borderRadius: '9999px', overflow: 'hidden' }}>
                   <div 
-                    className={cx(
-                      "h-full rounded-full transition-all duration-500",
-                      job.status === "failed" ? "bg-red-500" : "bg-gradient-to-r from-purple-500 to-purple-400"
-                    )}
-                    style={{ width: `${job.progress}%` }}
+                    style={{
+                      height: '100%',
+                      borderRadius: '9999px',
+                      transition: 'all 0.5s ease',
+                      width: `${job.progress}%`,
+                      background: job.status === 'failed' ? '#ef4444' : 'linear-gradient(90deg, #8b5cf6, #a78bfa)'
+                    }}
                   ></div>
                 </div>
                 
                 {job.error && (
-                  <p className="mt-2 text-xs text-red-400">
-                    <i className="fas fa-exclamation-circle mr-1"></i>
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <IconExclamation />
                     {job.error}
                   </p>
                 )}
@@ -724,150 +947,243 @@ export default function Dashboard() {
         </Card>
 
         {/* ZeptoMail Tracker */}
-        <Card className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <Icons.Envelope />
+        <Card style={{ padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ 
+                padding: '0.5rem', 
+                borderRadius: '0.5rem', 
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.2)',
+                color: '#60a5fa'
+              }}>
+                <IconEnvelope />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">ZeptoMail Tracker</h3>
-                <p className="text-sm text-gray-400">Email delivery analytics</p>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white' }}>ZeptoMail Tracker</h3>
+                <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>Email delivery analytics</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              <span className="text-xs text-green-400">Live</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="animate-pulse" style={{ width: '0.5rem', height: '0.5rem', backgroundColor: '#22c55e', borderRadius: '50%' }}></span>
+              <span style={{ fontSize: '0.75rem', color: '#4ade80' }}>Live</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="text-center p-3 rounded-xl bg-[#12121f]/50 border border-purple-500/10">
-              <div className="text-2xl font-bold text-white mb-1">1,245</div>
-              <div className="text-xs text-gray-400">Sent</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(18, 18, 31, 0.5)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>1,245</div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Sent</div>
             </div>
-            <div className="text-center p-3 rounded-xl bg-green-500/5 border border-green-500/20">
-              <div className="text-2xl font-bold text-green-400 mb-1">98.2%</div>
-              <div className="text-xs text-gray-400">Delivered</div>
+            <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80', marginBottom: '0.25rem' }}>98.2%</div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Delivered</div>
             </div>
-            <div className="text-center p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
-              <div className="text-2xl font-bold text-blue-400 mb-1">42%</div>
-              <div className="text-xs text-gray-400">Opened</div>
+            <div style={{ textAlign: 'center', padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.25rem' }}>42%</div>
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Opened</div>
             </div>
           </div>
 
-          <div className="h-[150px]">
+          <div style={{ height: '150px' }}>
             <BarChart data={emailData} />
           </div>
 
-          <div className="space-y-3 mt-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-[#12121f]/30 border border-purple-500/10 hover:border-purple-500/20 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <i className="fas fa-paper-plane text-purple-400 text-xs"></i>
+          <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '2rem', height: '2rem', borderRadius: '0.5rem', backgroundColor: 'rgba(139, 92, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconPaperPlane />
                 </div>
                 <div>
-                  <p className="text-sm text-white font-medium">Debit Order Confirmations</p>
-                  <p className="text-xs text-gray-500">Sent 2 mins ago</p>
+                  <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'white' }}>Debit Order Confirmations</p>
+                  <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Sent 2 mins ago</p>
                 </div>
               </div>
-              <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded">Delivered</span>
+              <span style={{ fontSize: '0.75rem', color: '#4ade80', backgroundColor: 'rgba(34, 197, 94, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>Delivered</span>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg bg-[#12121f]/30 border border-purple-500/10 hover:border-purple-500/20 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                  <i className="fas fa-exclamation-triangle text-orange-400 text-xs"></i>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '2rem', height: '2rem', borderRadius: '0.5rem', backgroundColor: 'rgba(249, 115, 22, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconAlert />
                 </div>
                 <div>
-                  <p className="text-sm text-white font-medium">Failed Payment Alerts</p>
-                  <p className="text-xs text-gray-500">Sent 15 mins ago</p>
+                  <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'white' }}>Failed Payment Alerts</p>
+                  <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Sent 15 mins ago</p>
                 </div>
               </div>
-              <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded">Opened</span>
+              <span style={{ fontSize: '0.75rem', color: '#60a5fa', backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>Opened</span>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg bg-[#12121f]/30 border border-purple-500/10 hover:border-purple-500/20 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
-                  <i className="fas fa-times text-red-400 text-xs"></i>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '2rem', height: '2rem', borderRadius: '0.5rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconClose />
                 </div>
                 <div>
-                  <p className="text-sm text-white font-medium">Retry Notifications</p>
-                  <p className="text-xs text-gray-500">Sent 1 hour ago</p>
+                  <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'white' }}>Retry Notifications</p>
+                  <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Sent 1 hour ago</p>
                 </div>
               </div>
-              <span className="text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded">Bounced</span>
+              <span style={{ fontSize: '0.75rem', color: '#f87171', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>Bounced</span>
             </div>
           </div>
         </Card>
       </div>
 
       {/* Original TabbyTech Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gap: '1.5rem' 
+      }}>
         {/* Today's Workflow */}
-        <Card className="lg:col-span-2 p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-white">Today's Workflow</h3>
-            <select className="bg-[#12121f] border border-purple-500/20 rounded-xl px-4 py-2 text-sm text-gray-300 focus:outline-none focus:border-purple-500/50">
+        <Card style={{ gridColumn: 'span 2', padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white' }}>Today's Workflow</h3>
+            <select style={{
+              backgroundColor: '#12121f',
+              border: '1px solid rgba(139, 92, 246, 0.2)',
+              borderRadius: '0.75rem',
+              padding: '0.5rem 1rem',
+              fontSize: '0.875rem',
+              color: '#d1d5db'
+            }}>
               <option>Subscription tracking</option>
             </select>
           </div>
 
-          <div className="space-y-3 mb-6">
-            <div className="flex justify-between items-center p-4 rounded-xl bg-[#12121f]/50 border border-purple-500/10 hover:border-purple-500/20 transition-all group">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: '1rem', 
+              borderRadius: '0.75rem', 
+              backgroundColor: 'rgba(18, 18, 31, 0.5)', 
+              border: '1px solid rgba(139, 92, 246, 0.1)',
+              transition: 'all 0.3s ease'
+            }}>
               <div>
-                <h4 className="text-sm font-semibold text-white mb-1 group-hover:text-purple-400 transition-colors">Review exceptions</h4>
-                <p className="text-xs text-gray-500">Prioritise failed deductions and follow ups</p>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>Review exceptions</h4>
+                <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Prioritise failed deductions and follow ups</p>
               </div>
-              <button className="px-4 py-2 rounded-xl bg-[#1a1a2e] text-white text-xs font-medium hover:bg-[#252545] transition-all border border-purple-500/20">
+              <button style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '0.75rem',
+                backgroundColor: '#1a1a2e',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                cursor: 'pointer'
+              }}>
                 Open
               </button>
             </div>
 
-            <div className="flex justify-between items-center p-4 rounded-xl bg-[#12121f]/50 border border-purple-500/10 hover:border-purple-500/20 transition-all group">
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: '1rem', 
+              borderRadius: '0.75rem', 
+              backgroundColor: 'rgba(18, 18, 31, 0.5)', 
+              border: '1px solid rgba(139, 92, 246, 0.1)',
+              transition: 'all 0.3s ease'
+            }}>
               <div>
-                <h4 className="text-sm font-semibold text-white mb-1 group-hover:text-purple-400 transition-colors">Prepare next batch</h4>
-                <p className="text-xs text-gray-500">Validate and queue debit orders for the next run</p>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>Prepare next batch</h4>
+                <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Validate and queue debit orders for the next run</p>
               </div>
-              <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-medium hover:shadow-lg hover:shadow-purple-500/30 transition-all">
+              <button style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '0.75rem',
+                background: 'linear-gradient(90deg, #8b5cf6, #7c3aed)',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)'
+              }}>
                 Start
               </button>
             </div>
 
-            <div className="flex justify-between items-center p-4 rounded-xl bg-[#12121f]/50 border border-purple-500/10 hover:border-purple-500/20 transition-all group">
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: '1rem', 
+              borderRadius: '0.75rem', 
+              backgroundColor: 'rgba(18, 18, 31, 0.5)', 
+              border: '1px solid rgba(139, 92, 246, 0.1)',
+              transition: 'all 0.3s ease'
+            }}>
               <div>
-                <h4 className="text-sm font-semibold text-white mb-1 group-hover:text-purple-400 transition-colors">Export bank files</h4>
-                <p className="text-xs text-gray-500">Generate bank ready exports from approved batches</p>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>Export bank files</h4>
+                <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Generate bank ready exports from approved batches</p>
               </div>
-              <button className="px-4 py-2 rounded-xl bg-[#1a1a2e] text-white text-xs font-medium hover:bg-[#252545] transition-all border border-purple-500/20">
+              <button style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '0.75rem',
+                backgroundColor: '#1a1a2e',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                cursor: 'pointer'
+              }}>
                 Export
               </button>
             </div>
           </div>
 
-          <div className="border-t border-purple-500/10 pt-6">
-            <h4 className="text-sm font-semibold text-white mb-2">Subscription tracking</h4>
-            <p className="text-xs text-gray-500 mb-4">This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.</p>
+          <div style={{ borderTop: '1px solid rgba(139, 92, 246, 0.1)', paddingTop: '1.5rem' }}>
+            <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white', marginBottom: '0.5rem' }}>Subscription tracking</h4>
+            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.</p>
             
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <select className="bg-[#12121f] border border-purple-500/20 rounded-xl px-3 py-2.5 text-sm text-gray-300 focus:outline-none">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+              <select style={{
+                backgroundColor: '#12121f',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: '0.75rem',
+                padding: '0.625rem',
+                fontSize: '0.875rem',
+                color: '#d1d5db'
+              }}>
                 <option>Monthly only</option>
               </select>
-              <select className="bg-[#12121f] border border-purple-500/20 rounded-xl px-3 py-2.5 text-sm text-gray-300 focus:outline-none">
+              <select style={{
+                backgroundColor: '#12121f',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: '0.75rem',
+                padding: '0.625rem',
+                fontSize: '0.875rem',
+                color: '#d1d5db'
+              }}>
                 <option>Last 30 days</option>
               </select>
-              <select className="bg-[#12121f] border border-purple-500/20 rounded-xl px-3 py-2.5 text-sm text-gray-300 focus:outline-none">
+              <select style={{
+                backgroundColor: '#12121f',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: '0.75rem',
+                padding: '0.625rem',
+                fontSize: '0.875rem',
+                color: '#d1d5db'
+              }}>
                 <option>By revenue</option>
               </select>
             </div>
 
-            <div className="flex justify-between items-center">
-              <div className="flex gap-2">
-                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">New 7d: 6</span>
-                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">Churn 7d: 2</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <span style={{ padding: '0.25rem 0.625rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.2)' }}>New 7d: 6</span>
+                <span style={{ padding: '0.25rem 0.625rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)' }}>Churn 7d: 2</span>
               </div>
-              <button className="text-xs text-gray-400 hover:text-white transition-all">
+              <button style={{ fontSize: '0.75rem', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer' }}>
                 Paystack settings
               </button>
             </div>
@@ -875,13 +1191,20 @@ export default function Dashboard() {
         </Card>
 
         {/* Recent Batches */}
-        <Card className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-white">Recent Batches</h3>
+        <Card style={{ padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white' }}>Recent Batches</h3>
             <select 
               value={selectedBatch}
               onChange={(e) => setSelectedBatch(e.target.value)}
-              className="bg-[#12121f] border border-purple-500/20 rounded-xl px-3 py-1.5 text-xs text-gray-300 focus:outline-none"
+              style={{
+                backgroundColor: '#12121f',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: '0.75rem',
+                padding: '0.375rem 0.75rem',
+                fontSize: '0.75rem',
+                color: '#d1d5db'
+              }}
             >
               {data.recentBatches.map((b) => (
                 <option key={b.batch} value={b.batch}>{b.batch}</option>
@@ -889,57 +1212,86 @@ export default function Dashboard() {
             </select>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="text-left text-xs text-gray-500 border-b border-purple-500/10">
-                  <th className="pb-3 font-medium">Batch</th>
-                  <th className="pb-3 font-medium">Status</th>
-                  <th className="pb-3 font-medium text-right">Items</th>
+                <tr style={{ textAlign: 'left', fontSize: '0.75rem', color: '#6b7280', borderBottom: '1px solid rgba(139, 92, 246, 0.1)' }}>
+                  <th style={{ paddingBottom: '0.75rem', fontWeight: 500 }}>Batch</th>
+                  <th style={{ paddingBottom: '0.75rem', fontWeight: 500 }}>Status</th>
+                  <th style={{ paddingBottom: '0.75rem', fontWeight: 500, textAlign: 'right' }}>Items</th>
                 </tr>
               </thead>
-              <tbody className="text-sm">
+              <tbody style={{ fontSize: '0.875rem' }}>
                 {filteredBatches.map((b) => (
                   <tr 
                     key={b.batch} 
-                    className={cx(
-                      "border-b border-purple-500/5 cursor-pointer transition-all",
-                      selectedBatch === b.batch ? "bg-purple-500/5" : "hover:bg-[#12121f]/30"
-                    )}
+                    style={{
+                      borderBottom: '1px solid rgba(139, 92, 246, 0.05)',
+                      cursor: 'pointer',
+                      backgroundColor: selectedBatch === b.batch ? 'rgba(139, 92, 246, 0.05)' : 'transparent'
+                    }}
                     onClick={() => setSelectedBatch(b.batch)}
                   >
-                    <td className="py-3 text-white font-medium text-xs">{b.batch}</td>
-                    <td className="py-3">
+                    <td style={{ padding: '0.75rem 0', color: 'white', fontWeight: 500, fontSize: '0.75rem' }}>{b.batch}</td>
+                    <td style={{ padding: '0.75rem 0' }}>
                       <StatusBadge status={b.status}>
                         {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
                       </StatusBadge>
                     </td>
-                    <td className="py-3 text-right text-white font-medium">{b.items}</td>
+                    <td style={{ padding: '0.75rem 0', textAlign: 'right', color: 'white', fontWeight: 500 }}>{b.items}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div className="mt-6 p-4 rounded-xl bg-[#12121f]/30 border border-purple-500/10">
-            <p className="text-xs font-semibold text-white mb-1">Selected: {selectedBatch}</p>
-            <p className="text-xs text-gray-500 mb-3">UI-only actions. Will wire to batch workflows later.</p>
+          <div style={{ marginTop: '1.5rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'rgba(18, 18, 31, 0.3)', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+            <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>Selected: {selectedBatch}</p>
+            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.75rem' }}>UI-only actions. Will wire to batch workflows later.</p>
             
-            <div className="flex gap-2 mb-3">
+            <div style={{ marginBottom: '0.75rem' }}>
               <input 
                 type="text" 
                 placeholder="Type to filter batches" 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 bg-[#0a0a0f] border border-purple-500/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500/50"
+                style={{
+                  width: '100%',
+                  backgroundColor: '#0a0a0f',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                  borderRadius: '0.5rem',
+                  padding: '0.5rem 0.75rem',
+                  fontSize: '0.75rem',
+                  color: '#d1d5db'
+                }}
               />
             </div>
             
-            <div className="flex gap-2">
-              <button className="flex-1 py-2 rounded-xl bg-[#1a1a2e] text-white text-xs font-medium hover:bg-[#252545] transition-all border border-purple-500/20">
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button style={{
+                flex: 1,
+                padding: '0.5rem',
+                borderRadius: '0.75rem',
+                backgroundColor: '#1a1a2e',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                cursor: 'pointer'
+              }}>
                 View
               </button>
-              <button className="flex-1 py-2 rounded-xl bg-purple-500 text-white text-xs font-medium hover:bg-purple-600 transition-all">
+              <button style={{
+                flex: 1,
+                padding: '0.5rem',
+                borderRadius: '0.75rem',
+                backgroundColor: '#8b5cf6',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                border: 'none',
+                cursor: 'pointer'
+              }}>
                 Export
               </button>
             </div>
@@ -948,17 +1300,22 @@ export default function Dashboard() {
       </div>
 
       {/* Bottom Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-        <Card className="p-6">
-          <p className="text-xs text-gray-400 mb-2">Monthly MRR</p>
-          <h3 className="text-2xl font-bold text-white mb-1">{formatZAR(data.monthlyMRR)}</h3>
-          <p className="text-xs text-gray-500">Active {data.monthlyActive} • Churn 7d: 2</p>
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gap: '1rem', 
+        marginTop: '1.5rem' 
+      }}>
+        <Card style={{ padding: '1.5rem' }}>
+          <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>Monthly MRR</p>
+          <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>{formatZAR(data.monthlyMRR)}</h3>
+          <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Active {data.monthlyActive} • Churn 7d: 2</p>
         </Card>
 
-        <Card className="p-6">
-          <p className="text-xs text-gray-400 mb-2">Annual ARR</p>
-          <h3 className="text-2xl font-bold text-white mb-1">{formatZAR(data.annualARR * 12 + data.monthlyMRR * 12)}</h3>
-          <p className="text-xs text-gray-500">View monthly • 11 only</p>
+        <Card style={{ padding: '1.5rem' }}>
+          <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>Annual ARR</p>
+          <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.25rem' }}>{formatZAR(data.annualARR * 12 + data.monthlyMRR * 12)}</h3>
+          <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>View monthly • 11 only</p>
         </Card>
       </div>
     </div>
