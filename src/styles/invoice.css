@@ -52,6 +52,7 @@
 }
 
 /* ===== PREMIUM DROPDOWN STYLES ===== */
+/* ===== PREMIUM DROPDOWN STYLES - MATCHING STYLE ===== */
 .tt-select-wrap {
   position: relative;
   display: inline-flex;
@@ -70,32 +71,67 @@
   height: 44px;
   padding: 0 36px 0 16px;
   border-radius: 12px;
-  border: 1px solid rgba(124, 58, 237, 0.4);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(18, 22, 39, 0.6) 100%);
-  color: #fff;
+  border: 1px solid rgba(124, 58, 237, 0.5);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.3) 0%, rgba(18, 22, 39, 0.7) 100%);
+  color: #ffffff !important;
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
   outline: none;
   transition: all 140ms ease;
   min-width: 140px;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .tt-select-wrap-small .tt-select-premium {
   height: 36px;
   font-size: 12px;
-  padding: 0 32px 0 12px;
+  padding: 0 32px 0 14px;
   min-width: 110px;
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(18, 22, 39, 0.6) 100%);
 }
 
 .tt-select-premium:hover {
-  border-color: rgba(167, 139, 250, 0.6);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.3) 0%, rgba(18, 22, 39, 0.7) 100%);
+  border-color: rgba(167, 139, 250, 0.8);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.4) 0%, rgba(18, 22, 39, 0.8) 100%);
 }
 
 .tt-select-premium:focus {
-  border-color: rgba(167, 139, 250, 0.8);
-  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.25);
+  border-color: rgba(167, 139, 250, 1);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.35);
+}
+
+/* Dropdown Options Styling - Dark Purple Theme */
+.tt-select-premium option {
+  background: #0a0c14;
+  color: #ffffff;
+  padding: 12px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.tt-select-premium option:hover,
+.tt-select-premium option:focus,
+.tt-select-premium option:checked {
+  background: rgba(124, 58, 237, 0.4) !important;
+  color: #ffffff !important;
+}
+
+/* Custom chevron */
+.tt-select-chevron {
+  position: absolute;
+  right: 14px;
+  pointer-events: none;
+  color: rgba(167, 139, 250, 0.9);
+  width: 16px;
+  height: 16px;
+}
+
+.tt-select-wrap-small .tt-select-chevron {
+  right: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 /* Dropdown Options Styling */
