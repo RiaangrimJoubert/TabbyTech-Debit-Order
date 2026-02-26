@@ -11,7 +11,7 @@
   flex-wrap: wrap;
 }
 
-/* Make search feel smaller and premium like the reference */
+/* Make search feel smaller and premium */
 .tt-invoices .tt-invoices-search {
   max-width: 360px;
   height: 36px;
