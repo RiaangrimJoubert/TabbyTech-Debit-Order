@@ -1,82 +1,143 @@
 /* src/styles/invoice.css */
 
-/* Keep everything scoped to invoices only */
+/* Invoices page styling target: your HTML mock.
+   Everything is scoped to .tt-invoices so global UI stays locked down. */
+
 .tt-invoices {
   width: 100%;
 }
 
-/* Make the surface feel like the reference card */
-.tt-invoices .tt-surface {
-  width: 100%;
-}
-
-.tt-invoices .tt-table-wrap {
-  width: 100%;
-}
-
-/* Header layout closer to reference */
+/* Header spacing similar to mock */
 .tt-invoices .tt-invoices-header {
-  padding-bottom: 10px;
+  margin-bottom: 14px;
 }
 
+.tt-invoices .tt-title h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.tt-invoices .tt-title p {
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* Controls bar aligned right like reference */
 .tt-invoices .tt-invoices-toolbar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: nowrap;
 }
 
-/* Controls compact and premium */
+/* Inputs and selects like mock */
+.tt-invoices .tt-invoices-search,
+.tt-invoices .tt-invoices-status,
+.tt-invoices .tt-select-compact {
+  background: #1e1b4b;
+  border: 1px solid #312e81;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  outline: none;
+}
+
 .tt-invoices .tt-invoices-search {
-  width: 320px;
-  max-width: 320px;
-  height: 38px;
-  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  height: 40px;
+  padding: 0 16px;
 }
 
-.tt-invoices .tt-invoices-status {
-  height: 38px;
-  border-radius: 12px;
+.tt-invoices .tt-invoices-search::placeholder {
+  color: #64748b;
+}
+
+.tt-invoices .tt-invoices-search:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.10);
+}
+
+.tt-invoices .tt-invoices-status,
+.tt-invoices .tt-select-compact {
+  height: 40px;
   min-width: 140px;
-}
-
-/* Buttons aligned and consistent height */
-.tt-invoices .tt-btn-compact {
-  height: 38px;
   padding: 0 14px;
-  border-radius: 12px;
-  font-weight: 900;
 }
 
-/* Ensure table uses full available width */
+/* Table container like mock card */
+.tt-invoices .tt-table-wrap {
+  background: #111827;
+  border-radius: 16px;
+  border: 1px solid #1f2937;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.50);
+}
+
+/* Table */
 .tt-invoices .tt-table {
   width: 100%;
+  border-collapse: collapse;
   table-layout: fixed;
-  border-collapse: separate;
-  border-spacing: 0;
 }
 
-/* Stronger premium header bar */
+/* Header bar like mock */
+.tt-invoices .tt-table thead {
+  background: #0f172a;
+}
+
 .tt-invoices .tt-table thead th {
-  color: rgba(255, 255, 255, 0.82);
-  font-weight: 850;
-  font-size: 13px;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px 24px;
+  text-align: left;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #1f2937;
 }
 
-/* Row spacing and separators like the reference */
+/* Body rows */
 .tt-invoices .tt-table tbody td {
-  padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  vertical-align: middle;
+  padding: 20px 24px;
+  border-bottom: 1px solid #1f2937;
+  font-size: 14px;
 }
 
-/* Slight hover lift without changing the global design language */
 .tt-invoices .tt-table tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: #1e293b;
+}
+
+.tt-invoices .tt-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Invoice ID like mock */
+.tt-invoices .tt-cell-strong {
+  font-weight: 700;
+  color: #ffffff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+}
+
+/* Customer text like mock */
+.tt-invoices .tt-customer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tt-invoices .tt-customer-name {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.tt-invoices .tt-customer-email {
+  color: #64748b;
+  font-size: 13px;
 }
 
 /* Right alignment helpers */
@@ -85,12 +146,237 @@
   text-align: right;
 }
 
+/* Amount like mock */
+.tt-invoices .tt-td-right.tt-cell-strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Status badge mapping to mock look
+   Your JSX uses .tt-badge and .tt-dot with paid/unpaid/overdue classes */
+.tt-invoices .tt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(49, 46, 129, 1);
+  background: #1e1b4b;
+  color: #e2e8f0;
+}
+
+.tt-invoices .tt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.tt-invoices .tt-dot.paid {
+  background: #34d399;
+  box-shadow: 0 0 8px #34d399;
+}
+
+.tt-invoices .tt-dot.unpaid {
+  background: #fbbf24;
+  box-shadow: 0 0 8px #fbbf24;
+}
+
+.tt-invoices .tt-dot.overdue {
+  background: #f87171;
+  box-shadow: 0 0 8px #f87171;
+}
+
+/* Status pill color variants like mock */
+.tt-invoices .tt-badge:has(.tt-dot.paid) {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.10);
+  border-color: rgba(52, 211, 153, 0.20);
+}
+
+.tt-invoices .tt-badge:has(.tt-dot.unpaid) {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.10);
+  border-color: rgba(251, 191, 36, 0.20);
+}
+
+.tt-invoices .tt-badge:has(.tt-dot.overdue) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.10);
+  border-color: rgba(248, 113, 113, 0.20);
+}
+
+/* View button like mock.
+   Important: scope to table action column only so Export button keeps premium system style. */
+.tt-invoices .tt-table tbody td:last-child .tt-btn {
+  padding: 8px 20px;
+  height: 34px;
+  background: #1e293b;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: none;
+}
+
+.tt-invoices .tt-table tbody td:last-child .tt-btn:hover {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  color: #ffffff;
+}
+
+/* Footer note like mock */
+.tt-invoices .tt-footer-note,
+.tt-invoices .tt-clientpanel-note {
+  margin-top: 0;
+  padding: 16px 24px;
+  color: #64748b;
+  font-size: 13px;
+  background: #0f172a;
+  border-top: 1px solid #1f2937;
+}
+
+/* Pager: keep your existing layout but make it blend with card */
+.tt-invoices .tt-invoices-pager {
+  padding: 14px 24px 18px;
+  background: #111827;
+}
+
+.tt-invoices .tt-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}/* src/styles/invoice.css */
+
+/* Invoices page styling target: your HTML mock.
+   Everything is scoped to .tt-invoices so global UI stays locked down. */
+
+.tt-invoices {
+  width: 100%;
+}
+
+/* Header spacing similar to mock */
+.tt-invoices .tt-invoices-header {
+  margin-bottom: 14px;
+}
+
+.tt-invoices .tt-title h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.tt-invoices .tt-title p {
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* Controls bar aligned right like reference */
+.tt-invoices .tt-invoices-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+/* Inputs and selects like mock */
+.tt-invoices .tt-invoices-search,
+.tt-invoices .tt-invoices-status,
+.tt-invoices .tt-select-compact {
+  background: #1e1b4b;
+  border: 1px solid #312e81;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  outline: none;
+}
+
+.tt-invoices .tt-invoices-search {
+  width: 100%;
+  max-width: 400px;
+  height: 40px;
+  padding: 0 16px;
+}
+
+.tt-invoices .tt-invoices-search::placeholder {
+  color: #64748b;
+}
+
+.tt-invoices .tt-invoices-search:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.10);
+}
+
+.tt-invoices .tt-invoices-status,
+.tt-invoices .tt-select-compact {
+  height: 40px;
+  min-width: 140px;
+  padding: 0 14px;
+}
+
+/* Table container like mock card */
+.tt-invoices .tt-table-wrap {
+  background: #111827;
+  border-radius: 16px;
+  border: 1px solid #1f2937;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.50);
+}
+
+/* Table */
+.tt-invoices .tt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* Header bar like mock */
+.tt-invoices .tt-table thead {
+  background: #0f172a;
+}
+
+.tt-invoices .tt-table thead th {
+  padding: 16px 24px;
+  text-align: left;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #1f2937;
+}
+
+/* Body rows */
+.tt-invoices .tt-table tbody td {
+  padding: 20px 24px;
+  border-bottom: 1px solid #1f2937;
+  font-size: 14px;
+}
+
+.tt-invoices .tt-table tbody tr:hover td {
+  background: #1e293b;
+}
+
+.tt-invoices .tt-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Invoice ID like mock */
 .tt-invoices .tt-cell-strong {
-  font-weight: 900;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 13px;
   letter-spacing: 0.2px;
 }
 
-/* Customer cell styling */
+/* Customer text like mock */
 .tt-invoices .tt-customer {
   display: flex;
   flex-direction: column;
@@ -98,131 +384,124 @@
 }
 
 .tt-invoices .tt-customer-name {
-  font-weight: 850;
-  color: rgba(255, 255, 255, 0.88);
+  font-weight: 600;
+  color: #ffffff;
 }
 
 .tt-invoices .tt-customer-email {
-  color: rgba(255, 255, 255, 0.58);
-  font-size: 12px;
+  color: #64748b;
+  font-size: 13px;
 }
 
-/* This is the big one: make View buttons match reference (dark premium pill)
-   Only apply inside the table Action column so it does not change Export, Back, Next.
-*/
+/* Right alignment helpers */
+.tt-invoices .tt-th-right,
+.tt-invoices .tt-td-right {
+  text-align: right;
+}
+
+/* Amount like mock */
+.tt-invoices .tt-td-right.tt-cell-strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Status badge mapping to mock look
+   Your JSX uses .tt-badge and .tt-dot with paid/unpaid/overdue classes */
+.tt-invoices .tt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(49, 46, 129, 1);
+  background: #1e1b4b;
+  color: #e2e8f0;
+}
+
+.tt-invoices .tt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.tt-invoices .tt-dot.paid {
+  background: #34d399;
+  box-shadow: 0 0 8px #34d399;
+}
+
+.tt-invoices .tt-dot.unpaid {
+  background: #fbbf24;
+  box-shadow: 0 0 8px #fbbf24;
+}
+
+.tt-invoices .tt-dot.overdue {
+  background: #f87171;
+  box-shadow: 0 0 8px #f87171;
+}
+
+/* Status pill color variants like mock */
+.tt-invoices .tt-badge:has(.tt-dot.paid) {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.10);
+  border-color: rgba(52, 211, 153, 0.20);
+}
+
+.tt-invoices .tt-badge:has(.tt-dot.unpaid) {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.10);
+  border-color: rgba(251, 191, 36, 0.20);
+}
+
+.tt-invoices .tt-badge:has(.tt-dot.overdue) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.10);
+  border-color: rgba(248, 113, 113, 0.20);
+}
+
+/* View button like mock.
+   Important: scope to table action column only so Export button keeps premium system style. */
 .tt-invoices .tt-table tbody td:last-child .tt-btn {
+  padding: 8px 20px;
   height: 34px;
-  padding: 0 14px;
-  border-radius: 12px;
-  font-weight: 850;
-
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: rgba(255, 255, 255, 0.80);
-
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+  background: #1e293b;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: none;
 }
 
 .tt-invoices .tt-table tbody td:last-child .tt-btn:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.88);
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  color: #ffffff;
 }
 
-/* Pager like the reference: compact, bottom aligned, not floating */
+/* Footer note like mock */
+.tt-invoices .tt-footer-note,
+.tt-invoices .tt-clientpanel-note {
+  margin-top: 0;
+  padding: 16px 24px;
+  color: #64748b;
+  font-size: 13px;
+  background: #0f172a;
+  border-top: 1px solid #1f2937;
+}
+
+/* Pager: keep your existing layout but make it blend with card */
 .tt-invoices .tt-invoices-pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 12px;
+  padding: 14px 24px 18px;
+  background: #111827;
 }
 
-.tt-invoices .tt-pager-left,
-.tt-invoices .tt-pager-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.tt-invoices .tt-pager-label {
-  color: rgba(255, 255, 255, 0.65);
-  font-size: 12px;
-}
-
-.tt-invoices .tt-pager-meta {
-  color: rgba(255, 255, 255, 0.60);
-  font-size: 12px;
-}
-
-/* Records dropdown should match your premium select feel */
-.tt-invoices .tt-select-compact {
-  height: 38px;
-  border-radius: 12px;
-  min-width: 150px;
-}
-
-/* Disabled states only when disabled */
 .tt-invoices .tt-btn[disabled] {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-/* Client panel spacing and alignment */
-.tt-invoices .tt-clientpanel {
-  margin-top: 14px;
-}
-
-.tt-invoices .tt-clientpanel-body {
-  padding: 14px;
-  overflow-x: auto;
-}
-
-/* Icons under Action in client panel */
-.tt-invoices .tt-iconrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-/* Premium icon buttons */
-.tt-invoices .tt-iconbtn {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-  transition: transform 120ms ease, filter 120ms ease;
-}
-
-.tt-invoices .tt-iconbtn:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.05);
-}
-
-.tt-invoices .tt-iconbtn:active {
-  transform: translateY(0px);
-  filter: brightness(0.98);
-}
-
-.tt-invoices .tt-iconbtn-purple {
-  border: 1px solid rgba(124, 58, 237, 0.45);
-  background: rgba(124, 58, 237, 0.12);
-  color: rgba(216, 196, 255, 0.95);
-}
-
-.tt-invoices .tt-iconbtn-green {
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  background: rgba(34, 197, 94, 0.12);
-  color: rgba(180, 255, 210, 0.95);
-}
-
-.tt-invoices .tt-clientpanel-note {
-  margin-top: 10px;
-  color: rgba(255, 255, 255, 0.68);
-  font-size: 12px;
 }
