@@ -1,13 +1,27 @@
 // Dashboard.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell,
+  BarChart,
+  Bar
+} from "recharts";
 
 /*
-  Fixes in this version:
-  - Subscription tracking: Breakdown dropdown cannot overflow its block (minmax grid + min-width:0)
-  - Premium dropdowns: menu is SOLID black with high contrast text (no washed background)
-  - Visual tone: dashboard glass matches sidebar vibe (dark, crisp, controlled purple glow)
-  - No duplicate header in Dashboard (AppShell owns top header)
-  - localStorage persistence for key UI state
+  Enhanced Dashboard with:
+  - Charts: Debit Order Performance (Success/Failed/Retry)
+  - Cron Job Monitor
+  - ZeptoMail Tracker
+  - Montserrat font
+  - Premium purple/dark theme
 */
 
 const LS = {
@@ -31,9 +45,7 @@ function useLocalStorageState(key, initialValue) {
   useEffect(() => {
     try {
       localStorage.setItem(key, JSON.stringify(val));
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [key, val]);
 
   return [val, setVal];
@@ -48,918 +60,837 @@ function formatZAR(n) {
   }).format(num);
 }
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-
 function cx(...arr) {
   return arr.filter(Boolean).join(" ");
 }
 
-function Card({ children, className = "" }) {
-  return <div className={cx("ttd-card", className)}>{children}</div>;
-}
+// Chart Data
+const debitPerformanceData = [
+  { time: "00:00", successful: 45, failed: 12, retry: 5 },
+  { time: "04:00", successful: 52, failed: 8, retry: 3 },
+  { time: "08:00", successful: 89, failed: 15, retry: 8 },
+  { time: "12:00", successful: 134, failed: 22, retry: 12 },
+  { time: "16:00", successful: 156, failed: 18, retry: 15 },
+  { time: "20:00", successful: 178, failed: 14, retry: 19 },
+  { time: "Now", successful: 192, failed: 11, retry: 23 },
+];
 
-function Button({ children, variant = "primary", onClick, className = "", title, type = "button" }) {
+const retryDistributionData = [
+  { name: "Immediate", value: 45, color: "#10b981" },
+  { name: "24H Delay", value: 30, color: "#f59e0b" },
+  { name: "48H+ Delay", value: 25, color: "#ef4444" },
+];
+
+const emailData = [
+  { day: "Mon", sent: 120, opened: 80 },
+  { day: "Tue", sent: 190, opened: 120 },
+  { day: "Wed", sent: 150, opened: 100 },
+  { day: "Thu", sent: 220, opened: 140 },
+  { day: "Fri", sent: 180, opened: 110 },
+  { day: "Sat", sent: 90, opened: 50 },
+  { day: "Sun", sent: 110, opened: 70 },
+];
+
+const cronJobs = [
+  { 
+    id: 1, 
+    name: "Debit Order Batch", 
+    schedule: "*/5 * * * *", 
+    status: "running", 
+    lastRun: "2 mins ago",
+    progress: 75 
+  },
+  { 
+    id: 2, 
+    name: "Retry Scheduler", 
+    schedule: "0 8 * * *", 
+    status: "queued", 
+    lastRun: "Fri 08:00",
+    queued: 112,
+    progress: 25 
+  },
+  { 
+    id: 3, 
+    name: "Reconciliation", 
+    schedule: "0 */6 * * *", 
+    status: "active", 
+    lastRun: "1 hour ago",
+    progress: 100 
+  },
+  { 
+    id: 4, 
+    name: "Failed Payment Cleanup", 
+    schedule: "0 2 * * *", 
+    status: "failed", 
+    lastRun: "Failed 10 mins ago",
+    error: "Database connection timeout",
+    progress: 0 
+  },
+];
+
+function Card({ children, className = "", glow = false }) {
   return (
-    <button type={type} className={cx("ttd-btn", `ttd-btn--${variant}`, className)} onClick={onClick} title={title}>
+    <div className={cx("glass-panel", glow && "glow-border", className)}>
       {children}
-    </button>
-  );
-}
-
-function Pill({ children, tone = "purple" }) {
-  return <span className={cx("ttd-pill", `ttd-pill--${tone}`)}>{children}</span>;
-}
-
-function Progress({ value }) {
-  const pct = clamp(value, 0, 100);
-  return (
-    <div className="ttd-progress">
-      <div className="ttd-progressBar" style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
-/* Premium dropdown (no native select, solid black menu) */
-function PremiumSelect({ value, onChange, options, ariaLabel, className = "" }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
+function StatusBadge({ status, children }) {
+  const styles = {
+    running: "bg-green-500/10 text-green-400 border-green-500/20",
+    queued: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    active: "bg-green-500/10 text-green-400 border-green-500/20",
+    failed: "bg-red-500/10 text-red-400 border-red-500/20",
+    draft: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    exported: "bg-green-500/10 text-green-400 border-green-500/20",
+    sent: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  };
+  
+  return (
+    <span className={cx("px-2.5 py-1 rounded-full text-xs font-semibold border", styles[status] || styles.draft)}>
+      {children}
+    </span>
+  );
+}
 
-  const selected = useMemo(() => {
-    return options.find((o) => o.value === value) || options[0];
-  }, [options, value]);
-
-  useEffect(() => {
-    function onDocDown(e) {
-      if (!wrapRef.current) return;
-      if (!wrapRef.current.contains(e.target)) setOpen(false);
-    }
-    function onEsc(e) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocDown);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onDocDown);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, []);
+function MetricCard({ title, value, subtext, trend, trendUp, icon: Icon, color = "purple" }) {
+  const colorClasses = {
+    purple: "from-purple-500/20 to-purple-600/5 text-purple-400",
+    green: "from-green-500/20 to-green-600/5 text-green-400",
+    orange: "from-orange-500/20 to-orange-600/5 text-orange-400",
+    blue: "from-blue-500/20 to-blue-600/5 text-blue-400",
+  };
 
   return (
-    <div ref={wrapRef} className={cx("ttd-psWrap", className)} aria-label={ariaLabel}>
-      <button
-        type="button"
-        className={cx("ttd-psBtn", open && "ttd-psBtn--open")}
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="ttd-psText">{selected?.label}</span>
-        <span className="ttd-psChevron" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M7 10l5 5 5-5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-      </button>
-
-      {open && (
-        <div className="ttd-psMenu" role="listbox">
-          {options.map((o) => {
-            const active = o.value === value;
-            return (
-              <button
-                key={o.value}
-                type="button"
-                className={cx("ttd-psItem", active && "ttd-psItem--active")}
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                }}
-              >
-                <span className="ttd-psItemLabel">{o.label}</span>
-                {active && <span className="ttd-psCheck">✓</span>}
-              </button>
-            );
-          })}
-        </div>
+    <Card className="p-6 relative overflow-hidden group">
+      <div className={cx("absolute top-0 right-0 p-3 rounded-bl-2xl bg-gradient-to-br", colorClasses[color])}>
+        <Icon size={20} />
+      </div>
+      
+      <div className="relative z-10">
+        <p className="text-sm text-gray-400 mb-2">{title}</p>
+        <h3 className="text-3xl font-bold text-white mb-1 tracking-tight">{value}</h3>
+        <p className="text-xs text-gray-500">{subtext}</p>
+        
+        {trend && (
+          <div className={cx("mt-3 flex items-center gap-1 text-xs", trendUp ? "text-green-400" : "text-red-400")}>
+            <i className={cx("fas", trendUp ? "fa-arrow-up" : "fa-arrow-down")}></i>
+            <span>{trend}</span>
+          </div>
+        )}
+      </div>
+      
+      {color === "purple" && (
+        <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-all duration-500"></div>
       )}
-    </div>
+    </Card>
   );
 }
 
 export default function Dashboard() {
   const [search, setSearch] = useLocalStorageState(LS.search, "");
-  const [range, setRange] = useLocalStorageState(LS.range, "90d");
-  const [subView, setSubView] = useLocalStorageState(LS.subView, "monthly"); // all | monthly | annual
-  const [metric, setMetric] = useLocalStorageState(LS.metric, "revenue"); // revenue | counts
+  const [range, setRange] = useLocalStorageState(LS.range, "24h");
+  const [subView, setSubView] = useLocalStorageState(LS.subView, "monthly");
+  const [metric, setMetric] = useLocalStorageState(LS.metric, "revenue");
   const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "FEB-03-PM");
 
   const data = useMemo(() => {
-    const monthlyActive = 86;
-    const annualActive = 19;
-
-    const monthlyMRR = 129900;
-    const annualARR = 228000;
-
-    const totalMRR = monthlyMRR + annualARR / 12;
-    const totalARR = monthlyMRR * 12 + annualARR;
-
-    const planMix = [
-      { label: "Starter", monthlyCount: 34, annualCount: 6, monthlyMRR: 45900, annualARR: 54000 },
-      { label: "Business", monthlyCount: 38, annualCount: 10, monthlyMRR: 62400, annualARR: 132000 },
-      { label: "Enterprise", monthlyCount: 14, annualCount: 3, monthlyMRR: 21600, annualARR: 42000 },
-    ];
-
-    const health = {
-      monthly: { new7d: 6, churn7d: 2 },
-      annual: { renew30d: 3, new30d: 1 },
-      all: { new7d: 7, risk14d: 7, churn7d: 2 },
-    };
-
-    const recentBatches = [
-      { batch: "FEB-05-AM", status: "Draft", items: 112 },
-      { batch: "FEB-03-PM", status: "Exported", items: 98 },
-      { batch: "JAN-29-AM", status: "Sent", items: 141 },
-    ];
-
     return {
       top: {
         activeDebitOrders: 1284,
-        nextRun: "Fri 08:00",
-        queued: 112,
-        exceptions: 23,
+        successRate: 942,
+        failedRetry: 23,
         collectionsMTD: 482910,
+        scheduledTotal: 520000,
       },
-      monthlyActive,
-      annualActive,
-      monthlyMRR,
-      annualARR,
-      totalMRR,
-      totalARR,
-      planMix,
-      health,
-      recentBatches,
+      monthlyActive: 86,
+      annualActive: 19,
+      monthlyMRR: 129900,
+      annualARR: 228000,
+      recentBatches: [
+        { batch: "FEB-05-AM", status: "draft", items: 112 },
+        { batch: "FEB-03-PM", status: "exported", items: 98 },
+        { batch: "JAN-29-AM", status: "sent", items: 141 },
+      ],
     };
   }, []);
-
-  const scope = useMemo(() => {
-    if (subView === "monthly") {
-      return { label: "Monthly subscriptions", active: data.monthlyActive, mrr: data.monthlyMRR, arr: data.monthlyMRR * 12 };
-    }
-    if (subView === "annual") {
-      return { label: "Annual subscriptions", active: data.annualActive, mrr: data.annualARR / 12, arr: data.annualARR };
-    }
-    return { label: "All subscriptions", active: data.monthlyActive + data.annualActive, mrr: data.totalMRR, arr: data.totalARR };
-  }, [data, subView]);
-
-  const controlChips = useMemo(() => {
-    if (subView === "monthly") {
-      return [
-        { text: `New 7d: ${data.health.monthly.new7d}`, tone: "purple" },
-        { text: `Churn 7d: ${data.health.monthly.churn7d}`, tone: "danger" },
-      ];
-    }
-    if (subView === "annual") {
-      return [
-        { text: `Renewals 30d: ${data.health.annual.renew30d}`, tone: "purple" },
-        { text: `New 30d: ${data.health.annual.new30d}`, tone: "neutral" },
-      ];
-    }
-    return [
-      { text: `New 7d: ${data.health.all.new7d}`, tone: "purple" },
-      { text: `At risk 14d: ${data.health.all.risk14d}`, tone: "neutral" },
-      { text: `Churn 7d: ${data.health.all.churn7d}`, tone: "danger" },
-    ];
-  }, [data, subView]);
-
-  const breakdown = useMemo(() => {
-    const rows = data.planMix.map((p) => {
-      const count =
-        subView === "monthly" ? p.monthlyCount : subView === "annual" ? p.annualCount : p.monthlyCount + p.annualCount;
-
-      const mrr =
-        subView === "monthly"
-          ? p.monthlyMRR
-          : subView === "annual"
-          ? p.annualARR / 12
-          : p.monthlyMRR + p.annualARR / 12;
-
-      return { label: p.label, count, mrr };
-    });
-
-    const denom = rows.reduce((a, r) => a + (metric === "revenue" ? r.mrr : r.count), 0) || 1;
-
-    return rows
-      .map((r) => {
-        const basis = metric === "revenue" ? r.mrr : r.count;
-        return {
-          label: r.label,
-          pct: (basis / denom) * 100,
-          value: metric === "revenue" ? formatZAR(r.mrr) : String(r.count),
-        };
-      })
-      .sort((a, b) => b.pct - a.pct);
-  }, [data, subView, metric]);
 
   const filteredBatches = useMemo(() => {
     const q = (search || "").trim().toLowerCase();
     if (!q) return data.recentBatches;
-    return data.recentBatches.filter((b) => b.batch.toLowerCase().includes(q) || b.status.toLowerCase().includes(q));
+    return data.recentBatches.filter((b) => 
+      b.batch.toLowerCase().includes(q) || b.status.toLowerCase().includes(q)
+    );
   }, [data, search]);
 
   return (
-    <div className="ttd-page">
-      <style>{css}</style>
+    <div className="min-h-screen bg-[#0a0a0f] text-gray-300 font-['Montserrat'] p-8">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+        
+        .glass-panel {
+          background: linear-gradient(145deg, rgba(26, 26, 46, 0.6) 0%, rgba(18, 18, 31, 0.8) 100%);
+          backdrop-filter: blur(12px);
+          border: 1px solid rgba(139, 92, 246, 0.15);
+          border-radius: 20px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+          transition: all 0.3s ease;
+        }
+        
+        .glass-panel:hover {
+          border-color: rgba(139, 92, 246, 0.3);
+          box-shadow: 0 8px 40px rgba(139, 92, 246, 0.15);
+        }
+        
+        .glow-border {
+          position: relative;
+        }
+        
+        .glow-border::before {
+          content: "";
+          position: absolute;
+          inset: -1px;
+          border-radius: 20px;
+          padding: 1px;
+          background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), transparent, rgba(168, 85, 247, 0.1));
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          pointer-events: none;
+        }
+        
+        .chart-gradient-success {
+          stop-color: #10b981;
+        }
+        
+        .chart-gradient-failed {
+          stop-color: #ef4444;
+        }
+        
+        .chart-gradient-retry {
+          stop-color: #8b5cf6;
+        }
+        
+        .custom-tooltip {
+          background: rgba(17, 24, 39, 0.95);
+          border: 1px solid rgba(139, 92, 246, 0.3);
+          border-radius: 12px;
+          padding: 12px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        .cron-indicator {
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .cron-indicator::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.1), transparent);
+          animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+          100% { left: 100%; }
+        }
+        
+        .animate-pulse-slow {
+          animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: .5; }
+        }
+      `}</style>
 
-      <div className="ttd-wrap">
-        <div className="ttd-grid ttd-grid--hero">
-          <Card className="ttd-stat ttd-card--accent">
-            <div className="ttd-statLabel">Active Debit Orders</div>
-            <div className="ttd-statValue">{data.top.activeDebitOrders.toLocaleString("en-ZA")}</div>
-            <div className="ttd-statSub">Currently running</div>
-          </Card>
-
-          <Card className="ttd-stat ttd-card--accent">
-            <div className="ttd-statLabel">Next Run</div>
-            <div className="ttd-statValue">{data.top.nextRun}</div>
-            <div className="ttd-statSub">{data.top.queued} items queued</div>
-          </Card>
-
-          <Card className="ttd-stat ttd-card--accent">
-            <div className="ttd-statLabel">Exceptions</div>
-            <div className="ttd-statValue">{data.top.exceptions}</div>
-            <div className="ttd-statSub">Needs attention</div>
-          </Card>
-
-          <Card className="ttd-stat ttd-card--accent">
-            <div className="ttd-statLabel">Collections (MTD)</div>
-            <div className="ttd-statValue">{formatZAR(data.top.collectionsMTD)}</div>
-            <div className="ttd-statSub">Scheduled total</div>
-          </Card>
+      {/* Header */}
+      <header className="flex justify-between items-center mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-1 tracking-tight">Dashboard Overview</h2>
+          <p className="text-sm text-gray-400">Real-time monitoring and analytics</p>
         </div>
-
-        <div className="ttd-grid ttd-grid--subsummary">
-          <Card className="ttd-subCard ttd-card--accent">
-            <div className="ttd-subTop">
-              <div>
-                <div className="ttd-subTitle">Monthly Subscriptions</div>
-                <div className="ttd-subValue">
-                  {data.monthlyActive} active <span className="ttd-dot">·</span> {formatZAR(data.monthlyMRR)} MRR
-                </div>
-                <div className="ttd-chipRow">
-                  <Pill tone="purple">New 7d: {data.health.monthly.new7d}</Pill>
-                  <Pill tone="danger">Churn 7d: {data.health.monthly.churn7d}</Pill>
-                </div>
-              </div>
-              <Button variant="primary" onClick={() => setSubView("monthly")}>
-                Open
-              </Button>
-            </div>
-          </Card>
-
-          <Card className="ttd-subCard ttd-card--accent">
-            <div className="ttd-subTop">
-              <div>
-                <div className="ttd-subTitle">Annual Subscriptions</div>
-                <div className="ttd-subValue">
-                  {data.annualActive} active <span className="ttd-dot">·</span> {formatZAR(data.annualARR)} ARR
-                </div>
-                <div className="ttd-chipRow">
-                  <Pill tone="purple">Renewals 30d: {data.health.annual.renew30d}</Pill>
-                  <Pill tone="neutral">New 30d: {data.health.annual.new30d}</Pill>
-                </div>
-              </div>
-              <Button variant="primary" onClick={() => setSubView("annual")}>
-                Open
-              </Button>
-            </div>
-          </Card>
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Search orders, batches..." 
+              className="bg-[#12121f] border border-purple-500/20 rounded-xl px-4 py-2.5 pl-10 text-sm focus:outline-none focus:border-purple-500/50 w-64 transition-all"
+            />
+            <i className="fas fa-search absolute left-3.5 top-3 text-gray-500"></i>
+          </div>
+          <button className="relative p-2.5 rounded-xl bg-[#12121f] border border-purple-500/20 text-gray-400 hover:text-white transition-all">
+            <i className="fas fa-bell"></i>
+            <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Live
+          </div>
         </div>
+      </header>
 
-        <div className="ttd-grid ttd-grid--bottom">
-          <Card className="ttd-panel ttd-card--accent">
-            <div className="ttd-panelHeader">
-              <div className="ttd-panelTitle">Today’s Workflow</div>
-              <PremiumSelect
-                ariaLabel="Workflow selector"
-                value="subscription-tracking"
-                onChange={() => {}}
-                options={[
-                  { value: "review", label: "Review exceptions" },
-                  { value: "batch", label: "Prepare next batch" },
-                  { value: "export", label: "Export bank files" },
-                  { value: "subscription-tracking", label: "Subscription tracking" },
-                ]}
-                className="ttd-panelSelect"
-              />
+      {/* Top Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <MetricCard 
+          title="Active Debit Orders"
+          value="1,289"
+          subtext="1,180 Running"
+          trend="12%"
+          trendUp={true}
+          icon={() => <i className="fas fa-file-invoice-dollar"></i>}
+          color="purple"
+        />
+        
+        <MetricCard 
+          title="Success Rate"
+          value="942"
+          subtext="Successful transactions"
+          trend="4.2%"
+          trendUp={true}
+          icon={() => <i className="fas fa-check-circle"></i>}
+          color="green"
+        />
+        
+        <MetricCard 
+          title="Failed (Retry Scheduled)"
+          value="23"
+          subtext="Next retry: 08:00"
+          trend="Needs Attention"
+          trendUp={false}
+          icon={() => <i className="fas fa-redo-alt"></i>}
+          color="orange"
+        />
+        
+        <MetricCard 
+          title="Collections (MTD)"
+          value="482,910"
+          subtext="Scheduled Total R 520,000"
+          trend="8.4%"
+          trendUp={true}
+          icon={() => <i className="fas fa-wallet"></i>}
+          color="purple"
+        />
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Main Performance Chart */}
+        <Card className="lg:col-span-2 p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-white mb-1">Debit Order Performance</h3>
+              <p className="text-sm text-gray-400">Success vs Failed vs Retry Schedule</p>
             </div>
-
-            <div className="ttd-workList">
-              <div className="ttd-workItem">
-                <div>
-                  <div className="ttd-workTitle">Review exceptions</div>
-                  <div className="ttd-workSub">Prioritise failed deductions and follow ups</div>
-                </div>
-                <Button variant="dark">Open</Button>
-              </div>
-
-              <div className="ttd-workItem">
-                <div>
-                  <div className="ttd-workTitle">Prepare next batch</div>
-                  <div className="ttd-workSub">Validate and queue debit orders for the next run</div>
-                </div>
-                <Button variant="primary">Start</Button>
-              </div>
-
-              <div className="ttd-workItem">
-                <div>
-                  <div className="ttd-workTitle">Export bank files</div>
-                  <div className="ttd-workSub">Generate bank ready exports from approved batches</div>
-                </div>
-                <Button variant="dark">Export</Button>
-              </div>
-            </div>
-
-            <div className="ttd-subTrack">
-              <div className="ttd-subTrackTitle">Subscription tracking</div>
-              <div className="ttd-subTrackDesc">
-                This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.
-              </div>
-
-              <div className="ttd-subBox">
-                <div className="ttd-filterRow">
-                  <div className="ttd-control">
-                    <div className="ttd-controlLabel">View</div>
-                    <PremiumSelect
-                      ariaLabel="Subscription view"
-                      value={subView}
-                      onChange={setSubView}
-                      options={[
-                        { value: "all", label: "All" },
-                        { value: "monthly", label: "Monthly only" },
-                        { value: "annual", label: "Annual only" },
-                      ]}
-                    />
-                  </div>
-
-                  <div className="ttd-control">
-                    <div className="ttd-controlLabel">Range</div>
-                    <PremiumSelect
-                      ariaLabel="Range"
-                      value={range}
-                      onChange={setRange}
-                      options={[
-                        { value: "7d", label: "Last 7 days" },
-                        { value: "30d", label: "Last 30 days" },
-                        { value: "90d", label: "Last 90 days" },
-                        { value: "12m", label: "Last 12 months" },
-                      ]}
-                    />
-                  </div>
-
-                  <div className="ttd-control">
-                    <div className="ttd-controlLabel">Breakdown</div>
-                    <PremiumSelect
-                      ariaLabel="Breakdown metric"
-                      value={metric}
-                      onChange={setMetric}
-                      options={[
-                        { value: "revenue", label: "By revenue" },
-                        { value: "counts", label: "By counts" },
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                <div className="ttd-underRow">
-                  <div className="ttd-chipRail">
-                    {controlChips.map((c) => (
-                      <Pill key={c.text} tone={c.tone}>
-                        {c.text}
-                      </Pill>
-                    ))}
-                  </div>
-
-                  <Button
-                    variant="dark"
-                    className="ttd-paystackBtn"
-                    onClick={() => alert("UI-only: This will open Settings > Paystack to paste API keys later.")}
-                    title="Planned Settings integration for Paystack keys"
-                  >
-                    Paystack settings
-                  </Button>
-                </div>
-              </div>
-
-              <div className="ttd-metrics">
-                <div className="ttd-mini">
-                  <div className="ttd-miniLabel">Monthly MRR</div>
-                  <div className="ttd-miniValue">{formatZAR(scope.mrr)}</div>
-                  <div className="ttd-miniSub">Active: {scope.active} · Range: {range}</div>
-                </div>
-                <div className="ttd-mini">
-                  <div className="ttd-miniLabel">Annual ARR</div>
-                  <div className="ttd-miniValue">{formatZAR(scope.arr)}</div>
-                  <div className="ttd-miniSub">View: {subView} · UI-only</div>
-                </div>
-              </div>
-
-              <div className="ttd-breakdownCard">
-                <div className="ttd-breakHeader">
-                  <div>
-                    <div className="ttd-breakTitle">Breakdown</div>
-                    <div className="ttd-breakSub">Plan mix overview</div>
-                  </div>
-                  <div className="ttd-breakBadges">
-                    <Pill tone="purple">{scope.label}</Pill>
-                    <Pill tone="neutral">{metric === "revenue" ? "Revenue share" : "Count share"}</Pill>
-                  </div>
-                </div>
-
-                <div className="ttd-breakRows">
-                  {breakdown.map((r) => (
-                    <div key={r.label} className="ttd-breakRow">
-                      <div className="ttd-breakRowTop">
-                        <div className="ttd-breakRowLabel">{r.label}</div>
-                        <div className="ttd-breakRowRight">
-                          <Pill tone="purple">{Math.round(r.pct)}%</Pill>
-                          <div className="ttd-breakRowValue">{r.value}</div>
-                        </div>
-                      </div>
-                      <Progress value={r.pct} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="ttd-note">
-                <div className="ttd-noteTitle">Next wiring later</div>
-                <div className="ttd-noteText">
-                  We will fetch subscription plan and billing cadence from the Zoho CRM custom module. Paystack keys will be managed in Settings and applied to webhook verification.
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="ttd-panel ttd-card--accent">
-            <div className="ttd-panelHeader">
-              <div className="ttd-panelTitle">Recent Batches</div>
-              <PremiumSelect
-                ariaLabel="Batch selector"
-                value={selectedBatch}
-                onChange={setSelectedBatch}
-                options={data.recentBatches.map((b) => ({ value: b.batch, label: b.batch }))}
-                className="ttd-panelSelect"
-              />
-            </div>
-
-            <div className="ttd-tableHead">
-              <div>Batch</div>
-              <div>Status</div>
-              <div style={{ textAlign: "right" }}>Items</div>
-            </div>
-
-            <div className="ttd-batchList">
-              {filteredBatches.map((b) => (
+            <div className="flex gap-2">
+              {["24H", "7D", "30D"].map((r) => (
                 <button
-                  key={b.batch}
-                  className={cx("ttd-batchRow", selectedBatch === b.batch && "ttd-batchRow--active")}
-                  onClick={() => setSelectedBatch(b.batch)}
-                  type="button"
+                  key={r}
+                  onClick={() => setRange(r.toLowerCase())}
+                  className={cx(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    range === r.toLowerCase() 
+                      ? "bg-purple-500 text-white" 
+                      : "bg-[#12121f] text-gray-400 hover:text-white"
+                  )}
                 >
-                  <div className="ttd-batchName">{b.batch}</div>
-                  <div className="ttd-batchStatus">{b.status}</div>
-                  <div className="ttd-batchItems">{b.items}</div>
+                  {r}
                 </button>
               ))}
             </div>
+          </div>
+          
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={debitPerformanceData}>
+                <defs>
+                  <linearGradient id="successGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="failedGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="retryGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.1)" />
+                <XAxis 
+                  dataKey="time" 
+                  stroke="#6b7280" 
+                  fontSize={12}
+                  tickLine={false}
+                />
+                <YAxis 
+                  stroke="#6b7280" 
+                  fontSize={12}
+                  tickLine={false}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: '12px',
+                    color: '#fff'
+                  }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="successful" 
+                  stroke="#10b981" 
+                  strokeWidth={3}
+                  dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  fill="url(#successGradient)"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="failed" 
+                  stroke="#ef4444" 
+                  strokeWidth={2}
+                  dot={{ fill: "#ef4444", strokeWidth: 2, r: 3 }}
+                  activeDot={{ r: 5, strokeWidth: 0 }}
+                  fill="url(#failedGradient)"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="retry" 
+                  stroke="#8b5cf6" 
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ fill: "#8b5cf6", strokeWidth: 2, r: 3 }}
+                  activeDot={{ r: 5, strokeWidth: 0 }}
+                  fill="url(#retryGradient)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          
+          <div className="flex justify-center gap-6 mt-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span className="text-sm text-gray-400">Successful</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <span className="text-sm text-gray-400">Failed</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+              <span className="text-sm text-gray-400">Scheduled Retry</span>
+            </div>
+          </div>
+        </Card>
 
-            <div className="ttd-batchFooter">
-              <div>
-                <div className="ttd-batchFooterTitle">Selected: {selectedBatch}</div>
-                <div className="ttd-batchFooterSub">UI-only actions. Will wire to batch workflows later.</div>
-
-                <div className="ttd-localSearch">
-                  <div className="ttd-localSearchLabel">Quick filter</div>
-                  <input
-                    className="ttd-localSearchInput"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Type to filter batches"
-                  />
-                </div>
-              </div>
-
-              <div className="ttd-batchFooterBtns">
-                <Button variant="dark">View</Button>
-                <Button variant="primary">Export</Button>
+        {/* Retry Distribution */}
+        <Card className="p-6">
+          <h3 className="text-lg font-bold text-white mb-1">Retry Distribution</h3>
+          <p className="text-sm text-gray-400 mb-6">Scheduled retry timeline</p>
+          
+          <div className="h-[200px] relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={retryDistributionData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {retryDistributionData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: '12px',
+                    color: '#fff'
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">23</div>
+                <div className="text-xs text-gray-400">Total</div>
               </div>
             </div>
-          </Card>
-        </div>
+          </div>
+          
+          <div className="space-y-3 mt-4">
+            {retryDistributionData.map((item) => (
+              <div key={item.name} className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></div>
+                  <span className="text-sm text-gray-400">{item.name}</span>
+                </div>
+                <span className="text-sm font-semibold text-white">{item.value}%</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Cron & ZeptoMail Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Cron Job Monitor */}
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <i className="fas fa-clock text-purple-400"></i>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Cron Job Monitor</h3>
+                <p className="text-sm text-gray-400">Real-time job execution status</p>
+              </div>
+            </div>
+            <button className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1">
+              View All <i className="fas fa-arrow-right"></i>
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {cronJobs.map((job) => (
+              <div 
+                key={job.id} 
+                className={cx(
+                  "cron-indicator p-4 rounded-xl border transition-all cursor-pointer group",
+                  job.status === "failed" 
+                    ? "bg-red-500/5 border-red-500/20" 
+                    : "bg-[#12121f]/50 border-purple-500/10 hover:border-purple-500/30"
+                )}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className={cx(
+                      "w-2 h-2 rounded-full",
+                      job.status === "running" && "bg-green-500 animate-pulse",
+                      job.status === "queued" && "bg-yellow-500",
+                      job.status === "active" && "bg-green-500",
+                      job.status === "failed" && "bg-red-500 animate-pulse"
+                    )}></div>
+                    <div>
+                      <p className="font-semibold text-white group-hover:text-purple-400 transition-colors">{job.name}</p>
+                      <p className="text-xs text-gray-500 font-mono">{job.schedule}</p>
+                    </div>
+                  </div>
+                  <StatusBadge status={job.status}>
+                    {job.status === "running" ? "Running" : 
+                     job.status === "queued" ? `Queued (${job.queued})` :
+                     job.status === "failed" ? "Failed" : "Active"}
+                  </StatusBadge>
+                </div>
+                
+                <div className="flex justify-between items-center text-sm text-gray-400 mb-2">
+                  <span>Last run: {job.lastRun}</span>
+                  {job.status === "failed" ? (
+                    <button className="text-red-400 hover:text-red-300 text-xs">Retry Now</button>
+                  ) : (
+                    <span className={cx(
+                      "text-xs",
+                      job.status === "running" ? "text-green-400" : "text-gray-500"
+                    )}>
+                      {job.status === "running" ? "Success" : ""}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className={cx(
+                      "h-full rounded-full transition-all duration-500",
+                      job.status === "failed" ? "bg-red-500" : "bg-gradient-to-r from-purple-500 to-purple-400"
+                    )}
+                    style={{ width: `${job.progress}%` }}
+                  ></div>
+                </div>
+                
+                {job.error && (
+                  <p className="mt-2 text-xs text-red-400">
+                    <i className="fas fa-exclamation-circle mr-1"></i>
+                    {job.error}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* ZeptoMail Tracker */}
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <i className="fas fa-envelope text-blue-400"></i>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">ZeptoMail Tracker</h3>
+                <p className="text-sm text-gray-400">Email delivery analytics</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="text-xs text-green-400">Live</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="text-center p-3 rounded-xl bg-[#12121f]/50 border border-purple-500/10">
+              <div className="text-2xl font-bold text-white mb-1">1,245</div>
+              <div className="text-xs text-gray-400">Sent</div>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+              <div className="text-2xl font-bold text-green-400 mb-1">98.2%</div>
+              <div className="text-xs text-gray-400">Delivered</div>
+            </div>
+            <div className="text-center p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
+              <div className="text-2xl font-bold text-blue-400 mb-1">42%</div>
+              <div className="text-xs text-gray-400">Opened</div>
+            </div>
+          </div>
+
+          <div className="h-[150px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={emailData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.1)" vertical={false} />
+                <XAxis 
+                  dataKey="day" 
+                  stroke="#6b7280" 
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: '12px',
+                    color: '#fff'
+                  }}
+                />
+                <Bar dataKey="sent" fill="rgba(139, 92, 246, 0.6)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="opened" fill="rgba(59, 130, 246, 0.6)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="space-y-3 mt-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#12121f]/30 border border-purple-500/10 hover:border-purple-500/20 transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <i className="fas fa-paper-plane text-purple-400 text-xs"></i>
+                </div>
+                <div>
+                  <p className="text-sm text-white font-medium">Debit Order Confirmations</p>
+                  <p className="text-xs text-gray-500">Sent 2 mins ago</p>
+                </div>
+              </div>
+              <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded">Delivered</span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#12121f]/30 border border-purple-500/10 hover:border-purple-500/20 transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                  <i className="fas fa-exclamation-triangle text-orange-400 text-xs"></i>
+                </div>
+                <div>
+                  <p className="text-sm text-white font-medium">Failed Payment Alerts</p>
+                  <p className="text-xs text-gray-500">Sent 15 mins ago</p>
+                </div>
+              </div>
+              <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded">Opened</span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#12121f]/30 border border-purple-500/10 hover:border-purple-500/20 transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                  <i className="fas fa-times text-red-400 text-xs"></i>
+                </div>
+                <div>
+                  <p className="text-sm text-white font-medium">Retry Notifications</p>
+                  <p className="text-xs text-gray-500">Sent 1 hour ago</p>
+                </div>
+              </div>
+              <span className="text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded">Bounced</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Original TabbyTech Layout - Preserved Below */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Today's Workflow */}
+        <Card className="lg:col-span-2 p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-white">Today's Workflow</h3>
+            <select className="bg-[#12121f] border border-purple-500/20 rounded-xl px-4 py-2 text-sm text-gray-300 focus:outline-none focus:border-purple-500/50">
+              <option>Subscription tracking</option>
+            </select>
+          </div>
+
+          <div className="space-y-3 mb-6">
+            <div className="flex justify-between items-center p-4 rounded-xl bg-[#12121f]/50 border border-purple-500/10 hover:border-purple-500/20 transition-all group">
+              <div>
+                <h4 className="text-sm font-semibold text-white mb-1 group-hover:text-purple-400 transition-colors">Review exceptions</h4>
+                <p className="text-xs text-gray-500">Prioritise failed deductions and follow ups</p>
+              </div>
+              <button className="px-4 py-2 rounded-xl bg-[#1a1a2e] text-white text-xs font-medium hover:bg-[#252545] transition-all border border-purple-500/20">
+                Open
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center p-4 rounded-xl bg-[#12121f]/50 border border-purple-500/10 hover:border-purple-500/20 transition-all group">
+              <div>
+                <h4 className="text-sm font-semibold text-white mb-1 group-hover:text-purple-400 transition-colors">Prepare next batch</h4>
+                <p className="text-xs text-gray-500">Validate and queue debit orders for the next run</p>
+              </div>
+              <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs font-medium hover:shadow-lg hover:shadow-purple-500/30 transition-all">
+                Start
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center p-4 rounded-xl bg-[#12121f]/50 border border-purple-500/10 hover:border-purple-500/20 transition-all group">
+              <div>
+                <h4 className="text-sm font-semibold text-white mb-1 group-hover:text-purple-400 transition-colors">Export bank files</h4>
+                <p className="text-xs text-gray-500">Generate bank ready exports from approved batches</p>
+              </div>
+              <button className="px-4 py-2 rounded-xl bg-[#1a1a2e] text-white text-xs font-medium hover:bg-[#252545] transition-all border border-purple-500/20">
+                Export
+              </button>
+            </div>
+          </div>
+
+          <div className="border-t border-purple-500/10 pt-6">
+            <h4 className="text-sm font-semibold text-white mb-2">Subscription tracking</h4>
+            <p className="text-xs text-gray-500 mb-4">This is a UI-only layer for now. Later we will sync this from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.</p>
+            
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <select className="bg-[#12121f] border border-purple-500/20 rounded-xl px-3 py-2.5 text-sm text-gray-300 focus:outline-none">
+                <option>Monthly only</option>
+              </select>
+              <select className="bg-[#12121f] border border-purple-500/20 rounded-xl px-3 py-2.5 text-sm text-gray-300 focus:outline-none">
+                <option>Last 30 days</option>
+              </select>
+              <select className="bg-[#12121f] border border-purple-500/20 rounded-xl px-3 py-2.5 text-sm text-gray-300 focus:outline-none">
+                <option>By revenue</option>
+              </select>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2">
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">New 7d: 6</span>
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">Churn 7d: 2</span>
+              </div>
+              <button className="text-xs text-gray-400 hover:text-white transition-all">
+                Paystack settings
+              </button>
+            </div>
+          </div>
+        </Card>
+
+        {/* Recent Batches */}
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-white">Recent Batches</h3>
+            <select 
+              value={selectedBatch}
+              onChange={(e) => setSelectedBatch(e.target.value)}
+              className="bg-[#12121f] border border-purple-500/20 rounded-xl px-3 py-1.5 text-xs text-gray-300 focus:outline-none"
+            >
+              {data.recentBatches.map((b) => (
+                <option key={b.batch} value={b.batch}>{b.batch}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs text-gray-500 border-b border-purple-500/10">
+                  <th className="pb-3 font-medium">Batch</th>
+                  <th className="pb-3 font-medium">Status</th>
+                  <th className="pb-3 font-medium text-right">Items</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {filteredBatches.map((b) => (
+                  <tr 
+                    key={b.batch} 
+                    className={cx(
+                      "border-b border-purple-500/5 cursor-pointer transition-all",
+                      selectedBatch === b.batch ? "bg-purple-500/5" : "hover:bg-[#12121f]/30"
+                    )}
+                    onClick={() => setSelectedBatch(b.batch)}
+                  >
+                    <td className="py-3 text-white font-medium text-xs">{b.batch}</td>
+                    <td className="py-3">
+                      <StatusBadge status={b.status}>
+                        {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+                      </StatusBadge>
+                    </td>
+                    <td className="py-3 text-right text-white font-medium">{b.items}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 p-4 rounded-xl bg-[#12121f]/30 border border-purple-500/10">
+            <p className="text-xs font-semibold text-white mb-1">Selected: {selectedBatch}</p>
+            <p className="text-xs text-gray-500 mb-3">UI-only actions. Will wire to batch workflows later.</p>
+            
+            <div className="flex gap-2 mb-3">
+              <input 
+                type="text" 
+                placeholder="Type to filter batches" 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 bg-[#0a0a0f] border border-purple-500/20 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-purple-500/50"
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <button className="flex-1 py-2 rounded-xl bg-[#1a1a2e] text-white text-xs font-medium hover:bg-[#252545] transition-all border border-purple-500/20">
+                View
+              </button>
+              <button className="flex-1 py-2 rounded-xl bg-purple-500 text-white text-xs font-medium hover:bg-purple-600 transition-all">
+                Export
+              </button>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Bottom Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+        <Card className="p-6">
+          <p className="text-xs text-gray-400 mb-2">Monthly MRR</p>
+          <h3 className="text-2xl font-bold text-white mb-1">{formatZAR(data.monthlyMRR)}</h3>
+          <p className="text-xs text-gray-500">Active {data.monthlyActive} • Churn 7d: 2</p>
+        </Card>
+
+        <Card className="p-6">
+          <p className="text-xs text-gray-400 mb-2">Annual ARR</p>
+          <h3 className="text-2xl font-bold text-white mb-1">{formatZAR(data.annualARR * 12 + data.monthlyMRR * 12)}</h3>
+          <p className="text-xs text-gray-500">View monthly • 11 only</p>
+        </Card>
       </div>
     </div>
   );
 }
-
-const css = `
-  :root{
-    --text: rgba(255,255,255,0.92);
-    --muted: rgba(255,255,255,0.62);
-    --muted2: rgba(255,255,255,0.48);
-
-    --stroke: rgba(255,255,255,0.10);
-    --stroke2: rgba(255,255,255,0.08);
-
-    --black0: #05050A;
-    --black1: rgba(0,0,0,0.65);
-    --black2: rgba(0,0,0,0.42);
-
-    --purple: #a855f7;
-    --purple2: #8b5cf6;
-
-    --r1: 20px;
-    --r2: 16px;
-
-    --shadow: 0 18px 70px rgba(0,0,0,0.62);
-    --inner: inset 0 0 0 1px rgba(0,0,0,0.30);
-  }
-
-  *{ box-sizing: border-box; }
-
-  .ttd-page{ width: 100%; color: var(--text); }
-  .ttd-wrap{ width: 100%; padding: 14px 18px 24px; }
-
-  /* PREMIUM GLASS like sidebar: dark, crisp, controlled purple glow */
-  .ttd-card{
-    border: 1px solid var(--stroke);
-    border-radius: var(--r1);
-    background: rgba(255,255,255,0.045);
-    backdrop-filter: blur(18px);
-    box-shadow: var(--shadow);
-    position: relative;
-    overflow: hidden;
-  }
-  .ttd-card--accent::before{
-    content:"";
-    position:absolute;
-    inset:-2px;
-    pointer-events:none;
-    background:
-      radial-gradient(780px 520px at 18% 8%, rgba(168,85,247,0.18), transparent 55%),
-      radial-gradient(720px 520px at 92% 18%, rgba(168,85,247,0.08), transparent 60%),
-      linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.22));
-    opacity: 1;
-  }
-  .ttd-card > *{ position: relative; z-index: 1; }
-
-  .ttd-grid{ display:grid; gap: 12px; }
-  .ttd-grid--hero{ grid-template-columns: 2fr 2fr 1fr 1fr; }
-  .ttd-grid--subsummary{ grid-template-columns: 1fr 1fr; margin-top: 12px; }
-  .ttd-grid--bottom{ grid-template-columns: 1.2fr 0.8fr; margin-top: 12px; align-items: start; }
-
-  .ttd-stat{ padding: 16px; }
-  .ttd-statLabel{ font-size: 13px; font-weight: 850; color: var(--muted); }
-  .ttd-statValue{ margin-top: 10px; font-size: 32px; font-weight: 980; letter-spacing: -0.03em; }
-  .ttd-statSub{ margin-top: 4px; font-size: 13px; color: var(--muted2); }
-
-  .ttd-subCard{ padding: 16px; }
-  .ttd-subTop{ display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
-  .ttd-subTitle{ font-size: 13px; font-weight: 850; color: var(--muted); }
-  .ttd-subValue{ margin-top: 6px; font-size: 24px; font-weight: 980; letter-spacing: -0.02em; }
-  .ttd-dot{ color: rgba(255,255,255,0.40); padding: 0 6px; }
-  .ttd-chipRow{ margin-top: 12px; display:flex; gap: 8px; flex-wrap: wrap; }
-
-  .ttd-panel{ padding: 16px; }
-  .ttd-panelHeader{ display:flex; align-items:center; justify-content:space-between; gap: 12px; }
-  .ttd-panelTitle{ font-size: 16px; font-weight: 980; letter-spacing: -0.02em; }
-  .ttd-panelSelect{ width: 240px; min-width: 0; }
-
-  .ttd-workList{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
-  .ttd-workItem{
-    border-radius: var(--r2);
-    border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.22);
-    box-shadow: var(--inner);
-    padding: 14px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap: 12px;
-  }
-  .ttd-workTitle{ font-weight: 980; font-size: 14px; }
-  .ttd-workSub{ margin-top: 4px; font-size: 12px; color: var(--muted2); }
-
-  .ttd-subTrack{ margin-top: 16px; }
-  .ttd-subTrackTitle{ font-size: 14px; font-weight: 980; }
-  .ttd-subTrackDesc{ margin-top: 6px; font-size: 13px; color: var(--muted2); }
-
-  .ttd-subBox{
-    margin-top: 14px;
-    border-radius: var(--r2);
-    border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(0,0,0,0.18);
-    box-shadow: var(--inner);
-    padding: 14px;
-    overflow: visible;
-  }
-
-  /* IMPORTANT: prevents dropdown going past block */
-  .ttd-filterRow{
-    display:grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    align-items:end;
-  }
-  .ttd-control{ min-width: 0; }
-  .ttd-controlLabel{
-    font-size: 11px;
-    font-weight: 850;
-    color: var(--muted2);
-    margin-bottom: 6px;
-  }
-
-  .ttd-underRow{
-    margin-top: 12px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap: 12px;
-    border-top: 1px solid rgba(255,255,255,0.08);
-    padding-top: 12px;
-  }
-  .ttd-chipRail{ display:flex; align-items:center; gap: 8px; flex-wrap: wrap; }
-  .ttd-paystackBtn{ white-space: nowrap; }
-
-  .ttd-metrics{
-    margin-top: 12px;
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .ttd-mini{
-    border-radius: var(--r2);
-    border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.20);
-    box-shadow: var(--inner);
-    padding: 14px;
-  }
-  .ttd-miniLabel{ font-size: 11px; font-weight: 850; color: var(--muted2); }
-  .ttd-miniValue{ margin-top: 10px; font-size: 22px; font-weight: 980; letter-spacing: -0.02em; }
-  .ttd-miniSub{ margin-top: 6px; font-size: 12px; color: var(--muted2); }
-
-  .ttd-breakdownCard{
-    margin-top: 12px;
-    border-radius: var(--r2);
-    border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.20);
-    box-shadow: var(--inner);
-    padding: 14px;
-  }
-  .ttd-breakHeader{ display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
-  .ttd-breakTitle{ font-size: 14px; font-weight: 980; }
-  .ttd-breakSub{ margin-top: 4px; font-size: 12px; color: var(--muted2); }
-  .ttd-breakBadges{ display:flex; gap: 8px; flex-wrap: wrap; justify-content:flex-end; }
-  .ttd-breakRows{ margin-top: 12px; display:flex; flex-direction:column; gap: 12px; }
-  .ttd-breakRowTop{ display:flex; align-items:center; justify-content:space-between; gap: 10px; }
-  .ttd-breakRowLabel{ font-size: 13px; font-weight: 950; color: rgba(255,255,255,0.86); }
-  .ttd-breakRowRight{ display:flex; align-items:center; gap: 10px; }
-  .ttd-breakRowValue{ font-weight: 980; font-size: 13px; }
-
-  .ttd-progress{
-    margin-top: 10px;
-    height: 8px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.10);
-    overflow:hidden;
-  }
-  .ttd-progressBar{
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgba(168,85,247,0.22), rgba(168,85,247,0.95));
-    box-shadow: 0 0 26px rgba(168,85,247,0.26);
-  }
-
-  .ttd-note{
-    margin-top: 12px;
-    border-radius: var(--r2);
-    border: 1px solid var(--stroke2);
-    background: rgba(255,255,255,0.05);
-    padding: 12px 14px;
-  }
-  .ttd-noteTitle{ font-weight: 950; font-size: 13px; }
-  .ttd-noteText{ margin-top: 6px; font-size: 13px; color: var(--muted2); }
-
-  .ttd-tableHead{
-    margin-top: 12px;
-    display:grid;
-    grid-template-columns: 1fr 1fr 90px;
-    gap: 10px;
-    padding: 0 6px;
-    font-size: 12px;
-    font-weight: 850;
-    color: var(--muted2);
-  }
-  .ttd-batchList{ margin-top: 10px; display:flex; flex-direction:column; gap: 10px; }
-
-  .ttd-batchRow{
-    width: 100%;
-    border-radius: var(--r2);
-    border: 1px solid var(--stroke2);
-    background: rgba(0,0,0,0.20);
-    box-shadow: var(--inner);
-    padding: 14px;
-    display:grid;
-    grid-template-columns: 1fr 1fr 90px;
-    gap: 10px;
-    align-items:center;
-    cursor:pointer;
-    text-align:left;
-    color: inherit;
-  }
-  .ttd-batchRow:hover{ background: rgba(0,0,0,0.30); }
-  .ttd-batchRow--active{ outline: 2px solid rgba(168,85,247,0.22); }
-
-  .ttd-batchName{ font-weight: 980; }
-  .ttd-batchStatus{
-    justify-self:start;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(168,85,247,0.22);
-    background: rgba(168,85,247,0.10);
-    color: rgba(235,220,255,0.92);
-    font-size: 12px;
-    font-weight: 980;
-    width: fit-content;
-  }
-  .ttd-batchItems{ justify-self:end; font-weight: 980; }
-
-  .ttd-batchFooter{
-    margin-top: 12px;
-    border-radius: var(--r2);
-    border: 1px solid var(--stroke2);
-    background: rgba(255,255,255,0.05);
-    padding: 12px 14px;
-    display:flex;
-    align-items:flex-end;
-    justify-content:space-between;
-    gap: 12px;
-  }
-  .ttd-batchFooterTitle{ font-weight: 980; }
-  .ttd-batchFooterSub{ margin-top: 4px; font-size: 12px; color: var(--muted2); }
-  .ttd-batchFooterBtns{ display:flex; gap: 10px; }
-
-  .ttd-localSearch{ margin-top: 10px; }
-  .ttd-localSearchLabel{ font-size: 11px; font-weight: 850; color: var(--muted2); margin-bottom: 6px; }
-  .ttd-localSearchInput{
-    width: 260px;
-    height: 38px;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(0,0,0,0.55);
-    color: rgba(255,255,255,0.90);
-    outline: none;
-    padding: 0 12px;
-    box-shadow: var(--inner);
-  }
-  .ttd-localSearchInput:focus{
-    border-color: rgba(168,85,247,0.35);
-    box-shadow: var(--inner), 0 0 0 3px rgba(168,85,247,0.16);
-  }
-  .ttd-localSearchInput::placeholder{ color: rgba(255,255,255,0.38); }
-
-  .ttd-btn{
-    height: 40px;
-    padding: 0 14px;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.10);
-    font-weight: 980;
-    font-size: 13px;
-    cursor:pointer;
-    transition: transform 120ms ease, background 120ms ease, border 120ms ease;
-    box-shadow: var(--inner);
-  }
-  .ttd-btn:active{ transform: scale(0.99); }
-
-  .ttd-btn--primary{
-    border-color: rgba(168,85,247,0.30);
-    background: linear-gradient(180deg, rgba(168,85,247,0.98), rgba(139,92,246,0.86));
-    color: white;
-    box-shadow: 0 14px 42px rgba(168,85,247,0.22);
-  }
-  .ttd-btn--primary:hover{
-    background: linear-gradient(180deg, rgba(168,85,247,1), rgba(139,92,246,0.92));
-  }
-
-  .ttd-btn--dark{
-    background: rgba(0,0,0,0.34);
-    color: rgba(255,255,255,0.90);
-  }
-  .ttd-btn--dark:hover{ background: rgba(0,0,0,0.46); }
-
-  .ttd-pill{
-    display:inline-flex;
-    align-items:center;
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(168,85,247,0.22);
-    background: rgba(168,85,247,0.10);
-    color: rgba(235,220,255,0.92);
-    font-size: 12px;
-    font-weight: 950;
-    white-space: nowrap;
-  }
-  .ttd-pill--neutral{
-    border-color: rgba(255,255,255,0.12);
-    background: rgba(255,255,255,0.06);
-    color: rgba(255,255,255,0.78);
-  }
-  .ttd-pill--danger{
-    border-color: rgba(244,63,94,0.22);
-    background: rgba(244,63,94,0.10);
-    color: rgba(253,164,175,0.95);
-  }
-
-  /* PremiumSelect (SOLID BLACK MENU) */
-  .ttd-psWrap{ position: relative; width: 100%; min-width: 0; }
-  .ttd-psBtn{
-    width: 100%;
-    height: 40px;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(0,0,0,0.70);
-    color: rgba(235,220,255,0.95);
-    font-weight: 950;
-    font-size: 13px;
-    padding: 0 12px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap: 10px;
-    cursor:pointer;
-    box-shadow: var(--inner);
-    min-width: 0;
-  }
-  .ttd-psBtn:hover{ background: rgba(0,0,0,0.78); }
-  .ttd-psBtn--open{
-    border-color: rgba(168,85,247,0.38);
-    box-shadow: var(--inner), 0 0 0 3px rgba(168,85,247,0.16);
-  }
-  .ttd-psText{ overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ttd-psChevron{ color: rgba(235,220,255,0.88); display:flex; }
-
-  .ttd-psMenu{
-    position:absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    right: 0;
-    border-radius: 14px;
-    border: 1px solid rgba(168,85,247,0.22);
-    background: var(--black0);
-    box-shadow: 0 18px 60px rgba(0,0,0,0.78);
-    overflow: hidden;
-    z-index: 999;
-    max-width: 100%;
-  }
-
-  .ttd-psItem{
-    width:100%;
-    border:0;
-    background: transparent;
-    color: rgba(255,255,255,0.92);
-    padding: 10px 12px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    cursor:pointer;
-    font-weight: 900;
-    font-size: 13px;
-    text-align:left;
-  }
-  .ttd-psItem:hover{ background: rgba(168,85,247,0.16); }
-  .ttd-psItem--active{
-    background: rgba(168,85,247,0.24);
-    color: rgba(255,255,255,0.98);
-  }
-  .ttd-psCheck{ color: rgba(255,255,255,0.95); font-weight: 950; }
-
-  @media (max-width: 1280px){
-    .ttd-grid--hero{ grid-template-columns: 1fr 1fr; }
-    .ttd-grid--subsummary{ grid-template-columns: 1fr; }
-    .ttd-grid--bottom{ grid-template-columns: 1fr; }
-    .ttd-panelSelect{ width: 100%; }
-    .ttd-filterRow{ grid-template-columns: 1fr; }
-    .ttd-underRow{ flex-wrap: wrap; align-items: flex-start; }
-    .ttd-localSearchInput{ width: 100%; }
-  }
-`;
