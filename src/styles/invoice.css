@@ -176,8 +176,6 @@
 
 /* =========================
    CLIENT PANEL HEADER FIX
-   Put title and Back inline
-   Make Back smaller
 ========================= */
 
 .tt-invoices .tt-clientpanel-head {
@@ -212,7 +210,6 @@
 
 /* =========================
    CLIENT PANEL GRID ALIGNMENT
-   Make it match main table exactly
 ========================= */
 
 .tt-invoices .tt-clientpanel .tt-table {
@@ -221,7 +218,6 @@
   table-layout: auto;
 }
 
-/* Match header spacing exactly */
 .tt-invoices .tt-clientpanel .tt-table thead th {
   padding: 14px 18px;
   font-size: 11px;
@@ -231,19 +227,16 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Match body cell spacing exactly */
 .tt-invoices .tt-clientpanel .tt-table tbody td {
   padding: 16px 18px;
   font-size: 13px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Remove last row border */
 .tt-invoices .tt-clientpanel .tt-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-/* Align Total column properly (second last) */
 .tt-invoices .tt-clientpanel .tt-table thead th:nth-last-child(2),
 .tt-invoices .tt-clientpanel .tt-table tbody td:nth-last-child(2) {
   text-align: right;
@@ -251,21 +244,18 @@
   font-weight: 700;
 }
 
-/* Align Action column properly (last) */
 .tt-invoices .tt-clientpanel .tt-table thead th:last-child,
 .tt-invoices .tt-clientpanel .tt-table tbody td:last-child {
   text-align: right;
   padding-right: 18px;
 }
 
-/* Hover consistency */
 .tt-invoices .tt-clientpanel .tt-table tbody tr:hover td {
   background: rgba(255, 255, 255, 0.02);
 }
 
 /* =========================
    PREMIUM ICON BUTTONS
-   Remove white blocks
 ========================= */
 
 .tt-invoices .tt-iconrow {
@@ -310,7 +300,7 @@
   height: 16px;
 }
 
-/* Optional class support if your JSX uses purple/green variants */
+/* Optional class support */
 .tt-invoices .tt-iconbtn.purple:hover,
 .tt-invoices .tt-iconbtn.tt-iconbtn-purple:hover {
   background: rgba(139, 92, 246, 0.16);
@@ -324,7 +314,7 @@
 }
 
 /* =========================
-   FOOTER NOTE + PAGER
+   FOOTER NOTE
 ========================= */
 
 .tt-invoices .tt-footer-note,
@@ -336,10 +326,34 @@
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* =========================
+   PAGER BUTTON CONSISTENCY
+   Match Clients header Back and Next
+========================= */
+
 .tt-invoices .tt-invoices-pager {
   padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
+/* Make the Records select the same height as buttons */
+.tt-invoices .tt-invoices-pager .tt-select {
+  height: 34px;
+  border-radius: 999px;
+}
+
+/* Back and Next sizing and pill shape */
+.tt-invoices .tt-invoices-pager .tt-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+/* Do not look disabled unless disabled */
 .tt-invoices .tt-btn[disabled] {
   opacity: 0.45;
   cursor: not-allowed;
