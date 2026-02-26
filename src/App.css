@@ -1,11 +1,5 @@
-/* src/App.css */
-/* Do not constrain #root in a full-width admin dashboard app. */
-
-#root {
-  width: 100%;
-  min-height: 100vh;
-  margin: 0;
-  padding: 0;
-}
-
-/* Keep defaults neutral */
+/* src/App.css
+IMPORTANT:
+This file previously contained Vite Template styles that broke the premium layout by constraining #root width and centering text.
+Keep this file empty (or near-empty) to avoid cross-module UI conflicts.
+*/
