@@ -58,10 +58,8 @@ export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
 
-  // Selected client (View opens panel)
   const [selectedClientKey, setSelectedClientKey] = useState("");
 
-  // Pagination
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
@@ -277,18 +275,18 @@ export default function Invoices() {
         </div>
 
         <div className="tt-table-wrap">
-          <table className="tt-table" role="table" aria-label="Invoices table">
+          <table className="tt-table tt-invoices-table" role="table" aria-label="Invoices table">
             <thead>
               <tr>
-                <th style={{ width: 160 }}>Invoice</th>
+                <th style={{ width: 140 }}>Invoice</th>
                 <th style={{ width: 140 }}>Status</th>
                 <th>Customer</th>
-                <th style={{ width: 170 }}>Issued</th>
-                <th style={{ width: 170 }}>Due</th>
-                <th className="tt-th-right" style={{ width: 160 }}>
+                <th style={{ width: 150 }}>Issued</th>
+                <th style={{ width: 150 }}>Due</th>
+                <th className="tt-th-right" style={{ width: 140 }}>
                   Total
                 </th>
-                <th className="tt-th-right" style={{ width: 160 }}>
+                <th className="tt-th-right" style={{ width: 110 }}>
                   Action
                 </th>
               </tr>
@@ -326,7 +324,7 @@ export default function Invoices() {
                     <td className="tt-td-right">
                       <button
                         type="button"
-                        className="tt-btn tt-btn-primary tt-btn-compact"
+                        className="tt-btn tt-btn-primary tt-btn-compact tt-view-btn"
                         onClick={() => onView(inv)}
                         aria-label={`View invoices for ${inv.customer}`}
                       >
@@ -413,17 +411,17 @@ export default function Invoices() {
             </div>
 
             <div className="tt-clientpanel-body">
-              <table className="tt-table" role="table" aria-label="Selected client invoices">
+              <table className="tt-table tt-clientpanel-table" role="table" aria-label="Selected client invoices">
                 <thead>
                   <tr>
-                    <th style={{ width: 160 }}>Invoice</th>
+                    <th style={{ width: 140 }}>Invoice</th>
                     <th style={{ width: 140 }}>Status</th>
-                    <th style={{ width: 170 }}>Issued</th>
-                    <th style={{ width: 170 }}>Due</th>
-                    <th className="tt-th-right" style={{ width: 160 }}>
+                    <th style={{ width: 150 }}>Issued</th>
+                    <th style={{ width: 150 }}>Due</th>
+                    <th className="tt-th-right" style={{ width: 140 }}>
                       Total
                     </th>
-                    <th className="tt-th-right" style={{ width: 220 }}>
+                    <th className="tt-th-right" style={{ width: 140 }}>
                       Action
                     </th>
                   </tr>
