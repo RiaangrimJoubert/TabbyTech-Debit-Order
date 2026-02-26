@@ -1,28 +1,5 @@
 // Dashboard.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell,
-  BarChart,
-  Bar
-} from "recharts";
-
-/*
-  Enhanced Dashboard with:
-  - Charts: Debit Order Performance (Success/Failed/Retry)
-  - Cron Job Monitor
-  - ZeptoMail Tracker
-  - Montserrat font
-  - Premium purple/dark theme
-*/
+import React, { useEffect, useMemo, useState } from "react";
 
 const LS = {
   search: "tabbytech.dashboard.search",
@@ -64,69 +41,234 @@ function cx(...arr) {
   return arr.filter(Boolean).join(" ");
 }
 
-// Chart Data
-const debitPerformanceData = [
-  { time: "00:00", successful: 45, failed: 12, retry: 5 },
-  { time: "04:00", successful: 52, failed: 8, retry: 3 },
-  { time: "08:00", successful: 89, failed: 15, retry: 8 },
-  { time: "12:00", successful: 134, failed: 22, retry: 12 },
-  { time: "16:00", successful: 156, failed: 18, retry: 15 },
-  { time: "20:00", successful: 178, failed: 14, retry: 19 },
-  { time: "Now", successful: 192, failed: 11, retry: 23 },
-];
+// SVG Line Chart Component
+function LineChart({ data }) {
+  const width = 600;
+  const height = 250;
+  const padding = 40;
+  const chartWidth = width - padding * 2;
+  const chartHeight = height - padding * 2;
 
-const retryDistributionData = [
-  { name: "Immediate", value: 45, color: "#10b981" },
-  { name: "24H Delay", value: 30, color: "#f59e0b" },
-  { name: "48H+ Delay", value: 25, color: "#ef4444" },
-];
+  const maxValue = Math.max(...data.flatMap(d => [d.successful, d.failed, d.retry]));
+  const minValue = 0;
 
-const emailData = [
-  { day: "Mon", sent: 120, opened: 80 },
-  { day: "Tue", sent: 190, opened: 120 },
-  { day: "Wed", sent: 150, opened: 100 },
-  { day: "Thu", sent: 220, opened: 140 },
-  { day: "Fri", sent: 180, opened: 110 },
-  { day: "Sat", sent: 90, opened: 50 },
-  { day: "Sun", sent: 110, opened: 70 },
-];
+  const getX = (index) => padding + (index / (data.length - 1)) * chartWidth;
+  const getY = (value) => padding + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
 
-const cronJobs = [
-  { 
-    id: 1, 
-    name: "Debit Order Batch", 
-    schedule: "*/5 * * * *", 
-    status: "running", 
-    lastRun: "2 mins ago",
-    progress: 75 
-  },
-  { 
-    id: 2, 
-    name: "Retry Scheduler", 
-    schedule: "0 8 * * *", 
-    status: "queued", 
-    lastRun: "Fri 08:00",
-    queued: 112,
-    progress: 25 
-  },
-  { 
-    id: 3, 
-    name: "Reconciliation", 
-    schedule: "0 */6 * * *", 
-    status: "active", 
-    lastRun: "1 hour ago",
-    progress: 100 
-  },
-  { 
-    id: 4, 
-    name: "Failed Payment Cleanup", 
-    schedule: "0 2 * * *", 
-    status: "failed", 
-    lastRun: "Failed 10 mins ago",
-    error: "Database connection timeout",
-    progress: 0 
-  },
-];
+  const createPath = (key) => {
+    return data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d[key])}`).join(' ');
+  };
+
+  const createArea = (key, color) => {
+    const path = createPath(key);
+    const closePath = `L ${getX(data.length - 1)} ${height - padding} L ${getX(0)} ${height - padding} Z`;
+    return (
+      <path
+        d={`${path} ${closePath}`}
+        fill={`url(#gradient-${key})`}
+        opacity="0.2"
+      />
+    );
+  };
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+      <defs>
+        <linearGradient id="gradient-successful" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#10b981" stopOpacity="0.4"/>
+          <stop offset="100%" stopColor="#10b981" stopOpacity="0"/>
+        </linearGradient>
+        <linearGradient id="gradient-failed" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ef4444" stopOpacity="0.4"/>
+          <stop offset="100%" stopColor="#ef4444" stopOpacity="0"/>
+        </linearGradient>
+        <linearGradient id="gradient-retry" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.4"/>
+          <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+
+      {/* Grid lines */}
+      {[0, 1, 2, 3, 4].map(i => (
+        <line
+          key={i}
+          x1={padding}
+          y1={padding + (chartHeight * i) / 4}
+          x2={width - padding}
+          y2={padding + (chartHeight * i) / 4}
+          stroke="rgba(139, 92, 246, 0.1)"
+          strokeDasharray="3,3"
+        />
+      ))}
+
+      {/* Areas */}
+      {createArea('successful')}
+      {createArea('failed')}
+      {createArea('retry')}
+
+      {/* Lines */}
+      <path d={createPath('successful')} fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d={createPath('failed')} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d={createPath('retry')} fill="none" stroke="#8b5cf6" strokeWidth="2" strokeDasharray="5,5" strokeLinecap="round" strokeLinejoin="round"/>
+
+      {/* Data points */}
+      {data.map((d, i) => (
+        <g key={i}>
+          <circle cx={getX(i)} cy={getY(d.successful)} r="4" fill="#10b981" stroke="#0a0a0f" strokeWidth="2"/>
+          <circle cx={getX(i)} cy={getY(d.failed)} r="3" fill="#ef4444" stroke="#0a0a0f" strokeWidth="2"/>
+          <circle cx={getX(i)} cy={getY(d.retry)} r="3" fill="#8b5cf6" stroke="#0a0a0f" strokeWidth="2"/>
+        </g>
+      ))}
+
+      {/* X Axis labels */}
+      {data.map((d, i) => (
+        <text
+          key={i}
+          x={getX(i)}
+          y={height - 10}
+          textAnchor="middle"
+          fill="#6b7280"
+          fontSize="10"
+        >
+          {d.time}
+        </text>
+      ))}
+
+      {/* Y Axis labels */}
+      {[0, 100, 200, 300].map((val, i) => (
+        <text
+          key={i}
+          x={padding - 10}
+          y={getY(val) + 4}
+          textAnchor="end"
+          fill="#6b7280"
+          fontSize="10"
+        >
+          {val}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// SVG Donut Chart Component
+function DonutChart({ data }) {
+  const size = 200;
+  const center = size / 2;
+  const radius = 70;
+  const innerRadius = 50;
+  
+  const total = data.reduce((acc, item) => acc + item.value, 0);
+  let currentAngle = 0;
+
+  const createArc = (value, color, index) => {
+    const angle = (value / total) * 360;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + angle;
+    currentAngle += angle;
+
+    const startRad = (startAngle * Math.PI) / 180;
+    const endRad = (endAngle * Math.PI) / 180;
+
+    const x1 = center + radius * Math.cos(startRad);
+    const y1 = center + radius * Math.sin(startRad);
+    const x2 = center + radius * Math.cos(endRad);
+    const y2 = center + radius * Math.sin(endRad);
+
+    const largeArc = angle > 180 ? 1 : 0;
+
+    const path = [
+      `M ${center + innerRadius * Math.cos(startRad)} ${center + innerRadius * Math.sin(startRad)}`,
+      `L ${x1} ${y1}`,
+      `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`,
+      `L ${center + innerRadius * Math.cos(endRad)} ${center + innerRadius * Math.sin(endRad)}`,
+      `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${center + innerRadius * Math.cos(startRad)} ${center + innerRadius * Math.sin(startRad)}`,
+      'Z'
+    ].join(' ');
+
+    return <path key={index} d={path} fill={color} stroke="#0a0a0f" strokeWidth="2"/>;
+  };
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-48 h-48 transform -rotate-90">
+        {data.map((item, index) => createArc(item.value, item.color, index))}
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center flex-col">
+        <div className="text-3xl font-bold text-white">23</div>
+        <div className="text-xs text-gray-400">Total</div>
+      </div>
+    </div>
+  );
+}
+
+// SVG Bar Chart Component
+function BarChart({ data }) {
+  const width = 400;
+  const height = 150;
+  const padding = 30;
+  const chartWidth = width - padding * 2;
+  const chartHeight = height - padding * 2;
+  const barWidth = chartWidth / data.length / 3;
+  const maxValue = Math.max(...data.flatMap(d => [d.sent, d.opened]));
+
+  const getX = (index, offset) => padding + (index * chartWidth) / data.length + offset * barWidth + barWidth / 2;
+  const getY = (value) => padding + chartHeight - (value / maxValue) * chartHeight;
+  const getHeight = (value) => (value / maxValue) * chartHeight;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+      {/* Grid lines */}
+      {[0, 1, 2, 3].map(i => (
+        <line
+          key={i}
+          x1={padding}
+          y1={padding + (chartHeight * i) / 3}
+          x2={width - padding}
+          y2={padding + (chartHeight * i) / 3}
+          stroke="rgba(139, 92, 246, 0.1)"
+          strokeDasharray="3,3"
+        />
+      ))}
+
+      {/* Bars */}
+      {data.map((d, i) => (
+        <g key={i}>
+          <rect
+            x={getX(i, 0) - barWidth / 4}
+            y={getY(d.sent)}
+            width={barWidth / 2}
+            height={getHeight(d.sent)}
+            fill="rgba(139, 92, 246, 0.6)"
+            rx="2"
+          />
+          <rect
+            x={getX(i, 1) - barWidth / 4}
+            y={getY(d.opened)}
+            width={barWidth / 2}
+            height={getHeight(d.opened)}
+            fill="rgba(59, 130, 246, 0.6)"
+            rx="2"
+          />
+        </g>
+      ))}
+
+      {/* X Axis labels */}
+      {data.map((d, i) => (
+        <text
+          key={i}
+          x={getX(i, 0.5)}
+          y={height - 5}
+          textAnchor="middle"
+          fill="#6b7280"
+          fontSize="10"
+        >
+          {d.day}
+        </text>
+      ))}
+    </svg>
+  );
+}
 
 function Card({ children, className = "", glow = false }) {
   return (
@@ -188,6 +330,16 @@ function MetricCard({ title, value, subtext, trend, trendUp, icon: Icon, color =
   );
 }
 
+// Icons as components
+const Icons = {
+  FileInvoice: () => <i className="fas fa-file-invoice-dollar"></i>,
+  CheckCircle: () => <i className="fas fa-check-circle"></i>,
+  Redo: () => <i className="fas fa-redo-alt"></i>,
+  Wallet: () => <i className="fas fa-wallet"></i>,
+  Clock: () => <i className="fas fa-clock"></i>,
+  Envelope: () => <i className="fas fa-envelope"></i>,
+};
+
 export default function Dashboard() {
   const [search, setSearch] = useLocalStorageState(LS.search, "");
   const [range, setRange] = useLocalStorageState(LS.range, "24h");
@@ -216,6 +368,69 @@ export default function Dashboard() {
     };
   }, []);
 
+  const debitPerformanceData = [
+    { time: "00:00", successful: 45, failed: 12, retry: 5 },
+    { time: "04:00", successful: 52, failed: 8, retry: 3 },
+    { time: "08:00", successful: 89, failed: 15, retry: 8 },
+    { time: "12:00", successful: 134, failed: 22, retry: 12 },
+    { time: "16:00", successful: 156, failed: 18, retry: 15 },
+    { time: "20:00", successful: 178, failed: 14, retry: 19 },
+    { time: "Now", successful: 192, failed: 11, retry: 23 },
+  ];
+
+  const retryDistributionData = [
+    { name: "Immediate", value: 45, color: "#10b981" },
+    { name: "24H Delay", value: 30, color: "#f59e0b" },
+    { name: "48H+ Delay", value: 25, color: "#ef4444" },
+  ];
+
+  const emailData = [
+    { day: "Mon", sent: 120, opened: 80 },
+    { day: "Tue", sent: 190, opened: 120 },
+    { day: "Wed", sent: 150, opened: 100 },
+    { day: "Thu", sent: 220, opened: 140 },
+    { day: "Fri", sent: 180, opened: 110 },
+    { day: "Sat", sent: 90, opened: 50 },
+    { day: "Sun", sent: 110, opened: 70 },
+  ];
+
+  const cronJobs = [
+    { 
+      id: 1, 
+      name: "Debit Order Batch", 
+      schedule: "*/5 * * * *", 
+      status: "running", 
+      lastRun: "2 mins ago",
+      progress: 75 
+    },
+    { 
+      id: 2, 
+      name: "Retry Scheduler", 
+      schedule: "0 8 * * *", 
+      status: "queued", 
+      lastRun: "Fri 08:00",
+      queued: 112,
+      progress: 25 
+    },
+    { 
+      id: 3, 
+      name: "Reconciliation", 
+      schedule: "0 */6 * * *", 
+      status: "active", 
+      lastRun: "1 hour ago",
+      progress: 100 
+    },
+    { 
+      id: 4, 
+      name: "Failed Payment Cleanup", 
+      schedule: "0 2 * * *", 
+      status: "failed", 
+      lastRun: "Failed 10 mins ago",
+      error: "Database connection timeout",
+      progress: 0 
+    },
+  ];
+
   const filteredBatches = useMemo(() => {
     const q = (search || "").trim().toLowerCase();
     if (!q) return data.recentBatches;
@@ -225,7 +440,7 @@ export default function Dashboard() {
   }, [data, search]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-300 font-['Montserrat'] p-8">
+    <div className="min-h-screen bg-[#0a0a0f] text-gray-300 p-8" style={{ fontFamily: "'Montserrat', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
         @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
@@ -262,26 +477,6 @@ export default function Dashboard() {
           pointer-events: none;
         }
         
-        .chart-gradient-success {
-          stop-color: #10b981;
-        }
-        
-        .chart-gradient-failed {
-          stop-color: #ef4444;
-        }
-        
-        .chart-gradient-retry {
-          stop-color: #8b5cf6;
-        }
-        
-        .custom-tooltip {
-          background: rgba(17, 24, 39, 0.95);
-          border: 1px solid rgba(139, 92, 246, 0.3);
-          border-radius: 12px;
-          padding: 12px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-        }
-        
         .cron-indicator {
           position: relative;
           overflow: hidden;
@@ -301,15 +496,6 @@ export default function Dashboard() {
         @keyframes shimmer {
           100% { left: 100%; }
         }
-        
-        .animate-pulse-slow {
-          animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: .5; }
-        }
       `}</style>
 
       {/* Header */}
@@ -323,7 +509,7 @@ export default function Dashboard() {
             <input 
               type="text" 
               placeholder="Search orders, batches..." 
-              className="bg-[#12121f] border border-purple-500/20 rounded-xl px-4 py-2.5 pl-10 text-sm focus:outline-none focus:border-purple-500/50 w-64 transition-all"
+              className="bg-[#12121f] border border-purple-500/20 rounded-xl px-4 py-2.5 pl-10 text-sm focus:outline-none focus:border-purple-500/50 w-64 transition-all text-gray-300"
             />
             <i className="fas fa-search absolute left-3.5 top-3 text-gray-500"></i>
           </div>
@@ -346,7 +532,7 @@ export default function Dashboard() {
           subtext="1,180 Running"
           trend="12%"
           trendUp={true}
-          icon={() => <i className="fas fa-file-invoice-dollar"></i>}
+          icon={Icons.FileInvoice}
           color="purple"
         />
         
@@ -356,7 +542,7 @@ export default function Dashboard() {
           subtext="Successful transactions"
           trend="4.2%"
           trendUp={true}
-          icon={() => <i className="fas fa-check-circle"></i>}
+          icon={Icons.CheckCircle}
           color="green"
         />
         
@@ -366,7 +552,7 @@ export default function Dashboard() {
           subtext="Next retry: 08:00"
           trend="Needs Attention"
           trendUp={false}
-          icon={() => <i className="fas fa-redo-alt"></i>}
+          icon={Icons.Redo}
           color="orange"
         />
         
@@ -376,7 +562,7 @@ export default function Dashboard() {
           subtext="Scheduled Total R 520,000"
           trend="8.4%"
           trendUp={true}
-          icon={() => <i className="fas fa-wallet"></i>}
+          icon={Icons.Wallet}
           color="purple"
         />
       </div>
@@ -409,72 +595,7 @@ export default function Dashboard() {
           </div>
           
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={debitPerformanceData}>
-                <defs>
-                  <linearGradient id="successGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="failedGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="retryGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.1)" />
-                <XAxis 
-                  dataKey="time" 
-                  stroke="#6b7280" 
-                  fontSize={12}
-                  tickLine={false}
-                />
-                <YAxis 
-                  stroke="#6b7280" 
-                  fontSize={12}
-                  tickLine={false}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(17, 24, 39, 0.95)', 
-                    border: '1px solid rgba(139, 92, 246, 0.3)',
-                    borderRadius: '12px',
-                    color: '#fff'
-                  }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="successful" 
-                  stroke="#10b981" 
-                  strokeWidth={3}
-                  dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
-                  activeDot={{ r: 6, strokeWidth: 0 }}
-                  fill="url(#successGradient)"
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="failed" 
-                  stroke="#ef4444" 
-                  strokeWidth={2}
-                  dot={{ fill: "#ef4444", strokeWidth: 2, r: 3 }}
-                  activeDot={{ r: 5, strokeWidth: 0 }}
-                  fill="url(#failedGradient)"
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="retry" 
-                  stroke="#8b5cf6" 
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ fill: "#8b5cf6", strokeWidth: 2, r: 3 }}
-                  activeDot={{ r: 5, strokeWidth: 0 }}
-                  fill="url(#retryGradient)"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <LineChart data={debitPerformanceData} />
           </div>
           
           <div className="flex justify-center gap-6 mt-4">
@@ -498,41 +619,11 @@ export default function Dashboard() {
           <h3 className="text-lg font-bold text-white mb-1">Retry Distribution</h3>
           <p className="text-sm text-gray-400 mb-6">Scheduled retry timeline</p>
           
-          <div className="h-[200px] relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={retryDistributionData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {retryDistributionData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(17, 24, 39, 0.95)', 
-                    border: '1px solid rgba(139, 92, 246, 0.3)',
-                    borderRadius: '12px',
-                    color: '#fff'
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">23</div>
-                <div className="text-xs text-gray-400">Total</div>
-              </div>
-            </div>
+          <div className="flex justify-center">
+            <DonutChart data={retryDistributionData} />
           </div>
           
-          <div className="space-y-3 mt-4">
+          <div className="space-y-3 mt-6">
             {retryDistributionData.map((item) => (
               <div key={item.name} className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
@@ -553,7 +644,7 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                <i className="fas fa-clock text-purple-400"></i>
+                <Icons.Clock />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white">Cron Job Monitor</h3>
@@ -637,7 +728,7 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <i className="fas fa-envelope text-blue-400"></i>
+                <Icons.Envelope />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white">ZeptoMail Tracker</h3>
@@ -666,28 +757,7 @@ export default function Dashboard() {
           </div>
 
           <div className="h-[150px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={emailData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.1)" vertical={false} />
-                <XAxis 
-                  dataKey="day" 
-                  stroke="#6b7280" 
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(17, 24, 39, 0.95)', 
-                    border: '1px solid rgba(139, 92, 246, 0.3)',
-                    borderRadius: '12px',
-                    color: '#fff'
-                  }}
-                />
-                <Bar dataKey="sent" fill="rgba(139, 92, 246, 0.6)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="opened" fill="rgba(59, 130, 246, 0.6)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <BarChart data={emailData} />
           </div>
 
           <div className="space-y-3 mt-4">
@@ -733,7 +803,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Original TabbyTech Layout - Preserved Below */}
+      {/* Original TabbyTech Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Today's Workflow */}
         <Card className="lg:col-span-2 p-6">
