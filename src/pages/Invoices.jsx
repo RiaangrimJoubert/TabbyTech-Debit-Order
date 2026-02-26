@@ -1,4 +1,4 @@
-// src/pages/Invoices.jsx
+// src/screens/Invoices.jsx
 import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { INVOICES, money, calcTotals } from "../data/invoices.js";
@@ -8,168 +8,145 @@ function getApiBase() {
   return base.endsWith("/") ? base.slice(0, -1) : base;
 }
 
-async function postJson(url, body) {
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {})
-  });
-
-  const text = await resp.text();
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
-  }
-
-  if (!resp.ok) {
-    const msg =
-      (json && (json.error || json.message)) ||
-      `Request failed with status ${resp.status}`;
-    throw new Error(msg);
-  }
-
-  return json;
-}
-
 function normalizeKey(s) {
   return String(s || "").toLowerCase().trim();
 }
 
-function makeClientKey(inv) {
-  const email = normalizeKey(inv?.customerEmail);
-  const name = normalizeKey(inv?.customer);
-  return encodeURIComponent(email || name || String(inv?.id || ""));
+function statusDotClass(status) {
+  if (status === "Paid") return "paid";
+  if (status === "Unpaid") return "unpaid";
+  return "overdue";
+}
+
+function safeInvoiceLabel(inv) {
+  return String(inv?.id || "Invoice").trim();
+}
+
+function SvgEye({ size = 16 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M2.2 12s3.7-7 9.8-7 9.8 7 9.8 7-3.7 7-9.8 7S2.2 12 2.2 12Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 15.2A3.2 3.2 0 1 0 12 8.8a3.2 3.2 0 0 0 0 6.4Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function SvgPrinter({ size = 16 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M7 8V4h10v4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 14h10v6H7v-6Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SvgDownload({ size = 16 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 3v10"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 11l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M4 20h16"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
 
-  // Which client is currently expanded
-  const [openClientKey, setOpenClientKey] = useState("");
-
-  // Per-invoice Books sync status
-  // { [invoiceId]: { state: "idle"|"loading"|"ok"|"error", message: string } }
-  const [booksState, setBooksState] = useState({});
+  // which invoice row is expanded
+  const [openInvoiceId, setOpenInvoiceId] = useState("");
 
   const filteredInvoices = useMemo(() => {
-    const query = q.trim().toLowerCase();
-    return INVOICES.filter((inv) => {
-      const matchesStatus = status === "All" ? true : inv.status === status;
-      if (!matchesStatus) return false;
+    const query = normalizeKey(q);
 
-      if (!query) return true;
-      const hay = [
-        inv.id,
-        inv.status,
-        inv.customer,
-        inv.customerEmail,
-        inv.dateIssued,
-        inv.dueDate,
-        inv.booksInvoiceId
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+    return (INVOICES || [])
+      .filter((inv) => {
+        const matchesStatus = status === "All" ? true : String(inv.status) === String(status);
+        if (!matchesStatus) return false;
 
-      return hay.includes(query);
-    });
+        if (!query) return true;
+
+        const hay = [
+          inv.id,
+          inv.status,
+          inv.customer,
+          inv.customerEmail,
+          inv.dateIssued,
+          inv.dueDate,
+          inv.booksInvoiceId,
+          inv.debitOrderId
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return normalizeKey(hay).includes(query);
+      })
+      .sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
   }, [q, status]);
 
-  // Build client groups from invoices
-  const clientGroups = useMemo(() => {
-    const map = new Map();
-
-    filteredInvoices.forEach((inv) => {
-      const key = makeClientKey(inv);
-      const email = String(inv?.customerEmail || "").trim();
-      const name = String(inv?.customer || "").trim() || email || "Client";
-
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          name,
-          email,
-          invoices: []
-        });
-      }
-
-      map.get(key).invoices.push(inv);
-    });
-
-    const clients = Array.from(map.values());
-
-    // Sort clients by name
-    clients.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-
-    // Sort invoices inside each client by issued date desc
-    clients.forEach((c) => {
-      c.invoices.sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
-    });
-
-    return clients;
-  }, [filteredInvoices]);
-
-  function toggleClient(key) {
-    setOpenClientKey((prev) => (prev === key ? "" : key));
-  }
-
-  async function onSyncToBooks(inv) {
-    const invoiceId = String(inv?.id || "");
-
-    // We only allow syncing when we have a debitOrderId to use.
-    // We do NOT guess this value, because that could sync the wrong client.
-    const debitOrderId = inv?.debitOrderId ? String(inv.debitOrderId) : "";
-    if (!debitOrderId) {
-      setBooksState((prev) => ({
-        ...prev,
-        [invoiceId]: {
-          state: "error",
-          message: "Missing debitOrderId on this invoice row"
-        }
-      }));
-      return;
-    }
-
-    setBooksState((prev) => ({
-      ...prev,
-      [invoiceId]: { state: "loading", message: "Creating invoice in Books..." }
-    }));
-
-    try {
-      const apiBase = getApiBase();
-      if (!apiBase) {
-        throw new Error("Missing VITE_API_BASE_URL");
-      }
-
-      const url = `${apiBase}/api/books/invoices/create-from-debit-order`;
-      const out = await postJson(url, { debitOrderId });
-
-      const booksInvoiceId = out?.booksInvoiceId ? String(out.booksInvoiceId) : "";
-      const invoiceNumber = out?.invoiceNumber ? String(out.invoiceNumber) : "";
-
-      const msgParts = [];
-      if (invoiceNumber) msgParts.push(invoiceNumber);
-      if (booksInvoiceId) msgParts.push(booksInvoiceId);
-
-      setBooksState((prev) => ({
-        ...prev,
-        [invoiceId]: {
-          state: "ok",
-          message: msgParts.length ? `Books: ${msgParts.join(" | ")}` : "Books invoice created"
-        }
-      }));
-    } catch (e) {
-      setBooksState((prev) => ({
-        ...prev,
-        [invoiceId]: {
-          state: "error",
-          message: String(e?.message || e)
-        }
-      }));
-    }
+  function toggleRow(invoiceId) {
+    const id = String(invoiceId || "").trim();
+    if (!id) return;
+    setOpenInvoiceId((prev) => (prev === id ? "" : id));
   }
 
   function openInvoiceHtml(inv) {
@@ -179,8 +156,12 @@ export default function Invoices() {
       return;
     }
 
-    const booksInvoiceId = String(inv?.booksInvoiceId || "").trim() || String(inv?.id || "").trim();
-    const url = `${apiBase}/api/invoice-html/${encodeURIComponent(booksInvoiceId)}`;
+    const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
+    const fallback = String(inv?.id || "").trim();
+
+    // Prefer Books invoice id if mapped, else fallback to invoice id
+    const id = booksInvoiceId || fallback;
+    const url = `${apiBase}/api/invoice-html/${encodeURIComponent(id)}`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
@@ -192,14 +173,13 @@ export default function Invoices() {
     }
 
     const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
+
+    // If not mapped yet, fallback to HTML (user can Save as PDF)
     if (!booksInvoiceId) {
-      // Fallback: open HTML so user can Save as PDF
       openInvoiceHtml(inv);
       return;
     }
 
-    // This route will be added in backend next.
-    // If it does not exist yet, we fallback to opening HTML invoice.
     const url = `${apiBase}/api/invoice-pdf/${encodeURIComponent(booksInvoiceId)}`;
 
     try {
@@ -214,7 +194,7 @@ export default function Invoices() {
 
       const a = document.createElement("a");
       a.href = objectUrl;
-      a.download = `${String(inv?.id || "invoice")}.pdf`;
+      a.download = `${safeInvoiceLabel(inv)}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -230,7 +210,6 @@ export default function Invoices() {
       const totals = calcTotals(inv);
       return {
         "Invoice ID": inv.id,
-        "Books Invoice ID": inv.booksInvoiceId || "",
         Status: inv.status,
         Customer: inv.customer,
         "Customer Email": inv.customerEmail,
@@ -246,7 +225,6 @@ export default function Invoices() {
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
       { wch: 14 },
-      { wch: 20 },
       { wch: 10 },
       { wch: 28 },
       { wch: 30 },
@@ -276,18 +254,17 @@ export default function Invoices() {
         <div className="tt-header">
           <div className="tt-title">
             <h1>Invoices</h1>
-            <p>
-              This view groups invoices by client. Expand a client to print or download invoices.
-            </p>
+            <p>Desktop-first view. Use View for the standalone printable invoice route.</p>
           </div>
 
-          <div className="tt-toolbar">
+          <div className="tt-toolbar" style={{ justifyContent: "flex-end" }}>
             <input
               className="tt-input"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search client, email, invoice, status, date..."
+              placeholder="Search invoices by ID, customer, email, status, date..."
               aria-label="Search invoices"
+              style={{ maxWidth: 520 }}
             />
 
             <select
@@ -315,178 +292,150 @@ export default function Invoices() {
         </div>
 
         <div className="tt-table-wrap">
-          <table className="tt-table" role="table" aria-label="Clients invoices table">
+          <table className="tt-table" role="table" aria-label="Invoices table">
             <thead>
               <tr>
-                <th>Client</th>
-                <th style={{ width: 280 }}>Email</th>
-                <th style={{ width: 140, textAlign: "right" }}>Invoices</th>
-                <th style={{ width: 220, textAlign: "right" }}>Action</th>
+                <th style={{ width: 160 }}>Invoice</th>
+                <th style={{ width: 140 }}>Status</th>
+                <th>Customer</th>
+                <th style={{ width: 170 }}>Issued</th>
+                <th style={{ width: 170 }}>Due</th>
+                <th style={{ width: 160, textAlign: "right" }}>Total</th>
+                <th style={{ width: 140, textAlign: "right" }}>Action</th>
               </tr>
             </thead>
 
             <tbody>
-              {clientGroups.map((c) => {
-                const isOpen = openClientKey === c.key;
+              {filteredInvoices.map((inv) => {
+                const totals = calcTotals(inv);
+                const invId = String(inv?.id || "").trim();
+                const isOpen = openInvoiceId === invId;
+
+                const dotClass = statusDotClass(String(inv.status || "Overdue"));
 
                 return (
-                  <React.Fragment key={c.key}>
+                  <React.Fragment key={invId || Math.random()}>
                     <tr>
-                      <td style={{ fontWeight: 700 }}>
-                        {c.name}
+                      <td style={{ fontWeight: 800, letterSpacing: 0.2 }}>{invId}</td>
+
+                      <td>
+                        <span className="tt-badge">
+                          <span className={`tt-dot ${dotClass}`} />
+                          {inv.status}
+                        </span>
                       </td>
-                      <td style={{ color: "rgba(255,255,255,0.70)" }}>
-                        {c.email || " "}
-                      </td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>
-                        {c.invoices.length}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <div className="tt-actions" style={{ justifyContent: "flex-end" }}>
-                          <button
-                            type="button"
-                            className="tt-linkbtn"
-                            onClick={() => toggleClient(c.key)}
-                            aria-label={`View invoices for ${c.name}`}
-                          >
-                            {isOpen ? "Hide invoices" : "View invoices"}
-                          </button>
+
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span style={{ fontWeight: 700 }}>{inv.customer}</span>
+                          <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
+                            {inv.customerEmail}
+                          </span>
                         </div>
+                      </td>
+
+                      <td>{inv.dateIssued}</td>
+                      <td>{inv.dueDate}</td>
+
+                      <td style={{ textAlign: "right", fontWeight: 800 }}>
+                        {money(totals.total, inv.currency)}
+                      </td>
+
+                      <td style={{ textAlign: "right" }}>
+                        <button
+                          type="button"
+                          className="tt-btn tt-btn-primary"
+                          onClick={() => toggleRow(invId)}
+                          aria-label={`View invoice actions for ${invId}`}
+                          style={{
+                            padding: "10px 16px",
+                            borderRadius: 12,
+                            fontWeight: 800,
+                            minWidth: 84
+                          }}
+                        >
+                          View
+                        </button>
                       </td>
                     </tr>
 
                     {isOpen && (
                       <tr>
-                        <td colSpan={4} style={{ padding: 0 }}>
-                          <div style={{ padding: 14 }}>
-                            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginBottom: 10 }}>
-                              Invoices for {c.name}
-                            </div>
+                        <td colSpan={7} style={{ paddingTop: 0 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              padding: "14px 18px 18px",
+                              gap: 10
+                            }}
+                          >
+                            {/* Round icon buttons, premium feel */}
+                            <button
+                              type="button"
+                              onClick={() => openInvoiceHtml(inv)}
+                              aria-label={`Print invoice ${invId}`}
+                              title="Print (opens HTML in a new tab)"
+                              style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 999,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "1px solid rgba(124,58,237,0.45)",
+                                background: "rgba(124,58,237,0.12)",
+                                color: "rgba(216, 196, 255, 0.95)",
+                                boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+                                cursor: "pointer"
+                              }}
+                            >
+                              <SvgPrinter />
+                            </button>
 
-                            <div style={{ overflowX: "auto" }}>
-                              <table className="tt-table" role="table" aria-label={`Invoices for ${c.name}`}>
-                                <thead>
-                                  <tr>
-                                    <th style={{ width: 160 }}>Invoice</th>
-                                    <th style={{ width: 140 }}>Status</th>
-                                    <th style={{ width: 170 }}>Issued</th>
-                                    <th style={{ width: 170 }}>Due</th>
-                                    <th style={{ width: 160, textAlign: "right" }}>Total</th>
-                                    <th style={{ width: 320, textAlign: "right" }}>Actions</th>
-                                  </tr>
-                                </thead>
+                            <button
+                              type="button"
+                              onClick={() => downloadInvoicePdf(inv)}
+                              aria-label={`Download invoice ${invId}`}
+                              title="Download PDF (falls back to HTML if PDF route is not ready)"
+                              style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 999,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "1px solid rgba(34,197,94,0.35)",
+                                background: "rgba(34,197,94,0.12)",
+                                color: "rgba(180,255,210,0.95)",
+                                boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+                                cursor: "pointer"
+                              }}
+                            >
+                              <SvgDownload />
+                            </button>
 
-                                <tbody>
-                                  {c.invoices.map((inv) => {
-                                    const totals = calcTotals(inv);
-
-                                    const dotClass =
-                                      inv.status === "Paid"
-                                        ? "paid"
-                                        : inv.status === "Unpaid"
-                                        ? "unpaid"
-                                        : "overdue";
-
-                                    const rowState = booksState[String(inv.id)] || { state: "idle", message: "" };
-                                    const canSync = Boolean(inv?.debitOrderId);
-
-                                    return (
-                                      <tr key={inv.id}>
-                                        <td style={{ fontWeight: 700, letterSpacing: 0.2 }}>
-                                          {inv.id}
-                                          {inv.booksInvoiceId ? (
-                                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.60)", marginTop: 4 }}>
-                                              Books: {String(inv.booksInvoiceId)}
-                                            </div>
-                                          ) : null}
-
-                                          {rowState.state !== "idle" ? (
-                                            <div
-                                              style={{
-                                                marginTop: 4,
-                                                color:
-                                                  rowState.state === "ok"
-                                                    ? "rgba(180,255,210,0.85)"
-                                                    : rowState.state === "error"
-                                                    ? "rgba(255,170,170,0.85)"
-                                                    : "rgba(255,255,255,0.65)",
-                                                fontSize: 12
-                                              }}
-                                            >
-                                              {rowState.message}
-                                            </div>
-                                          ) : null}
-                                        </td>
-
-                                        <td>
-                                          <span className="tt-badge">
-                                            <span className={`tt-dot ${dotClass}`} />
-                                            {inv.status}
-                                          </span>
-                                        </td>
-
-                                        <td>{inv.dateIssued}</td>
-                                        <td>{inv.dueDate}</td>
-                                        <td style={{ textAlign: "right", fontWeight: 700 }}>
-                                          {money(totals.total, inv.currency)}
-                                        </td>
-
-                                        <td style={{ textAlign: "right" }}>
-                                          <div className="tt-actions" style={{ justifyContent: "flex-end", flexWrap: "wrap", gap: 10 }}>
-                                            <button
-                                              type="button"
-                                              className="tt-linkbtn"
-                                              onClick={() => openInvoiceHtml(inv)}
-                                              aria-label={`Print invoice ${inv.id}`}
-                                              title="Opens the HTML invoice in a new tab for printing"
-                                            >
-                                              Print
-                                            </button>
-
-                                            <button
-                                              type="button"
-                                              className="tt-linkbtn"
-                                              onClick={() => downloadInvoicePdf(inv)}
-                                              aria-label={`Download invoice ${inv.id} as PDF`}
-                                              title="Downloads the invoice PDF when available. If not available yet, it opens the HTML invoice."
-                                            >
-                                              Download
-                                            </button>
-
-                                            <button
-                                              type="button"
-                                              className="tt-linkbtn"
-                                              onClick={() => onSyncToBooks(inv)}
-                                              disabled={!canSync || rowState.state === "loading"}
-                                              aria-label={`Sync invoice ${inv.id} to Books`}
-                                              title={
-                                                !canSync
-                                                  ? "This invoice row does not have a debitOrderId mapped yet"
-                                                  : "Creates or reuses a Books invoice for this debit order"
-                                              }
-                                              style={{
-                                                opacity: !canSync ? 0.45 : 1,
-                                                pointerEvents: !canSync ? "none" : "auto"
-                                              }}
-                                            >
-                                              {rowState.state === "loading" ? "Syncing..." : "Sync to Books"}
-                                            </button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-
-                                  {c.invoices.length === 0 && (
-                                    <tr>
-                                      <td colSpan={6} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
-                                        No invoices found for this client.
-                                      </td>
-                                    </tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleRow(invId)}
+                              aria-label={`Close actions for invoice ${invId}`}
+                              title="Close"
+                              style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 999,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "1px solid rgba(255,255,255,0.12)",
+                                background: "rgba(255,255,255,0.06)",
+                                color: "rgba(255,255,255,0.75)",
+                                boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+                                cursor: "pointer"
+                              }}
+                            >
+                              <SvgEye />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -495,10 +444,10 @@ export default function Invoices() {
                 );
               })}
 
-              {clientGroups.length === 0 && (
+              {filteredInvoices.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
-                    No clients match your current filters.
+                  <td colSpan={7} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
+                    No invoices match your current filters.
                   </td>
                 </tr>
               )}
@@ -507,7 +456,7 @@ export default function Invoices() {
         </div>
 
         <div className="tt-footer-note">
-          View invoices expands the client row. Print opens the HTML invoice in a new tab. Download will use PDF when the backend route exists.
+          View expands the row. Print opens the HTML invoice in a new tab. Download uses PDF once the backend route exists.
         </div>
       </div>
     </div>
