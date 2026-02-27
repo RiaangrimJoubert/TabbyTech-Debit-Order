@@ -1,6 +1,6 @@
 // src/pages/InvoiceHtml.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { fetchInvoiceById } from "../api/invoices";
 
 function moneyZar(v) {
@@ -14,8 +14,31 @@ function fmtDate(d) {
   return s;
 }
 
+function escapeHtml(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function getTokenFromSearch(search) {
+  try {
+    const qs = new URLSearchParams(String(search || ""));
+    return String(qs.get("token") || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 export default function InvoiceHtml() {
   const { invoiceId } = useParams();
+  const location = useLocation();
+
+  const token = useMemo(() => getTokenFromSearch(location.search), [location.search]);
+
+  const iframeRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -28,7 +51,8 @@ export default function InvoiceHtml() {
       setLoading(true);
       setErr("");
       try {
-        const inv = await fetchInvoiceById(invoiceId);
+        // IMPORTANT: pass token for TabbyDen secure access
+        const inv = await fetchInvoiceById(invoiceId, token);
         if (!alive) return;
         setInvoice(inv);
       } catch (e) {
@@ -45,7 +69,7 @@ export default function InvoiceHtml() {
     return () => {
       alive = false;
     };
-  }, [invoiceId]);
+  }, [invoiceId, token]);
 
   const inv = invoice;
 
@@ -66,7 +90,7 @@ export default function InvoiceHtml() {
       .map((it, idx) => {
         const qty = Number(it.qty || 1);
         const unit = Number(it.unitPrice || 0);
-        const amount = Number(it.amountZar || (qty * unit) || 0);
+        const amount = Number(it.amountZar || qty * unit || 0);
 
         return `
           <tr>
@@ -74,7 +98,7 @@ export default function InvoiceHtml() {
             <td>
               <div class="item-name">${escapeHtml(it.description || "Item")}</div>
             </td>
-            <td>${qty.toFixed(2)}</td>
+            <td>${Number.isFinite(qty) ? qty.toFixed(2) : "1.00"}</td>
             <td class="text-right">${escapeHtml(moneyZar(amount))}</td>
           </tr>
         `;
@@ -456,13 +480,21 @@ export default function InvoiceHtml() {
   }, [inv]);
 
   function onPrint() {
+    // Print the iframe content, not the React wrapper
+    const iframe = iframeRef.current;
+    const win = iframe?.contentWindow;
+    if (win) {
+      win.focus();
+      win.print();
+      return;
+    }
     window.print();
   }
 
+  const backHref = token ? `/portal/${encodeURIComponent(token)}` : "/";
+
   if (loading) {
-    return (
-      <div style={{ padding: 18, opacity: 0.8 }}>Loading invoice from Zoho Books...</div>
-    );
+    return <div style={{ padding: 18, opacity: 0.8 }}>Loading invoice from Zoho Books...</div>;
   }
 
   if (err) {
@@ -471,8 +503,8 @@ export default function InvoiceHtml() {
         <div style={{ fontWeight: 950, fontSize: 16 }}>Invoice failed to load</div>
         <div style={{ marginTop: 8, opacity: 0.8 }}>{err}</div>
         <div style={{ marginTop: 12 }}>
-          <Link to="/invoices" style={{ color: "rgba(196,181,253,0.95)", textDecoration: "none" }}>
-            Back to Invoices
+          <Link to={backHref} style={{ color: "rgba(196,181,253,0.95)", textDecoration: "none" }}>
+            Back
           </Link>
         </div>
       </div>
@@ -484,20 +516,19 @@ export default function InvoiceHtml() {
       <div style={{ padding: 18 }}>
         <div style={{ fontWeight: 950, fontSize: 16 }}>Invoice not found</div>
         <div style={{ marginTop: 12 }}>
-          <Link to="/invoices" style={{ color: "rgba(196,181,253,0.95)", textDecoration: "none" }}>
-            Back to Invoices
+          <Link to={backHref} style={{ color: "rgba(196,181,253,0.95)", textDecoration: "none" }}>
+            Back
           </Link>
         </div>
       </div>
     );
   }
 
-  // Render your template inside an iframe so it prints cleanly and stays isolated from AppShell styles.
   return (
     <div style={{ padding: 18 }}>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
         <Link
-          to="/invoices"
+          to={backHref}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -508,7 +539,7 @@ export default function InvoiceHtml() {
             background: "rgba(0,0,0,0.25)",
             color: "rgba(255,255,255,0.88)",
             textDecoration: "none",
-            fontWeight: 900,
+            fontWeight: 900
           }}
         >
           Back
@@ -527,7 +558,7 @@ export default function InvoiceHtml() {
             background: "linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95))",
             color: "#fff",
             fontWeight: 950,
-            cursor: "pointer",
+            cursor: "pointer"
           }}
         >
           Print / Save as PDF
@@ -536,6 +567,7 @@ export default function InvoiceHtml() {
 
       <div style={{ marginTop: 14, borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.10)" }}>
         <iframe
+          ref={iframeRef}
           title="Invoice"
           style={{ width: "100%", height: "85vh", border: 0, background: "#0a0e1a" }}
           srcDoc={templateHtml}
@@ -543,13 +575,4 @@ export default function InvoiceHtml() {
       </div>
     </div>
   );
-}
-
-function escapeHtml(str) {
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
