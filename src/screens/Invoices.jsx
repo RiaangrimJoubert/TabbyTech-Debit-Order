@@ -5,7 +5,8 @@ import { money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
 
 function getApiBase() {
-  const base = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
+  // IMPORTANT: no optional chaining here, so Vite define() replacement works
+  const base = String(import.meta.env.VITE_API_BASE_URL || "").trim();
   return base.endsWith("/") ? base.slice(0, -1) : base;
 }
 
@@ -33,7 +34,6 @@ function safeInvoiceLabel(inv) {
 
 /**
  * Normalise API invoice payload into the SAME SHAPE your UI already uses.
- * This is what prevents breakage.
  */
 function normalizeInvoice(inv) {
   const raw = inv || {};
@@ -48,9 +48,8 @@ function normalizeInvoice(inv) {
     String(raw.customer || raw.customerName || raw.customer_name || raw.contact_name || "").trim() ||
     "Customer";
 
-  const customerEmail = String(
-    raw.customerEmail || raw.customer_email || raw.contact_email || raw.email || ""
-  ).trim();
+  const customerEmail =
+    String(raw.customerEmail || raw.customer_email || raw.contact_email || raw.email || "").trim();
 
   // Map API status to your UI dropdown values
   const apiStatus = String(raw.status || raw.invoice_status || "unpaid").trim().toLowerCase();
@@ -65,15 +64,13 @@ function normalizeInvoice(inv) {
   const dueDate = String(raw.dueDate || raw.due_date || "").trim();
 
   // Currency
-  const currency =
-    String(raw.currency || raw.currencyCode || raw.currency_code || "ZAR").trim() || "ZAR";
+  const currency = String(raw.currency || raw.currencyCode || raw.currency_code || "ZAR").trim() || "ZAR";
 
   // Books invoice id must be the actual Books invoice_id for print and pdf routes
   const booksInvoiceId = String(raw.booksInvoiceId || raw.id || raw.invoice_id || "").trim();
 
   const debitOrderId = String(raw.debitOrderId || raw.debit_order_id || "").trim();
 
-  // Items: If API does not provide line_items, create a single item using API total
   const itemsRaw = Array.isArray(raw.items)
     ? raw.items
     : Array.isArray(raw.line_items)
@@ -118,7 +115,7 @@ function normalizeInvoice(inv) {
     booksInvoiceId,
     debitOrderId,
 
-    // Keep these in case you want them later, does not break anything
+    // optional extras, harmless
     apiTotal: Number.isFinite(apiTotal) ? apiTotal : 0,
     apiBalance: Number.isFinite(apiBalance) ? apiBalance : 0
   };
@@ -128,8 +125,6 @@ async function fetchInvoicesFromApi() {
   const apiBase = getApiBase();
   if (!apiBase) throw new Error("Missing VITE_API_BASE_URL");
 
-  // Your backend should expose:
-  // GET {API_BASE}/api/invoices
   const url = `${apiBase}/api/invoices?page=1&perPage=200`;
 
   const resp = await fetch(url, {
@@ -217,13 +212,10 @@ function SvgEye({ size = 18 }) {
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
-
   const [selectedClientKey, setSelectedClientKey] = useState("");
-
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
-  // API-driven invoices, same shape as before
   const [invoices, setInvoices] = useState([]);
   const [loadErr, setLoadErr] = useState("");
   const [loading, setLoading] = useState(true);
