@@ -38,10 +38,12 @@ function safeInvoiceLabel(inv) {
 function normalizeInvoice(inv) {
   const raw = inv || {};
 
+  // Your API: id = Zoho Books invoice_id
   const id =
-    String(raw.id || raw.invoiceNo || raw.invoice_number || raw.invoice_id || "").trim() ||
+    String(raw.id || raw.invoice_id || raw.invoiceNo || raw.invoice_number || "").trim() ||
     `INV-${Math.random().toString(16).slice(2)}`;
 
+  // Your API: customerName
   const customer =
     String(raw.customer || raw.customerName || raw.customer_name || raw.contact_name || "").trim() ||
     "Customer";
@@ -49,22 +51,76 @@ function normalizeInvoice(inv) {
   const customerEmail =
     String(raw.customerEmail || raw.customer_email || raw.contact_email || raw.email || "").trim();
 
-  const status = String(raw.status || raw.invoice_status || "Unpaid").trim();
+  // Map API status to your UI dropdown values
+  const apiStatus = String(raw.status || raw.invoice_status || "unpaid").trim().toLowerCase();
+  let status = "Unpaid";
+  if (apiStatus === "paid") status = "Paid";
+  else if (apiStatus === "overdue") status = "Overdue";
+  else if (apiStatus === "draft") status = "Unpaid";
+  else if (apiStatus === "unpaid") status = "Unpaid";
 
+  // Dates
   const dateIssued = String(raw.dateIssued || raw.date || raw.issuedDate || "").trim();
-  const dueDate = String(raw.dueDate || raw.due_date || raw.dueDate || "").trim();
+  const dueDate = String(raw.dueDate || raw.due_date || "").trim();
 
-  const currency = String(raw.currency || raw.currency_code || "ZAR").trim() || "ZAR";
+  // Currency
+  const currency = String(raw.currency || raw.currencyCode || raw.currency_code || "ZAR").trim() || "ZAR";
 
-  const booksInvoiceId = String(raw.booksInvoiceId || raw.invoice_id || "").trim();
+  // Books invoice id must be the actual Books invoice_id for print and pdf routes
+  const booksInvoiceId = String(raw.booksInvoiceId || raw.id || raw.invoice_id || "").trim();
+
   const debitOrderId = String(raw.debitOrderId || raw.debit_order_id || "").trim();
 
+  // Items: If API does not provide line_items, create a single item using API total
   const itemsRaw = Array.isArray(raw.items)
     ? raw.items
     : Array.isArray(raw.line_items)
       ? raw.line_items
       : [];
 
+  let items = itemsRaw.map((it) => {
+    const description = String(it.description || it.name || it.item_name || it.item || "Item");
+    const qty = Number(it.qty ?? it.quantity ?? 1);
+    const unitPrice = Number(it.unitPrice ?? it.rate ?? it.unit_price ?? 0);
+
+    return {
+      description,
+      qty: Number.isFinite(qty) ? qty : 1,
+      unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0
+    };
+  });
+
+  const apiTotal = Number(raw.total ?? raw.invoice_total ?? raw.amount ?? 0);
+  const apiBalance = Number(raw.balance ?? raw.amount_due ?? 0);
+
+  // If there are no items but we have a total, make items so calcTotals works
+  if ((!items || items.length === 0) && Number.isFinite(apiTotal) && apiTotal > 0) {
+    items = [
+      {
+        description: "TabbyPay Subscription",
+        qty: 1,
+        unitPrice: apiTotal
+      }
+    ];
+  }
+
+  return {
+    id,
+    status,
+    customer,
+    customerEmail,
+    dateIssued,
+    dueDate,
+    currency,
+    items,
+    booksInvoiceId,
+    debitOrderId,
+
+    // Keep these in case you want them later, does not break anything
+    apiTotal: Number.isFinite(apiTotal) ? apiTotal : 0,
+    apiBalance: Number.isFinite(apiBalance) ? apiBalance : 0
+  };
+}
   const items = itemsRaw.map((it) => {
     const description = String(it.description || it.name || it.item_name || it.item || "Item");
     const qty = Number(it.qty ?? it.quantity ?? 1);
