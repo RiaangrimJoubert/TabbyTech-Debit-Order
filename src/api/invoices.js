@@ -20,6 +20,18 @@ function safeNum(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function cleanToken(token) {
+  const t = String(token || "").trim();
+  return t;
+}
+
+function withTokenQs(qs, token) {
+  const t = cleanToken(token);
+  if (!t) return qs;
+  const joiner = qs ? "&" : "";
+  return `${qs}${joiner}token=${encodeURIComponent(t)}`;
+}
+
 function mapBooksInvoiceToUi(inv) {
   const raw = inv || {};
   const customerName =
@@ -88,8 +100,7 @@ function mapBooksInvoiceToUi(inv) {
       : [];
 
   const items = itemsRaw.map((it) => ({
-    description:
-      safeStr(it.name || it.item_name || it.description || it.item || "Item"),
+    description: safeStr(it.name || it.item_name || it.description || it.item || "Item"),
     qty: safeNum(it.quantity || it.qty || 1),
     unitPrice: safeNum(it.rate || it.unit_price || it.unitPrice || 0),
     amountZar: safeNum(it.amount || it.total || it.amountZar || 0),
@@ -152,16 +163,23 @@ function mapBooksInvoiceToUi(inv) {
   };
 }
 
-export async function fetchInvoices({ page = 1, perPage = 50 } = {}) {
-  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(
-    perPage
-  )}`;
+/**
+ * Fetch invoices list (admin or portal).
+ * If token is provided, it is appended as ?token=...
+ */
+export async function fetchInvoices({ page = 1, perPage = 50, token = "" } = {}) {
+  let qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
+  qs = withTokenQs(qs, token);
 
-  // Backend should expose this:
-  // GET /api/invoices?page=1&perPage=50
+  // GET /api/invoices?page=1&perPage=50[&token=...]
   const data = await request(`/api/invoices?${qs}`, { method: "GET" });
 
-  const items = Array.isArray(data.items) ? data.items : Array.isArray(data.data) ? data.data : [];
+  const items = Array.isArray(data.items)
+    ? data.items
+    : Array.isArray(data.data)
+      ? data.data
+      : [];
+
   const mapped = items.map(mapBooksInvoiceToUi);
 
   return {
@@ -174,11 +192,18 @@ export async function fetchInvoices({ page = 1, perPage = 50 } = {}) {
   };
 }
 
-export async function fetchInvoiceById(invoiceId) {
+/**
+ * Fetch a single invoice (admin or portal).
+ * If token is provided, it is appended as ?token=...
+ */
+export async function fetchInvoiceById(invoiceId, token = "") {
   const id = encodeURIComponent(String(invoiceId || ""));
-  // Backend should expose this:
-  // GET /api/invoices/:id
-  const data = await request(`/api/invoices/${id}`, { method: "GET" });
+  let qs = "";
+  qs = withTokenQs(qs, token);
+
+  // GET /api/invoices/:id[?token=...]
+  const path = qs ? `/api/invoices/${id}?${qs}` : `/api/invoices/${id}`;
+  const data = await request(path, { method: "GET" });
 
   // Support both shapes:
   const inv = data.invoice || data.data || data;
