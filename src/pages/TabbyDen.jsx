@@ -4,7 +4,7 @@ import { useLocation } from "react-router-dom";
 
 function useQuery() {
   const { search } = useLocation();
-  return useMemo(() => new URLSearchParams(search), [search]);
+  return useMemo(() => new URLSearchParams(search || ""), [search]);
 }
 
 function safeStr(v) {
@@ -27,6 +27,30 @@ function formatDate(ymd) {
   return `${d}/${m}/${y}`;
 }
 
+// NEW: safer JSON helper so a bad gateway response (HTML) does not break the page
+async function safeReadJson(resp) {
+  try {
+    const text = await resp.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      // if it is HTML or text, return it as raw so we can show an error
+      return { raw: text };
+    }
+  } catch {
+    return {};
+  }
+}
+
+// NEW: build URL safely
+function joinUrl(base, path) {
+  const b = safeStr(base).replace(/\/+$/, "");
+  const p = safeStr(path).replace(/^\/+/, "");
+  if (!b) return "";
+  return `${b}/${p}`;
+}
+
 export default function TabbyDen() {
   const query = useQuery();
   const token = safeStr(query.get("token"));
@@ -40,7 +64,8 @@ export default function TabbyDen() {
   const invoicesUrl = useMemo(() => {
     if (!apiBase) return "";
     if (!token) return "";
-    return `${apiBase}/api/tabbyden/invoices?token=${encodeURIComponent(token)}`;
+    const base = joinUrl(apiBase, "api/tabbyden/invoices");
+    return `${base}?token=${encodeURIComponent(token)}`;
   }, [apiBase, token]);
 
   useEffect(() => {
@@ -63,15 +88,29 @@ export default function TabbyDen() {
         return;
       }
 
+      if (!invoicesUrl) {
+        setErr("Invoices URL could not be built. Check VITE_API_BASE_URL.");
+        setLoading(false);
+        return;
+      }
+
       try {
         const resp = await fetch(invoicesUrl, {
           method: "GET",
-          headers: { "Content-Type": "application/json" },
+          headers: { Accept: "application/json" },
         });
 
-        const data = await resp.json().catch(() => ({}));
+        const data = await safeReadJson(resp);
 
         if (!resp.ok || !data.ok) {
+          // If we received HTML, show a clear message
+          const raw = safeStr(data?.raw);
+          if (raw && raw.toLowerCase().includes("<!doctype")) {
+            throw new Error(
+              "API returned HTML instead of JSON. Your VITE_API_BASE_URL is pointing at the wrong domain."
+            );
+          }
+
           const msg = safeStr(data?.error) || `Request failed (${resp.status})`;
           throw new Error(msg);
         }
@@ -98,18 +137,22 @@ export default function TabbyDen() {
   }, [apiBase, token, invoicesUrl]);
 
   const openHtml = (invoiceId) => {
-    if (!apiBase || !token) return;
-    const url = `${apiBase}/api/tabbyden/invoice-html/${encodeURIComponent(invoiceId)}?token=${encodeURIComponent(
-      token
-    )}`;
+    const id = safeStr(invoiceId);
+    if (!id || !apiBase || !token) return;
+
+    const base = joinUrl(apiBase, `api/tabbyden/invoice-html/${encodeURIComponent(id)}`);
+    const url = `${base}?token=${encodeURIComponent(token)}`;
+
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const openPdf = (invoiceId) => {
-    if (!apiBase || !token) return;
-    const url = `${apiBase}/api/tabbyden/invoice-pdf/${encodeURIComponent(invoiceId)}?token=${encodeURIComponent(
-      token
-    )}`;
+    const id = safeStr(invoiceId);
+    if (!id || !apiBase || !token) return;
+
+    const base = joinUrl(apiBase, `api/tabbyden/invoice-pdf/${encodeURIComponent(id)}`);
+    const url = `${base}?token=${encodeURIComponent(token)}`;
+
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
@@ -117,11 +160,11 @@ export default function TabbyDen() {
     <div
       style={{
         minHeight: "100vh",
-        background: "radial-gradient(900px 600px at 10% 0%, rgba(139,92,246,.20), transparent 55%), #050812",
+        background:
+          "radial-gradient(900px 600px at 10% 0%, rgba(139,92,246,.20), transparent 55%), #050812",
         color: "#E5E7EB",
         padding: "40px 20px",
-        fontFamily:
-          "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+        fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
       }}
     >
       <div
@@ -145,8 +188,7 @@ export default function TabbyDen() {
             alignItems: "center",
             justifyContent: "space-between",
             gap: 16,
-            background:
-              "linear-gradient(135deg, rgba(15, 23, 42, .95), rgba(30, 27, 75, .85))",
+            background: "linear-gradient(135deg, rgba(15, 23, 42, .95), rgba(30, 27, 75, .85))",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -193,6 +235,7 @@ export default function TabbyDen() {
                 background: "rgba(127, 29, 29, .20)",
                 color: "#FCA5A5",
                 fontWeight: 600,
+                lineHeight: 1.6,
               }}
             >
               {err}
@@ -242,6 +285,7 @@ export default function TabbyDen() {
                         <div style={{ fontWeight: 900, fontSize: 16, color: "#E5E7EB" }}>
                           {invoiceNum ? `Invoice ${invoiceNum}` : "Invoice"}
                         </div>
+
                         {status && (
                           <div
                             style={{
@@ -260,9 +304,21 @@ export default function TabbyDen() {
                       </div>
 
                       <div style={{ marginTop: 8, color: "rgba(148,163,184,.95)", fontSize: 13, lineHeight: 1.5 }}>
-                        {customer && <div><strong style={{ color: "#E5E7EB" }}>Customer:</strong> {customer}</div>}
-                        {ref && <div><strong style={{ color: "#E5E7EB" }}>Reference:</strong> {ref}</div>}
-                        {date && <div><strong style={{ color: "#E5E7EB" }}>Date:</strong> {date}</div>}
+                        {customer && (
+                          <div>
+                            <strong style={{ color: "#E5E7EB" }}>Customer:</strong> {customer}
+                          </div>
+                        )}
+                        {ref && (
+                          <div>
+                            <strong style={{ color: "#E5E7EB" }}>Reference:</strong> {ref}
+                          </div>
+                        )}
+                        {date && (
+                          <div>
+                            <strong style={{ color: "#E5E7EB" }}>Date:</strong> {date}
+                          </div>
+                        )}
                       </div>
                     </div>
 
