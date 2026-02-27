@@ -20,8 +20,10 @@ function makeClientKeyFromInvoice(inv) {
 }
 
 function statusDotClass(status) {
-  if (status === "Paid") return "paid";
-  if (status === "Unpaid") return "unpaid";
+  const s = String(status || "").trim().toLowerCase();
+  if (s === "paid") return "paid";
+  if (s === "unpaid") return "unpaid";
+  if (s === "draft") return "unpaid"; // treat draft like unpaid in UI dot
   return "overdue";
 }
 
