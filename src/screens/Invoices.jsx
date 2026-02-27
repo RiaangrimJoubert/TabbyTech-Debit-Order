@@ -23,7 +23,7 @@ function statusDotClass(status) {
   const s = String(status || "").trim().toLowerCase();
   if (s === "paid") return "paid";
   if (s === "unpaid") return "unpaid";
-  if (s === "draft") return "unpaid"; // treat draft like unpaid in UI dot
+  if (s === "draft") return "unpaid";
   return "overdue";
 }
 
@@ -48,8 +48,9 @@ function normalizeInvoice(inv) {
     String(raw.customer || raw.customerName || raw.customer_name || raw.contact_name || "").trim() ||
     "Customer";
 
-  const customerEmail =
-    String(raw.customerEmail || raw.customer_email || raw.contact_email || raw.email || "").trim();
+  const customerEmail = String(
+    raw.customerEmail || raw.customer_email || raw.contact_email || raw.email || ""
+  ).trim();
 
   // Map API status to your UI dropdown values
   const apiStatus = String(raw.status || raw.invoice_status || "unpaid").trim().toLowerCase();
@@ -64,7 +65,8 @@ function normalizeInvoice(inv) {
   const dueDate = String(raw.dueDate || raw.due_date || "").trim();
 
   // Currency
-  const currency = String(raw.currency || raw.currencyCode || raw.currency_code || "ZAR").trim() || "ZAR";
+  const currency =
+    String(raw.currency || raw.currencyCode || raw.currency_code || "ZAR").trim() || "ZAR";
 
   // Books invoice id must be the actual Books invoice_id for print and pdf routes
   const booksInvoiceId = String(raw.booksInvoiceId || raw.id || raw.invoice_id || "").trim();
@@ -119,33 +121,6 @@ function normalizeInvoice(inv) {
     // Keep these in case you want them later, does not break anything
     apiTotal: Number.isFinite(apiTotal) ? apiTotal : 0,
     apiBalance: Number.isFinite(apiBalance) ? apiBalance : 0
-  };
-}
-  const items = itemsRaw.map((it) => {
-    const description = String(it.description || it.name || it.item_name || it.item || "Item");
-    const qty = Number(it.qty ?? it.quantity ?? 1);
-    const unitPrice = Number(it.unitPrice ?? it.rate ?? it.unit_price ?? 0);
-
-    return {
-      description,
-      qty: Number.isFinite(qty) ? qty : 1,
-      unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0
-    };
-  });
-
-  // If your API already gives totals, we still keep calcTotals as the source of truth for UI
-  // to avoid changing your existing logic.
-  return {
-    id,
-    status,
-    customer,
-    customerEmail,
-    dateIssued,
-    dueDate,
-    currency,
-    items,
-    booksInvoiceId,
-    debitOrderId
   };
 }
 
