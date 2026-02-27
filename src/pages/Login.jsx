@@ -72,7 +72,7 @@ export default function Login({ onLogin }) {
             alt="TabbyTech"
             className="tt-login-logo"
           />
-          <div className="tt-login-title">WELCOME TO TABBYTECH</div>
+          <div className="tt-login-title">WELCOME TO TABBYPAY</div>
         </div>
 
         <div className="tt-login-card">
