@@ -5,6 +5,7 @@ const nav = [
   { key: "dashboard", label: "Dashboard", icon: "▦" },
   { key: "clients", label: "Clients", icon: "CLIENTS_SVG" },
   { key: "debitorders", label: "Debit Orders", icon: "↻" },
+  { key: "debitordermonitor", label: "Debit Order Monitor", icon: "◔" },
   { key: "batches", label: "Batches", icon: "⧉" },
   { key: "invoices", label: "Invoices", icon: "🧾" },
   { key: "reports", label: "Reports", icon: "📈" },
