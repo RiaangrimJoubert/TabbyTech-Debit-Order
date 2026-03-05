@@ -288,25 +288,55 @@ export default function DebitOrderMonitor() {
     };
   }, []);
 
-  const monitor = data?.monitor || {};
-  const today = data?.today || "";
+  // Your API response is: { ok: true, data: { today, crm, lastCron } }
+  const api = data?.data || {};
+  const today = api?.today || "";
+
+  const crm = api?.crm || {};
+  const statusMap = crm?.status || {};
+  const lastCron = api?.lastCron || {};
+
+  const dueToday = Number(crm?.dueTodayTotal || 0);
+  const scheduled25th = Number(statusMap?.Scheduled || 0);
+  const retryScheduled1st = Number(statusMap?.["Retry Scheduled"] || 0);
+  const failed = Number(statusMap?.Failed || 0);
+
+  const cronRuns = useMemo(() => {
+    if (!lastCron || !lastCron.run_id) return [];
+    const summary = lastCron?.summary || {};
+    return [
+      {
+        started_at: safeStr(lastCron.started_at || ""),
+        ended_at: safeStr(lastCron.ended_at || ""),
+        result: safeStr(lastCron.run_status || ""),
+        success_count: Number(summary?.success || 0),
+        fail_count: Number(summary?.failed || 0),
+        last_error: safeStr(lastCron.last_error || ""),
+      },
+    ];
+  }, [lastCron]);
+
+  // No attempts are returned by your current API response, so keep empty for now
+  const attempts = [];
+
+  const successToday = Number(lastCron?.summary?.success || 0);
+  const failedToday = Number(lastCron?.summary?.failed || 0);
+  const retryToday = 0;
+  const pendingToday = Math.max(0, Number(lastCron?.summary?.attempted || 0) - successToday - failedToday);
 
   const kpis = {
-    dueToday: Number(monitor?.dueToday || 0),
-    scheduled25th: Number(monitor?.scheduled25th || 0),
-    retryScheduled1st: Number(monitor?.retryScheduled1st || 0),
-    failed: Number(monitor?.failed || 0),
+    dueToday,
+    scheduled25th,
+    retryScheduled1st,
+    failed,
   };
 
-  const cronRuns = Array.isArray(monitor?.cronRuns) ? monitor.cronRuns : [];
-  const attempts = Array.isArray(monitor?.attempts) ? monitor.attempts : [];
-
   const healthDonut = useMemo(() => {
-    const ok = Number(monitor?.successToday || 0);
-    const failed = Number(monitor?.failedToday || 0);
-    const retry = Number(monitor?.retryToday || 0);
+    const ok = Number(successToday || 0);
+    const failedN = Number(failedToday || 0);
+    const retryN = Number(retryToday || 0);
 
-    const total = ok + failed + retry;
+    const total = ok + failedN + retryN;
     if (total <= 0) {
       return [
         { name: "Successful", value: 0, color: "#10b981" },
@@ -317,10 +347,10 @@ export default function DebitOrderMonitor() {
 
     return [
       { name: "Successful", value: ok, color: "#10b981" },
-      { name: "Failed", value: failed, color: "#ef4444" },
-      { name: "Scheduled retry queued", value: retry, color: "#8b5cf6" },
+      { name: "Failed", value: failedN, color: "#ef4444" },
+      { name: "Scheduled retry queued", value: retryN, color: "#8b5cf6" },
     ];
-  }, [monitor?.failedToday, monitor?.retryToday, monitor?.successToday]);
+  }, [failedToday, retryToday, successToday]);
 
   const scheduleDonut = useMemo(() => {
     const due = kpis.dueToday;
@@ -348,10 +378,10 @@ export default function DebitOrderMonitor() {
 
   const attemptStatusMini = useMemo(() => {
     const by = {
-      success: Number(monitor?.successToday || 0),
-      failed: Number(monitor?.failedToday || 0),
-      retry: Number(monitor?.retryToday || 0),
-      pending: Number(monitor?.pendingToday || 0),
+      success: Number(successToday || 0),
+      failed: Number(failedToday || 0),
+      retry: Number(retryToday || 0),
+      pending: Number(pendingToday || 0),
     };
     const total = Math.max(1, by.success + by.failed + by.retry + by.pending);
 
@@ -361,7 +391,7 @@ export default function DebitOrderMonitor() {
       { label: "Scheduled retry queued", value: by.retry, pct: Math.round((by.retry / total) * 100), color: "#8b5cf6" },
       { label: "Pending", value: by.pending, pct: Math.round((by.pending / total) * 100), color: "#60a5fa" },
     ];
-  }, [monitor?.failedToday, monitor?.pendingToday, monitor?.retryToday, monitor?.successToday]);
+  }, [failedToday, pendingToday, retryToday, successToday]);
 
   const cronColumns = useMemo(
     () => [
@@ -487,9 +517,9 @@ export default function DebitOrderMonitor() {
         />
 
         <MetricCard
-          title="Scheduled for 25th"
+          title="Scheduled"
           value={String(kpis.scheduled25th)}
-          subtext="Monthly scheduled"
+          subtext="Currently scheduled"
           trend={kpis.scheduled25th > 0 ? "Upcoming" : ""}
           trendUp={true}
           icon={<IconList />}
@@ -497,7 +527,7 @@ export default function DebitOrderMonitor() {
         />
 
         <MetricCard
-          title="Retry scheduled for 1st"
+          title="Retry scheduled"
           value={String(kpis.retryScheduled1st)}
           subtext="Retry queue"
           trend={kpis.retryScheduled1st > 0 ? "Watchlist" : "Clear"}
@@ -541,7 +571,7 @@ export default function DebitOrderMonitor() {
 
         <Card style={{ padding: "1.25rem" }}>
           <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Schedule distribution</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Due, 25th, retry 1st, failed</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Due, scheduled, retry, failed</p>
 
           <div style={{ display: "flex", justifyContent: "center" }}>
             <DonutChart data={scheduleDonut} />
@@ -562,7 +592,7 @@ export default function DebitOrderMonitor() {
 
         <Card style={{ padding: "1.25rem" }}>
           <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Mini status list</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Premium list chart snapshot</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Snapshot from last cron summary</p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {attemptStatusMini.map((s) => (
@@ -595,7 +625,7 @@ export default function DebitOrderMonitor() {
                   ></div>
                 </div>
 
-                <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#6b7280" }}>{s.pct}% of today activity</div>
+                <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#6b7280" }}>{s.pct}% of last cron activity</div>
               </div>
             ))}
           </div>
@@ -606,14 +636,14 @@ export default function DebitOrderMonitor() {
         <Card style={{ padding: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div>
-              <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Last 10 Cron runs</h3>
+              <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Last Cron run</h3>
               <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                Status and last_error from cron_runs
+                From API lastCron
                 {error ? ` • API error: ${error}` : ""}
               </p>
             </div>
 
-            <PremiumButton title="Export Cron runs to CSV" onClick={() => exportRowsToCsv("cron_runs_last_10.csv", cronRuns, cronColumns)}>
+            <PremiumButton title="Export Cron runs to CSV" onClick={() => exportRowsToCsv("cron_runs.csv", cronRuns, cronColumns)}>
               Export to Excel
             </PremiumButton>
           </div>
@@ -655,7 +685,7 @@ export default function DebitOrderMonitor() {
                 {cronRuns.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      No data yet. We will wire /api/dashboard/debit-order-monitor next.
+                      No cron data yet.
                     </td>
                   </tr>
                 ) : null}
@@ -668,7 +698,7 @@ export default function DebitOrderMonitor() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div>
               <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Recent charge attempts</h3>
-              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Includes Client id (CRM Record Id) and attempt_key</p>
+              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Not wired in current API response</p>
             </div>
 
             <PremiumButton title="Export Attempts to CSV" onClick={() => exportRowsToCsv("charge_attempts_recent.csv", attempts, attemptsColumns)}>
@@ -713,7 +743,7 @@ export default function DebitOrderMonitor() {
                 {attempts.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      No data yet. Once we wire the API endpoint, this will show real attempts including CRM Record Id.
+                      No data yet. Once we add attempts to the API response, this will populate.
                     </td>
                   </tr>
                 ) : null}
