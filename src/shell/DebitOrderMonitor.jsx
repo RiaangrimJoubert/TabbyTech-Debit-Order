@@ -247,32 +247,35 @@ function PremiumButton({ children, onClick, title }) {
 }
 
 /**
- * IMPORTANT:
- * We do NOT fall back to "/api/..." because that hits the frontend host and returns HTML (200).
- * If VITE_API_BASE_URL is missing at build time, we fail loudly with a clear message.
+ * IMPORTANT FIX
+ * Your Slate build is sometimes not injecting VITE_API_BASE_URL at runtime even if .env.production exists.
+ * To reduce break risk, we fallback to the known API domain if the env var is missing.
  */
+function getApiBase() {
+  const envBase = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
+  const winBase = String(window?.__TABBYTECH_API_BASE_URL || "").trim(); // optional future injection
+  const hardDefault = "https://api.tabbytech.co.za";
+
+  const base = (envBase || winBase || hardDefault).replace(/\/+$/, "");
+  return base;
+}
+
 async function fetchDebitOrderMonitor() {
-  const RAW = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
-  const BASE = RAW.replace(/\/+$/, "");
-
-  if (!BASE) {
-    throw new Error("Missing VITE_API_BASE_URL at build time. Set it in .env.production to https://api.tabbytech.co.za and redeploy.");
-  }
-
+  const BASE = getApiBase();
   const url = `${BASE}/api/dashboard/debit-order-monitor`;
 
   const resp = await fetch(url, {
     method: "GET",
     headers: { Accept: "application/json" },
-    cache: "no-store",
   });
 
   const ct = String(resp.headers.get("content-type") || "").toLowerCase();
 
+  // If we accidentally got HTML, show a useful error immediately
   if (!ct.includes("application/json")) {
     const preview = await resp.text().catch(() => "");
-    const head = preview.slice(0, 180).replace(/\s+/g, " ").trim();
-    throw new Error(`Non-JSON response (${resp.status}) from ${url}. Preview: ${head}`);
+    const head = preview.slice(0, 220).replace(/\s+/g, " ").trim();
+    throw new Error(`Non-JSON response (${resp.status}). Check API base URL. Using: ${BASE}. Preview: ${head}`);
   }
 
   const json = await resp.json().catch(() => ({}));
@@ -311,7 +314,7 @@ export default function DebitOrderMonitor() {
     };
   }, []);
 
-  // API shape: { ok: true, data: { today, crm, lastCron } }
+  // Your API response is: { ok: true, data: { today, crm, lastCron } }
   const api = data?.data || {};
   const today = api?.today || "";
 
@@ -339,6 +342,7 @@ export default function DebitOrderMonitor() {
     ];
   }, [lastCron]);
 
+  // No attempts are returned by your current API response, so keep empty for now
   const attempts = [];
 
   const successToday = Number(lastCron?.summary?.success || 0);
