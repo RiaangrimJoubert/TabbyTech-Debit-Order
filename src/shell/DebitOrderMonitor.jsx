@@ -247,10 +247,22 @@ function PremiumButton({ children, onClick, title }) {
 }
 
 async function fetchDebitOrderMonitor() {
-  const resp = await fetch("/api/dashboard/debit-order-monitor", {
+  const BASE = String(import.meta?.env?.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+  const url = BASE ? `${BASE}/api/dashboard/debit-order-monitor` : "/api/dashboard/debit-order-monitor";
+
+  const resp = await fetch(url, {
     method: "GET",
-    headers: { "Content-Type": "application/json" },
+    headers: { Accept: "application/json" },
   });
+
+  const ct = String(resp.headers.get("content-type") || "").toLowerCase();
+
+  // If we accidentally got HTML, show a useful error immediately
+  if (!ct.includes("application/json")) {
+    const preview = await resp.text().catch(() => "");
+    const head = preview.slice(0, 180).replace(/\s+/g, " ").trim();
+    throw new Error(`Non-JSON response (${resp.status}). Check VITE_API_BASE_URL. Preview: ${head}`);
+  }
 
   const json = await resp.json().catch(() => ({}));
   if (!resp.ok || !json?.ok) {
