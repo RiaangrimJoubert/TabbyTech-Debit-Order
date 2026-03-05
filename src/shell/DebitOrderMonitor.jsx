@@ -18,7 +18,6 @@ function fmtWhen(ts) {
 function exportRowsToCsv(filename, rows, columns) {
   const safe = (value) => {
     const s = String(value == null ? "" : value);
-    // Escape double quotes, wrap in quotes if needed
     const mustQuote = /[",\n\r]/.test(s);
     const escaped = s.replace(/"/g, '""');
     return mustQuote ? `"${escaped}"` : escaped;
@@ -40,7 +39,6 @@ function exportRowsToCsv(filename, rows, columns) {
   URL.revokeObjectURL(url);
 }
 
-// Icons, kept tiny and consistent with your Dashboard.jsx icon style
 const IconClock = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10"></circle>
@@ -96,7 +94,6 @@ function StatusBadge({ status, children }) {
   const styles = {
     running: { background: "rgba(34, 197, 94, 0.1)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.2)" },
     queued: { background: "rgba(234, 179, 8, 0.1)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.2)" },
-    active: { background: "rgba(34, 197, 94, 0.1)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.2)" },
     failed: { background: "rgba(239, 68, 68, 0.1)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.2)" },
     partial: { background: "rgba(249, 115, 22, 0.1)", color: "#fb923c", border: "1px solid rgba(249, 115, 22, 0.2)" },
     ok: { background: "rgba(34, 197, 94, 0.1)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.2)" },
@@ -173,7 +170,6 @@ function MetricCard({ title, value, subtext, trend, trendUp, icon, color = "purp
   );
 }
 
-// Donut chart from your dashboard, same colour approach
 function DonutChart({ data }) {
   const size = 200;
   const center = size / 2;
@@ -251,12 +247,11 @@ function PremiumButton({ children, onClick, title }) {
 }
 
 async function fetchDebitOrderMonitor() {
-  // UI-first: we will wire this endpoint next.
-  // Keep the same contract style as Dashboard: { ok: true, ... }
   const resp = await fetch("/api/dashboard/debit-order-monitor", {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
+
   const json = await resp.json().catch(() => ({}));
   if (!resp.ok || !json?.ok) {
     throw new Error(json?.error || `Request failed ${resp.status}`);
@@ -293,7 +288,6 @@ export default function DebitOrderMonitor() {
     };
   }, []);
 
-  // UI-first fallback demo values so layout always looks premium
   const monitor = data?.monitor || {};
   const today = data?.today || "";
 
@@ -317,14 +311,14 @@ export default function DebitOrderMonitor() {
       return [
         { name: "Successful", value: 0, color: "#10b981" },
         { name: "Failed", value: 0, color: "#ef4444" },
-        { name: "Retry", value: 0, color: "#8b5cf6" },
+        { name: "Scheduled retry queued", value: 0, color: "#8b5cf6" },
       ];
     }
 
     return [
       { name: "Successful", value: ok, color: "#10b981" },
       { name: "Failed", value: failed, color: "#ef4444" },
-      { name: "Retry", value: retry, color: "#8b5cf6" },
+      { name: "Scheduled retry queued", value: retry, color: "#8b5cf6" },
     ];
   }, [monitor?.failedToday, monitor?.retryToday, monitor?.successToday]);
 
@@ -364,7 +358,7 @@ export default function DebitOrderMonitor() {
     return [
       { label: "Successful", value: by.success, pct: Math.round((by.success / total) * 100), color: "#10b981" },
       { label: "Failed", value: by.failed, pct: Math.round((by.failed / total) * 100), color: "#ef4444" },
-      { label: "Retry queued", value: by.retry, pct: Math.round((by.retry / total) * 100), color: "#8b5cf6" },
+      { label: "Scheduled retry queued", value: by.retry, pct: Math.round((by.retry / total) * 100), color: "#8b5cf6" },
       { label: "Pending", value: by.pending, pct: Math.round((by.pending / total) * 100), color: "#60a5fa" },
     ];
   }, [monitor?.failedToday, monitor?.pendingToday, monitor?.retryToday, monitor?.successToday]);
@@ -393,6 +387,8 @@ export default function DebitOrderMonitor() {
     []
   );
 
+  const isLive = !error && !!data?.ok;
+
   return (
     <div
       style={{
@@ -416,7 +412,6 @@ export default function DebitOrderMonitor() {
         }
       `}</style>
 
-      {/* Header */}
       <header
         style={{
           display: "flex",
@@ -445,22 +440,22 @@ export default function DebitOrderMonitor() {
               gap: "0.5rem",
               padding: "0.375rem 0.75rem",
               borderRadius: "9999px",
-              backgroundColor: error ? "rgba(239, 68, 68, 0.1)" : "rgba(34, 197, 94, 0.1)",
-              border: error ? "1px solid rgba(239, 68, 68, 0.2)" : "1px solid rgba(34, 197, 94, 0.2)",
-              color: error ? "#f87171" : "#4ade80",
+              backgroundColor: isLive ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)",
+              border: isLive ? "1px solid rgba(34, 197, 94, 0.2)" : "1px solid rgba(239, 68, 68, 0.2)",
+              color: isLive ? "#4ade80" : "#f87171",
               fontSize: "0.875rem",
             }}
           >
             <span
-              className={error ? "" : "animate-pulse"}
+              className={isLive ? "animate-pulse" : ""}
               style={{
                 width: "0.5rem",
                 height: "0.5rem",
-                backgroundColor: error ? "#ef4444" : "#22c55e",
+                backgroundColor: isLive ? "#22c55e" : "#ef4444",
                 borderRadius: "50%",
               }}
             ></span>
-            {error ? "Degraded" : "Live"}
+            {isLive ? "Live" : "Degraded"}
           </div>
 
           <div
@@ -480,7 +475,6 @@ export default function DebitOrderMonitor() {
         </div>
       </header>
 
-      {/* KPI Tiles */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
         <MetricCard
           title="Due today"
@@ -523,11 +517,10 @@ export default function DebitOrderMonitor() {
         />
       </div>
 
-      {/* Donuts + mini list charts */}
       <div style={{ display: "grid", gridTemplateColumns: "1.25fr 1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
         <Card style={{ padding: "1.25rem" }}>
           <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Today health</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Successful vs failed vs retry</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Successful vs failed vs scheduled retry</p>
 
           <div style={{ display: "flex", justifyContent: "center" }}>
             <DonutChart data={healthDonut} />
@@ -596,7 +589,7 @@ export default function DebitOrderMonitor() {
                       height: "100%",
                       width: `${Math.min(100, Math.max(0, s.pct))}%`,
                       borderRadius: "9999px",
-                      background: s.label === "Retry queued" ? "linear-gradient(90deg, #8b5cf6, #a78bfa)" : s.color,
+                      background: s.label === "Scheduled retry queued" ? "linear-gradient(90deg, #8b5cf6, #a78bfa)" : s.color,
                       transition: "all 0.5s ease",
                     }}
                   ></div>
@@ -609,9 +602,7 @@ export default function DebitOrderMonitor() {
         </Card>
       </div>
 
-      {/* Tables */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-        {/* Cron Runs */}
         <Card style={{ padding: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div>
@@ -622,10 +613,7 @@ export default function DebitOrderMonitor() {
               </p>
             </div>
 
-            <PremiumButton
-              title="Export Cron runs to CSV"
-              onClick={() => exportRowsToCsv("cron_runs_last_10.csv", cronRuns, cronColumns)}
-            >
+            <PremiumButton title="Export Cron runs to CSV" onClick={() => exportRowsToCsv("cron_runs_last_10.csv", cronRuns, cronColumns)}>
               Export to Excel
             </PremiumButton>
           </div>
@@ -643,7 +631,7 @@ export default function DebitOrderMonitor() {
               </thead>
 
               <tbody style={{ fontSize: "0.875rem" }}>
-                {(cronRuns.length ? cronRuns : []).slice(0, 10).map((r, idx) => {
+                {cronRuns.slice(0, 10).map((r, idx) => {
                   const result = safeStr(r?.result || "").toUpperCase();
                   let badge = "queued";
                   if (result === "RUNNING") badge = "running";
@@ -653,21 +641,13 @@ export default function DebitOrderMonitor() {
 
                   return (
                     <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
-                      <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 500, fontSize: "0.75rem" }}>
-                        {fmtWhen(r?.started_at) || "N/A"}
-                      </td>
-                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>
-                        {fmtWhen(r?.ended_at) || "N/A"}
-                      </td>
+                      <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 500, fontSize: "0.75rem" }}>{fmtWhen(r?.started_at) || "N/A"}</td>
+                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(r?.ended_at) || "N/A"}</td>
                       <td style={{ padding: "0.75rem 0" }}>
                         <StatusBadge status={badge}>{result || "QUEUED"}</StatusBadge>
                       </td>
-                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>
-                        {Number(r?.success_count || 0)}
-                      </td>
-                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>
-                        {Number(r?.fail_count || 0)}
-                      </td>
+                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{Number(r?.success_count || 0)}</td>
+                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{Number(r?.fail_count || 0)}</td>
                     </tr>
                   );
                 })}
@@ -682,22 +662,8 @@ export default function DebitOrderMonitor() {
               </tbody>
             </table>
           </div>
-
-          {/* Last error callout */}
-          {cronRuns[0]?.last_error ? (
-            <div style={{ marginTop: "0.75rem", padding: "0.75rem", borderRadius: "0.75rem", backgroundColor: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ color: "#f87171", fontWeight: 700, fontSize: "0.875rem" }}>Last error</div>
-                <StatusBadge status="failed">Needs attention</StatusBadge>
-              </div>
-              <div style={{ marginTop: "0.5rem", color: "#9ca3af", fontSize: "0.75rem", fontFamily: "monospace" }}>
-                {safeStr(cronRuns[0]?.last_error)}
-              </div>
-            </div>
-          ) : null}
         </Card>
 
-        {/* Attempts */}
         <Card style={{ padding: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div>
@@ -705,10 +671,7 @@ export default function DebitOrderMonitor() {
               <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Includes Client id (CRM Record Id) and attempt_key</p>
             </div>
 
-            <PremiumButton
-              title="Export Attempts to CSV"
-              onClick={() => exportRowsToCsv("charge_attempts_recent.csv", attempts, attemptsColumns)}
-            >
+            <PremiumButton title="Export Attempts to CSV" onClick={() => exportRowsToCsv("charge_attempts_recent.csv", attempts, attemptsColumns)}>
               Export to Excel
             </PremiumButton>
           </div>
@@ -725,7 +688,7 @@ export default function DebitOrderMonitor() {
               </thead>
 
               <tbody style={{ fontSize: "0.875rem" }}>
-                {(attempts.length ? attempts : []).slice(0, 10).map((a, idx) => {
+                {attempts.slice(0, 10).map((a, idx) => {
                   const st = safeStr(a?.status || "").toLowerCase();
                   let badge = "pending";
                   if (st === "success" || st === "successful") badge = "ok";
@@ -735,18 +698,11 @@ export default function DebitOrderMonitor() {
 
                   return (
                     <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
-                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>
-                        {fmtWhen(a?.created_at) || "N/A"}
-                      </td>
-
+                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(a?.created_at) || "N/A"}</td>
                       <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 600, fontSize: "0.75rem", fontFamily: "monospace" }}>
                         {safeStr(a?.client_id || a?.crm_client_id || "") || "N/A"}
                       </td>
-
-                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>
-                        {safeStr(a?.amount || "0")}
-                      </td>
-
+                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{safeStr(a?.amount || "0")}</td>
                       <td style={{ padding: "0.75rem 0" }}>
                         <StatusBadge status={badge}>{st ? st.toUpperCase() : "PENDING"}</StatusBadge>
                       </td>
@@ -764,44 +720,6 @@ export default function DebitOrderMonitor() {
               </tbody>
             </table>
           </div>
-
-          {/* Detail box for first attempt */}
-          {attempts[0] ? (
-            <div style={{ marginTop: "0.75rem", padding: "0.75rem", borderRadius: "0.75rem", backgroundColor: "rgba(18, 18, 31, 0.3)", border: "1px solid rgba(139, 92, 246, 0.1)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <div style={{ color: "white", fontWeight: 700, fontSize: "0.875rem" }}>Latest attempt details</div>
-                <StatusBadge status="pending">Monitor</StatusBadge>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.75rem" }}>
-                <div style={{ color: "#9ca3af" }}>
-                  <div style={{ color: "#6b7280" }}>Client id (CRM Record Id)</div>
-                  <div style={{ color: "white", fontFamily: "monospace", fontWeight: 700 }}>
-                    {safeStr(attempts[0]?.client_id || attempts[0]?.crm_client_id || "") || "N/A"}
-                  </div>
-                </div>
-
-                <div style={{ color: "#9ca3af" }}>
-                  <div style={{ color: "#6b7280" }}>Attempt key</div>
-                  <div style={{ color: "white", fontFamily: "monospace", fontWeight: 700 }}>
-                    {safeStr(attempts[0]?.attempt_key || "") || "N/A"}
-                  </div>
-                </div>
-
-                <div style={{ color: "#9ca3af" }}>
-                  <div style={{ color: "#6b7280" }}>Status</div>
-                  <div style={{ color: "white", fontWeight: 700 }}>{safeStr(attempts[0]?.status || "N/A")}</div>
-                </div>
-
-                <div style={{ color: "#9ca3af" }}>
-                  <div style={{ color: "#6b7280" }}>Error</div>
-                  <div style={{ color: attempts[0]?.error ? "#f87171" : "#6b7280", fontFamily: "monospace" }}>
-                    {safeStr(attempts[0]?.error || "None")}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </Card>
       </div>
     </div>
