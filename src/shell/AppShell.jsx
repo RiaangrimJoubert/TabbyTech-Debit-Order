@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import Sidebar from "./Sidebar";
 
 import Dashboard from "./Dashboard";
+import DebitOrderMonitor from "./DebitOrderMonitor";
 import Clients from "../screens/Clients";
 import DebitOrders from "../screens/DebitOrders";
 import Batches from "../screens/Batches";
@@ -13,6 +14,7 @@ const TITLES = {
   dashboard: "Dashboard",
   clients: "Clients",
   debitorders: "Debit Orders",
+  debitordermonitor: "Debit Order Monitor",
   batches: "Batches",
   invoices: "Invoices",
   reports: "Reports",
@@ -62,6 +64,8 @@ export default function AppShell({ onLogout }) {
         />
       );
     }
+
+    if (activeKey === "debitordermonitor") return <DebitOrderMonitor />;
 
     if (activeKey === "batches") return <Batches />;
     if (activeKey === "invoices") return <Invoices />;
