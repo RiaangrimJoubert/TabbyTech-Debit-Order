@@ -176,38 +176,65 @@ function DonutChart({ data }) {
   const radius = 70;
   const innerRadius = 50;
 
-  const total = data.reduce((acc, item) => acc + item.value, 0) || 1;
+  const total = data.reduce((acc, item) => acc + Number(item.value || 0), 0) || 1;
   let currentAngle = 0;
 
+  const polar = (r, deg) => {
+    const rad = (deg * Math.PI) / 180;
+    return {
+      x: center + r * Math.cos(rad),
+      y: center + r * Math.sin(rad),
+    };
+  };
+
+  const buildSlicePath = (startAngle, endAngle) => {
+    const angle = endAngle - startAngle;
+    const largeArc = angle > 180 ? 1 : 0;
+
+    const pOuterStart = polar(radius, startAngle);
+    const pOuterEnd = polar(radius, endAngle);
+    const pInnerEnd = polar(innerRadius, endAngle);
+    const pInnerStart = polar(innerRadius, startAngle);
+
+    return [
+      `M ${pInnerStart.x} ${pInnerStart.y}`,
+      `L ${pOuterStart.x} ${pOuterStart.y}`,
+      `A ${radius} ${radius} 0 ${largeArc} 1 ${pOuterEnd.x} ${pOuterEnd.y}`,
+      `L ${pInnerEnd.x} ${pInnerEnd.y}`,
+      `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${pInnerStart.x} ${pInnerStart.y}`,
+      "Z",
+    ].join(" ");
+  };
+
   const createArc = (value, color, index) => {
-    const angle = (value / total) * 360;
+    const v = Number(value || 0);
+    if (v <= 0) return null;
+
+    const angle = (v / total) * 360;
     const startAngle = currentAngle;
     const endAngle = currentAngle + angle;
     currentAngle += angle;
 
-    const startRad = (startAngle * Math.PI) / 180;
-    const endRad = (endAngle * Math.PI) / 180;
+    // SVG arc cannot render a full 360 in one path.
+    // Split full circle into two 180 degree slices.
+    if (angle >= 359.999) {
+      const mid = startAngle + 180;
+      const p1 = buildSlicePath(startAngle, mid);
+      const p2 = buildSlicePath(mid, endAngle);
 
-    const x1 = center + radius * Math.cos(startRad);
-    const y1 = center + radius * Math.sin(startRad);
-    const x2 = center + radius * Math.cos(endRad);
-    const y2 = center + radius * Math.sin(endRad);
+      return (
+        <g key={index}>
+          <path d={p1} fill={color} stroke="#0a0a0f" strokeWidth="2" />
+          <path d={p2} fill={color} stroke="#0a0a0f" strokeWidth="2" />
+        </g>
+      );
+    }
 
-    const largeArc = angle > 180 ? 1 : 0;
-
-    const path = [
-      `M ${center + innerRadius * Math.cos(startRad)} ${center + innerRadius * Math.sin(startRad)}`,
-      `L ${x1} ${y1}`,
-      `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`,
-      `L ${center + innerRadius * Math.cos(endRad)} ${center + innerRadius * Math.sin(endRad)}`,
-      `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${center + innerRadius * Math.cos(startRad)} ${center + innerRadius * Math.sin(startRad)}`,
-      "Z",
-    ].join(" ");
-
+    const path = buildSlicePath(startAngle, endAngle);
     return <path key={index} d={path} fill={color} stroke="#0a0a0f" strokeWidth="2" />;
   };
 
-  const totalValue = data.reduce((acc, d) => acc + d.value, 0);
+  const totalValue = data.reduce((acc, d) => acc + Number(d.value || 0), 0);
 
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -221,7 +248,6 @@ function DonutChart({ data }) {
     </div>
   );
 }
-
 function PremiumButton({ children, onClick, title }) {
   return (
     <button
