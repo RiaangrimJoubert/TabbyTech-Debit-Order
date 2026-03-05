@@ -246,22 +246,33 @@ function PremiumButton({ children, onClick, title }) {
   );
 }
 
+/**
+ * IMPORTANT:
+ * We do NOT fall back to "/api/..." because that hits the frontend host and returns HTML (200).
+ * If VITE_API_BASE_URL is missing at build time, we fail loudly with a clear message.
+ */
 async function fetchDebitOrderMonitor() {
-  const BASE = String(import.meta?.env?.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
-  const url = BASE ? `${BASE}/api/dashboard/debit-order-monitor` : "/api/dashboard/debit-order-monitor";
+  const RAW = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
+  const BASE = RAW.replace(/\/+$/, "");
+
+  if (!BASE) {
+    throw new Error("Missing VITE_API_BASE_URL at build time. Set it in .env.production to https://api.tabbytech.co.za and redeploy.");
+  }
+
+  const url = `${BASE}/api/dashboard/debit-order-monitor`;
 
   const resp = await fetch(url, {
     method: "GET",
     headers: { Accept: "application/json" },
+    cache: "no-store",
   });
 
   const ct = String(resp.headers.get("content-type") || "").toLowerCase();
 
-  // If we accidentally got HTML, show a useful error immediately
   if (!ct.includes("application/json")) {
     const preview = await resp.text().catch(() => "");
     const head = preview.slice(0, 180).replace(/\s+/g, " ").trim();
-    throw new Error(`Non-JSON response (${resp.status}). Check VITE_API_BASE_URL. Preview: ${head}`);
+    throw new Error(`Non-JSON response (${resp.status}) from ${url}. Preview: ${head}`);
   }
 
   const json = await resp.json().catch(() => ({}));
@@ -300,7 +311,7 @@ export default function DebitOrderMonitor() {
     };
   }, []);
 
-  // Your API response is: { ok: true, data: { today, crm, lastCron } }
+  // API shape: { ok: true, data: { today, crm, lastCron } }
   const api = data?.data || {};
   const today = api?.today || "";
 
@@ -328,7 +339,6 @@ export default function DebitOrderMonitor() {
     ];
   }, [lastCron]);
 
-  // No attempts are returned by your current API response, so keep empty for now
   const attempts = [];
 
   const successToday = Number(lastCron?.summary?.success || 0);
