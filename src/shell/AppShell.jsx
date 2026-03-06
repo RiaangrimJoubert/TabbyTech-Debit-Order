@@ -1,8 +1,10 @@
+// src/shell/AppShell.jsx
 import { useMemo, useState } from "react";
 import Sidebar from "./Sidebar";
 
 import Dashboard from "./Dashboard";
 import DebitOrderMonitor from "./DebitOrderMonitor";
+import NotificationMonitoring from "../screens/NotificationMonitoring";
 import Clients from "../screens/Clients";
 import DebitOrders from "../screens/DebitOrders";
 import Batches from "../screens/Batches";
@@ -15,6 +17,7 @@ const TITLES = {
   clients: "Clients",
   debitorders: "Debit Orders",
   debitordermonitor: "Debit Order Monitor",
+  notificationmonitoring: "Notification Monitoring",
   batches: "Batches",
   invoices: "Invoices",
   reports: "Reports",
@@ -66,11 +69,12 @@ export default function AppShell({ onLogout }) {
     }
 
     if (activeKey === "debitordermonitor") return <DebitOrderMonitor />;
-
+    if (activeKey === "notificationmonitoring") return <NotificationMonitoring />;
     if (activeKey === "batches") return <Batches />;
     if (activeKey === "invoices") return <Invoices />;
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
+
     return <Dashboard />;
   }, [activeKey, debitOrdersPresetSearch, debitOrdersPresetFocusClientId]);
 
