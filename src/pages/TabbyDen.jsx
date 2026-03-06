@@ -20,14 +20,12 @@ function formatZar(amount) {
 function formatDate(ymd) {
   const s = safeStr(ymd);
   if (!s) return "";
-  // expects YYYY-MM-DD
   const parts = s.split("-");
   if (parts.length !== 3) return s;
   const [y, m, d] = parts;
   return `${d}/${m}/${y}`;
 }
 
-// NEW: safer JSON helper so a bad gateway response (HTML) does not break the page
 async function safeReadJson(resp) {
   try {
     const text = await resp.text();
@@ -35,7 +33,6 @@ async function safeReadJson(resp) {
     try {
       return JSON.parse(text);
     } catch {
-      // if it is HTML or text, return it as raw so we can show an error
       return { raw: text };
     }
   } catch {
@@ -43,12 +40,18 @@ async function safeReadJson(resp) {
   }
 }
 
-// NEW: build URL safely
 function joinUrl(base, path) {
   const b = safeStr(base).replace(/\/+$/, "");
   const p = safeStr(path).replace(/^\/+/, "");
   if (!b) return "";
   return `${b}/${p}`;
+}
+
+function getInvoiceHtmlUrl(apiBase, token, invoiceId) {
+  const id = safeStr(invoiceId);
+  if (!id || !apiBase || !token) return "";
+  const base = joinUrl(apiBase, `api/tabbyden/invoice-html/${encodeURIComponent(id)}`);
+  return `${base}?token=${encodeURIComponent(token)}`;
 }
 
 export default function TabbyDen() {
@@ -60,6 +63,7 @@ export default function TabbyDen() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [rows, setRows] = useState([]);
+  const [busyId, setBusyId] = useState("");
 
   const invoicesUrl = useMemo(() => {
     if (!apiBase) return "";
@@ -103,7 +107,6 @@ export default function TabbyDen() {
         const data = await safeReadJson(resp);
 
         if (!resp.ok || !data.ok) {
-          // If we received HTML, show a clear message
           const raw = safeStr(data?.raw);
           if (raw && raw.toLowerCase().includes("<!doctype")) {
             throw new Error(
@@ -118,7 +121,6 @@ export default function TabbyDen() {
         const list = Array.isArray(data?.data) ? data.data : [];
         if (!mounted) return;
 
-        // sort newest first if date present
         list.sort((a, b) => safeStr(b?.date).localeCompare(safeStr(a?.date)));
 
         setRows(list);
@@ -137,23 +139,96 @@ export default function TabbyDen() {
   }, [apiBase, token, invoicesUrl]);
 
   const openHtml = (invoiceId) => {
-    const id = safeStr(invoiceId);
-    if (!id || !apiBase || !token) return;
-
-    const base = joinUrl(apiBase, `api/tabbyden/invoice-html/${encodeURIComponent(id)}`);
-    const url = `${base}?token=${encodeURIComponent(token)}`;
-
+    const url = getInvoiceHtmlUrl(apiBase, token, invoiceId);
+    if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const openPdf = (invoiceId) => {
+  const printHtmlAsPdf = async (invoiceId) => {
+    const url = getInvoiceHtmlUrl(apiBase, token, invoiceId);
     const id = safeStr(invoiceId);
-    if (!id || !apiBase || !token) return;
 
-    const base = joinUrl(apiBase, `api/tabbyden/invoice-pdf/${encodeURIComponent(id)}`);
-    const url = `${base}?token=${encodeURIComponent(token)}`;
+    if (!url || !id) return;
 
-    window.open(url, "_blank", "noopener,noreferrer");
+    setBusyId(id);
+
+    try {
+      const resp = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "text/html" },
+      });
+
+      const html = await resp.text();
+
+      if (!resp.ok) {
+        throw new Error(`Failed to load printable invoice (${resp.status})`);
+      }
+
+      if (!html || html.trim().length === 0) {
+        throw new Error("Printable invoice HTML was empty.");
+      }
+
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      iframe.setAttribute("aria-hidden", "true");
+
+      document.body.appendChild(iframe);
+
+      const cleanup = () => {
+        setTimeout(() => {
+          try {
+            iframe.remove();
+          } catch {
+            // ignore
+          }
+        }, 1500);
+      };
+
+      const doc = iframe.contentWindow?.document;
+      if (!doc || !iframe.contentWindow) {
+        cleanup();
+        throw new Error("Unable to open print frame.");
+      }
+
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      iframe.onload = () => {
+        try {
+          setTimeout(() => {
+            try {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            } finally {
+              cleanup();
+            }
+          }, 300);
+        } catch {
+          cleanup();
+        }
+      };
+
+      if (doc.readyState === "complete") {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+          } finally {
+            cleanup();
+          }
+        }, 300);
+      }
+    } catch (e) {
+      alert(safeStr(e?.message || e) || "Failed to prepare PDF download.");
+    } finally {
+      setBusyId("");
+    }
   };
 
   return (
@@ -179,7 +254,6 @@ export default function TabbyDen() {
           backdropFilter: "blur(14px)",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "26px 26px",
@@ -211,7 +285,6 @@ export default function TabbyDen() {
           </div>
         </div>
 
-        {/* Content */}
         <div style={{ padding: 26 }}>
           {loading && (
             <div
@@ -266,6 +339,7 @@ export default function TabbyDen() {
                 const date = formatDate(r?.date);
                 const total = formatZar(r?.total);
                 const balance = formatZar(r?.balance);
+                const isBusy = busyId === id;
 
                 return (
                   <div
@@ -333,9 +407,9 @@ export default function TabbyDen() {
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
                         <button
                           onClick={() => openHtml(id)}
-                          disabled={!id}
+                          disabled={!id || isBusy}
                           style={{
-                            cursor: id ? "pointer" : "not-allowed",
+                            cursor: !id || isBusy ? "not-allowed" : "pointer",
                             padding: "10px 14px",
                             borderRadius: 999,
                             border: "1px solid rgba(139,92,246,.55)",
@@ -343,16 +417,17 @@ export default function TabbyDen() {
                             color: "#EDE9FE",
                             fontWeight: 900,
                             fontSize: 13,
+                            opacity: !id || isBusy ? 0.6 : 1,
                           }}
                         >
                           View
                         </button>
 
                         <button
-                          onClick={() => openPdf(id)}
-                          disabled={!id}
+                          onClick={() => printHtmlAsPdf(id)}
+                          disabled={!id || isBusy}
                           style={{
-                            cursor: id ? "pointer" : "not-allowed",
+                            cursor: !id || isBusy ? "not-allowed" : "pointer",
                             padding: "10px 14px",
                             borderRadius: 999,
                             border: "1px solid rgba(229,231,235,.22)",
@@ -360,9 +435,10 @@ export default function TabbyDen() {
                             color: "#E5E7EB",
                             fontWeight: 900,
                             fontSize: 13,
+                            opacity: !id || isBusy ? 0.6 : 1,
                           }}
                         >
-                          Download PDF
+                          {isBusy ? "Preparing..." : "Download PDF"}
                         </button>
                       </div>
                     </div>
@@ -372,7 +448,6 @@ export default function TabbyDen() {
             </div>
           )}
 
-          {/* Footer note */}
           <div style={{ marginTop: 18, color: "rgba(148,163,184,.85)", fontSize: 12, lineHeight: 1.5 }}>
             This page is protected by a secure access token. If your link expired, request a new one from support.
           </div>
