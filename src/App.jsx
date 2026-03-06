@@ -1,6 +1,6 @@
 // src/App.jsx
 import { useMemo, useState } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 
 import Login from "./pages/Login";
 import AppShell from "./shell/AppShell";
