@@ -6,10 +6,10 @@ const nav = [
   { key: "clients", label: "Clients", icon: "CLIENTS_SVG" },
   { key: "debitorders", label: "Debit Orders", icon: "↻" },
   { key: "debitordermonitor", label: "Debit Order Monitor", icon: "◔" },
+  { key: "notificationmonitoring", label: "Notification Monitoring", icon: "✉" },
   { key: "batches", label: "Batches", icon: "⧉" },
   { key: "invoices", label: "Invoices", icon: "🧾" },
   { key: "reports", label: "Reports", icon: "📈" },
-  { key: "settings", label: "Settings", icon: "⚙" },
 ];
 
 function ClientsIcon({ size = 18 }) {
@@ -50,7 +50,6 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
         <div className="tt-sidebrand">
-          {/* Brand mark (uses TabbyTech logo from /public/tabbytech-logo.png) */}
           <div className="tt-sidebrand-mark" aria-hidden="true">
             <img
               src="/tabbytech-logo.png"
@@ -60,7 +59,6 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
             />
           </div>
 
-          {/* Brand text */}
           <div className="tt-sidebrand-text">
             <div className="tt-sidebrand-name">TabbyPay</div>
             <div className="tt-sidebrand-sub">by TabbyTech</div>
@@ -105,6 +103,19 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
         </div>
 
         <div className="tt-sidedivider" />
+
+        <button
+          type="button"
+          className={`tt-sidenav-item ${activeKey === "settings" ? "is-active" : ""}`}
+          onClick={() => onNavigate?.("settings")}
+          aria-current={activeKey === "settings" ? "page" : undefined}
+        >
+          <span className="tt-sidenav-icon" aria-hidden="true">
+            ⚙
+          </span>
+          <span className="tt-sidenav-label">Settings</span>
+          <span className="tt-sidenav-pill" aria-hidden="true" />
+        </button>
 
         <button
           type="button"
