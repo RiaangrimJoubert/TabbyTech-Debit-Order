@@ -449,7 +449,7 @@ export default function TabbyDen() {
           )}
 
           <div style={{ marginTop: 18, color: "rgba(148,163,184,.85)", fontSize: 12, lineHeight: 1.5 }}>
-            This page is protected by a secure access token. If your link expired, request a new one from support.
+            This page is protected by a secure access token. Valid for 30min before it expires.
           </div>
         </div>
       </div>
