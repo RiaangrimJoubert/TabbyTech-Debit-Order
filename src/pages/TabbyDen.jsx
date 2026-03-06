@@ -274,7 +274,7 @@ export default function TabbyDen() {
             <div>
               <div style={{ fontWeight: 900, fontSize: 20, letterSpacing: -0.3 }}>TabbyDen</div>
               <div style={{ color: "rgba(167, 139, 250, .95)", fontWeight: 600, fontSize: 13 }}>
-                Your invoices and documents
+                Your invoices
               </div>
             </div>
           </div>
