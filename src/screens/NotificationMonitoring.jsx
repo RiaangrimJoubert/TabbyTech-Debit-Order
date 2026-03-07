@@ -1,5 +1,4 @@
-// src/screens/NotificationMonitoring.jsx
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 function cx(...arr) {
   return arr.filter(Boolean).join(" ");
@@ -31,6 +30,52 @@ function exportRowsToCsv(filename, rows, columns) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+function buildApiUrl(path) {
+  const base = String(import.meta.env.VITE_API_BASE_URL || "https://api.tabbytech.co.za")
+    .trim()
+    .replace(/\/+$/, "");
+  const cleanPath = String(path || "").trim();
+  return `${base}${cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`}`;
+}
+
+function normalizeTemplateName(name) {
+  const v = String(name || "").trim().toLowerCase();
+
+  if (v === "pre-debit reminder (25th)" || v === "pre-debit reminder 25th") return "Pre-Debit Reminder 25th";
+  if (v === "pre-debit reminder (1st)" || v === "pre-debit reminder 1st") return "Pre-Debit Reminder 1st";
+  if (v === "payment successful") return "Payment Successful";
+  if (v === "payment failed") return "Payment Failed";
+  if (v === "service suspended") return "Service Suspended";
+  if (v === "subscription confirmed") return "Subscription Confirmed";
+
+  return String(name || "").trim() || "Other";
+}
+
+function readTemplateCount(byTemplate, label) {
+  const wanted = String(label || "").trim().toLowerCase();
+  const row = Array.isArray(byTemplate)
+    ? byTemplate.find((item) => String(item?.template_name || "").trim().toLowerCase() === wanted)
+    : null;
+  const n = Number(row?.count || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function mapTodayStatus(todayStatus) {
+  const sent = Number(todayStatus?.SENT || 0);
+  const failed = Number(todayStatus?.FAILED || 0);
+  const queued = Number(todayStatus?.QUEUED || 0);
+  const delivered = sent;
+  const opened = 0;
+
+  return {
+    sentToday: sent + queued,
+    delivered,
+    opened,
+    failed,
+    queued,
+  };
 }
 
 const IconMail = () => (
@@ -249,12 +294,13 @@ function DonutChart({ data }) {
   );
 }
 
-function PremiumButton({ children, onClick, title }) {
+function PremiumButton({ children, onClick, title, disabled = false }) {
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
+      disabled={disabled}
       style={{
         padding: "0.5rem 1rem",
         borderRadius: "0.75rem",
@@ -263,7 +309,8 @@ function PremiumButton({ children, onClick, title }) {
         fontSize: "0.75rem",
         fontWeight: 600,
         border: "none",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.65 : 1,
         boxShadow: "0 4px 14px rgba(139, 92, 246, 0.3)",
         whiteSpace: "nowrap",
       }}
@@ -274,46 +321,122 @@ function PremiumButton({ children, onClick, title }) {
 }
 
 export default function NotificationMonitoring() {
-  const today = "UI-FIRST";
-  const isLive = true;
-
-  const kpis = {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [today, setToday] = useState("LIVE");
+  const [kpis, setKpis] = useState({
     sentToday: 0,
     delivered: 0,
     opened: 0,
     failed: 0,
-  };
+    queued: 0,
+  });
+  const [notificationRows, setNotificationRows] = useState([]);
+  const [failedRows, setFailedRows] = useState([]);
+  const [byTemplate, setByTemplate] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadNotificationMonitor() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const res = await fetch(buildApiUrl("/api/dashboard/notification-monitor"), {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        const json = await res.json().catch(() => ({}));
+
+        if (!res.ok || !json?.ok) {
+          throw new Error(String(json?.error || `Request failed (${res.status})`));
+        }
+
+        const data = json?.data || {};
+        const todayStatus = data?.todayStatus || {};
+        const latest = Array.isArray(data?.latest) ? data.latest : [];
+        const templates = Array.isArray(data?.byTemplate) ? data.byTemplate : [];
+
+        const mappedKpis = mapTodayStatus(todayStatus);
+
+        const mappedRows = latest.map((row) => ({
+          created_at: safeStr(row?.created_at || row?.sent_at || ""),
+          client_id: safeStr(row?.related_id || ""),
+          email: safeStr(row?.recipient_email || ""),
+          template_name: normalizeTemplateName(row?.template_name || ""),
+          status: safeStr(row?.status || ""),
+          failure_reason: safeStr(row?.error_message || ""),
+          related_type: safeStr(row?.related_type || ""),
+          provider: safeStr(row?.provider || ""),
+          provider_message_id: safeStr(row?.provider_message_id || ""),
+          reference: safeStr(row?.reference || ""),
+        }));
+
+        const mappedFailedRows = mappedRows.filter((row) => String(row?.status || "").trim().toLowerCase() === "failed");
+
+        if (!active) return;
+
+        setToday(safeStr(data?.today || "LIVE"));
+        setKpis(mappedKpis);
+        setByTemplate(templates);
+        setNotificationRows(mappedRows);
+        setFailedRows(mappedFailedRows);
+      } catch (e) {
+        if (!active) return;
+        setError(String(e?.message || e));
+      } finally {
+        if (!active) return;
+        setLoading(false);
+      }
+    }
+
+    loadNotificationMonitor();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const isLive = !error;
 
   const deliveryDonut = useMemo(() => {
     return [
-      { name: "Sent", value: 0, color: "#a78bfa" },
-      { name: "Delivered", value: 0, color: "#10b981" },
-      { name: "Failed", value: 0, color: "#ef4444" },
+      { name: "Sent", value: Number(kpis.sentToday || 0), color: "#a78bfa" },
+      { name: "Delivered", value: Number(kpis.delivered || 0), color: "#10b981" },
+      { name: "Failed", value: Number(kpis.failed || 0), color: "#ef4444" },
     ];
-  }, []);
+  }, [kpis]);
 
   const templateDonut = useMemo(() => {
     return [
-      { name: "Subscription Confirmed", value: 0, color: "#a78bfa" },
-      { name: "Payment Successful", value: 0, color: "#10b981" },
-      { name: "Payment Failed", value: 0, color: "#f59e0b" },
-      { name: "Service Suspended", value: 0, color: "#ef4444" },
-      { name: "Pre-Debit Reminder 25th", value: 0, color: "#60a5fa" },
-      { name: "Pre-Debit Reminder 1st", value: 0, color: "#8b5cf6" },
+      { name: "Subscription Confirmed", value: readTemplateCount(byTemplate, "Subscription Confirmed"), color: "#a78bfa" },
+      { name: "Payment Successful", value: readTemplateCount(byTemplate, "Payment Successful"), color: "#10b981" },
+      { name: "Payment Failed", value: readTemplateCount(byTemplate, "Payment Failed"), color: "#f59e0b" },
+      { name: "Service Suspended", value: readTemplateCount(byTemplate, "Service Suspended"), color: "#ef4444" },
+      { name: "Pre-Debit Reminder 25th", value: readTemplateCount(byTemplate, "Pre-Debit Reminder (25th)"), color: "#60a5fa" },
+      { name: "Pre-Debit Reminder 1st", value: readTemplateCount(byTemplate, "Pre-Debit Reminder (1st)"), color: "#8b5cf6" },
     ];
-  }, []);
+  }, [byTemplate]);
 
   const miniStatusList = useMemo(() => {
-    return [
-      { label: "Delivered", value: 0, pct: 0, color: "#10b981" },
-      { label: "Opened", value: 0, pct: 0, color: "#60a5fa" },
-      { label: "Pending", value: 0, pct: 0, color: "#f59e0b" },
-      { label: "Failed", value: 0, pct: 0, color: "#ef4444" },
-    ];
-  }, []);
+    const total = Number(kpis.sentToday || 0) + Number(kpis.opened || 0) + Number(kpis.queued || 0) + Number(kpis.failed || 0);
 
-  const notificationRows = [];
-  const failedRows = [];
+    const pct = (value) => {
+      if (!total) return 0;
+      return Math.round((Number(value || 0) / total) * 100);
+    };
+
+    return [
+      { label: "Delivered", value: Number(kpis.delivered || 0), pct: pct(kpis.delivered), color: "#10b981" },
+      { label: "Opened", value: Number(kpis.opened || 0), pct: pct(kpis.opened), color: "#60a5fa" },
+      { label: "Pending", value: Number(kpis.queued || 0), pct: pct(kpis.queued), color: "#f59e0b" },
+      { label: "Failed", value: Number(kpis.failed || 0), pct: pct(kpis.failed), color: "#ef4444" },
+    ];
+  }, [kpis]);
 
   const notificationColumns = useMemo(
     () => [
@@ -393,7 +516,7 @@ export default function NotificationMonitoring() {
             }}
           >
             <span
-              className={isLive ? "animate-pulse" : ""}
+              className={isLive && !loading ? "animate-pulse" : ""}
               style={{
                 width: "0.5rem",
                 height: "0.5rem",
@@ -401,7 +524,7 @@ export default function NotificationMonitoring() {
                 borderRadius: "50%",
               }}
             ></span>
-            {isLive ? "UI Ready" : "Offline"}
+            {loading ? "Loading" : isLive ? "Live" : "Offline"}
           </div>
 
           <div
@@ -414,19 +537,35 @@ export default function NotificationMonitoring() {
               fontSize: "0.75rem",
               fontFamily: "monospace",
             }}
-            title="Notification monitor mode"
+            title="Notification monitor date"
           >
             {today}
           </div>
         </div>
       </header>
 
+      {error ? (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.875rem 1rem",
+            borderRadius: "0.875rem",
+            background: "rgba(239, 68, 68, 0.08)",
+            border: "1px solid rgba(239, 68, 68, 0.18)",
+            color: "#fca5a5",
+            fontSize: "0.875rem",
+          }}
+        >
+          Failed to load notification monitor: {error}
+        </div>
+      ) : null}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
         <MetricCard
           title="Sent today"
           value={String(kpis.sentToday)}
           subtext="Emails queued or handed to ZeptoMail"
-          trend="Ready to wire"
+          trend={loading ? "Loading..." : "Live data"}
           trendUp={true}
           icon={<IconMail />}
           color="purple"
@@ -553,12 +692,13 @@ export default function NotificationMonitoring() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div>
               <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Recent notification log</h3>
-              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Will track client, email, template, and send status from ZeptoMail flows</p>
+              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Tracks client, email, template, and send status from ZeptoMail flows</p>
             </div>
 
             <PremiumButton
               title="Export notification log to CSV"
               onClick={() => exportRowsToCsv("notification_log.csv", notificationRows, notificationColumns)}
+              disabled={notificationRows.length === 0}
             >
               Export to Excel
             </PremiumButton>
@@ -603,7 +743,7 @@ export default function NotificationMonitoring() {
                 {notificationRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      No notification log data yet. Once we wire ZeptoMail logging, this will populate.
+                      {loading ? "Loading notification log..." : "No notification log data yet."}
                     </td>
                   </tr>
                 ) : null}
@@ -622,6 +762,7 @@ export default function NotificationMonitoring() {
             <PremiumButton
               title="Export failed notifications to CSV"
               onClick={() => exportRowsToCsv("failed_notifications.csv", failedRows, failedColumns)}
+              disabled={failedRows.length === 0}
             >
               Export to Excel
             </PremiumButton>
@@ -655,7 +796,7 @@ export default function NotificationMonitoring() {
                 {failedRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      No failed notifications yet. This table will help prove whether an email sent or failed.
+                      {loading ? "Loading failed notifications..." : "No failed notifications yet."}
                     </td>
                   </tr>
                 ) : null}
