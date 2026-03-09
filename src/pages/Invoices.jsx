@@ -22,6 +22,17 @@ function safeInvoiceLabel(inv) {
   return String(inv?.id || "Invoice").trim();
 }
 
+/*
+  UI-only temporary suppression for known bad duplicate invoices.
+  This hides the bad row from the invoice table without touching
+  Zoho Books, backend logic, payment flow, or any working routes.
+
+  Remove this entry later once the bad invoice is voided/cleaned up in Books.
+*/
+const HIDDEN_INVOICE_IDS = new Set([
+  "5156553000013659005"
+]);
+
 function SvgEye({ size = 16 }) {
   return (
     <svg
@@ -111,8 +122,6 @@ function SvgDownload({ size = 16 }) {
 export default function Invoices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("All");
-
-  // which invoice row is expanded
   const [openInvoiceId, setOpenInvoiceId] = useState("");
 
   const filteredInvoices = useMemo(() => {
@@ -120,6 +129,9 @@ export default function Invoices() {
 
     return (INVOICES || [])
       .filter((inv) => {
+        const invoiceId = String(inv?.id || "").trim();
+        if (HIDDEN_INVOICE_IDS.has(invoiceId)) return false;
+
         const matchesStatus = status === "All" ? true : String(inv.status) === String(status);
         if (!matchesStatus) return false;
 
@@ -158,8 +170,6 @@ export default function Invoices() {
 
     const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
     const fallback = String(inv?.id || "").trim();
-
-    // Prefer Books invoice id if mapped, else fallback to invoice id
     const id = booksInvoiceId || fallback;
     const url = `${apiBase}/api/invoice-html/${encodeURIComponent(id)}`;
     window.open(url, "_blank", "noopener,noreferrer");
@@ -174,7 +184,6 @@ export default function Invoices() {
 
     const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
 
-    // If not mapped yet, fallback to HTML (user can Save as PDF)
     if (!booksInvoiceId) {
       openInvoiceHtml(inv);
       return;
@@ -310,11 +319,10 @@ export default function Invoices() {
                 const totals = calcTotals(inv);
                 const invId = String(inv?.id || "").trim();
                 const isOpen = openInvoiceId === invId;
-
                 const dotClass = statusDotClass(String(inv.status || "Overdue"));
 
                 return (
-                  <React.Fragment key={invId || Math.random()}>
+                  <React.Fragment key={invId}>
                     <tr>
                       <td style={{ fontWeight: 800, letterSpacing: 0.2 }}>{invId}</td>
 
@@ -370,7 +378,6 @@ export default function Invoices() {
                               gap: 10
                             }}
                           >
-                            {/* Round icon buttons, premium feel */}
                             <button
                               type="button"
                               onClick={() => openInvoiceHtml(inv)}
