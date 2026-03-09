@@ -5,7 +5,6 @@ import { money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
 
 function getApiBase() {
-  // IMPORTANT: no optional chaining here, so Vite define() replacement works
   const base = String(import.meta.env.VITE_API_BASE_URL || "").trim();
   return base.endsWith("/") ? base.slice(0, -1) : base;
 }
@@ -32,26 +31,21 @@ function safeInvoiceLabel(inv) {
   return String(inv?.id || "Invoice").trim();
 }
 
-/**
- * Normalise API invoice payload into the SAME SHAPE your UI already uses.
- */
 function normalizeInvoice(inv) {
   const raw = inv || {};
 
-  // Your API: id = Zoho Books invoice_id
   const id =
     String(raw.id || raw.invoice_id || raw.invoiceNo || raw.invoice_number || "").trim() ||
     `INV-${Math.random().toString(16).slice(2)}`;
 
-  // Your API: customerName
   const customer =
     String(raw.customer || raw.customerName || raw.customer_name || raw.contact_name || "").trim() ||
     "Customer";
 
-  const customerEmail =
-    String(raw.customerEmail || raw.customer_email || raw.contact_email || raw.email || "").trim();
+  const customerEmail = String(
+    raw.customerEmail || raw.customer_email || raw.contact_email || raw.email || ""
+  ).trim();
 
-  // Map API status to your UI dropdown values
   const apiStatus = String(raw.status || raw.invoice_status || "unpaid").trim().toLowerCase();
   let status = "Unpaid";
   if (apiStatus === "paid") status = "Paid";
@@ -59,16 +53,12 @@ function normalizeInvoice(inv) {
   else if (apiStatus === "draft") status = "Unpaid";
   else if (apiStatus === "unpaid") status = "Unpaid";
 
-  // Dates
   const dateIssued = String(raw.dateIssued || raw.date || raw.issuedDate || "").trim();
   const dueDate = String(raw.dueDate || raw.due_date || "").trim();
 
-  // Currency
   const currency = String(raw.currency || raw.currencyCode || raw.currency_code || "ZAR").trim() || "ZAR";
 
-  // Books invoice id must be the actual Books invoice_id for print and pdf routes
   const booksInvoiceId = String(raw.booksInvoiceId || raw.id || raw.invoice_id || "").trim();
-
   const debitOrderId = String(raw.debitOrderId || raw.debit_order_id || "").trim();
 
   const itemsRaw = Array.isArray(raw.items)
@@ -92,7 +82,6 @@ function normalizeInvoice(inv) {
   const apiTotal = Number(raw.total ?? raw.invoice_total ?? raw.amount ?? 0);
   const apiBalance = Number(raw.balance ?? raw.amount_due ?? 0);
 
-  // If there are no items but we have a total, make items so calcTotals works
   if ((!items || items.length === 0) && Number.isFinite(apiTotal) && apiTotal > 0) {
     items = [
       {
@@ -114,8 +103,6 @@ function normalizeInvoice(inv) {
     items,
     booksInvoiceId,
     debitOrderId,
-
-    // optional extras, harmless
     apiTotal: Number.isFinite(apiTotal) ? apiTotal : 0,
     apiBalance: Number.isFinite(apiBalance) ? apiBalance : 0
   };
@@ -240,6 +227,7 @@ export default function Invoices() {
     }
 
     run();
+
     return () => {
       alive = false;
     };
@@ -277,14 +265,58 @@ export default function Invoices() {
       .sort((a, b) => String(b.dateIssued || "").localeCompare(String(a.dateIssued || "")));
   }, [q, status, invoices]);
 
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filteredInvoices.length / Math.max(1, pageSize)));
-  }, [filteredInvoices.length, pageSize]);
+  const uniqueClientRows = useMemo(() => {
+    const map = new Map();
 
-  const pagedInvoices = useMemo(() => {
+    for (const inv of filteredInvoices) {
+      const clientKey = makeClientKeyFromInvoice(inv);
+      const existing = map.get(clientKey);
+
+      if (!existing) {
+        map.set(clientKey, {
+          clientKey,
+          customer: inv.customer,
+          customerEmail: inv.customerEmail,
+          latestInvoiceId: inv.id,
+          latestBooksInvoiceId: inv.booksInvoiceId,
+          latestDateIssued: inv.dateIssued,
+          latestDueDate: inv.dueDate,
+          latestStatus: inv.status,
+          currency: inv.currency,
+          invoiceCount: 1,
+          invoices: [inv]
+        });
+        continue;
+      }
+
+      existing.invoiceCount += 1;
+      existing.invoices.push(inv);
+
+      const existingDate = String(existing.latestDateIssued || "");
+      const currentDate = String(inv.dateIssued || "");
+      if (currentDate.localeCompare(existingDate) > 0) {
+        existing.latestInvoiceId = inv.id;
+        existing.latestBooksInvoiceId = inv.booksInvoiceId;
+        existing.latestDateIssued = inv.dateIssued;
+        existing.latestDueDate = inv.dueDate;
+        existing.latestStatus = inv.status;
+        existing.currency = inv.currency;
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) =>
+      String(b.latestDateIssued || "").localeCompare(String(a.latestDateIssued || ""))
+    );
+  }, [filteredInvoices]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(uniqueClientRows.length / Math.max(1, pageSize)));
+  }, [uniqueClientRows.length, pageSize]);
+
+  const pagedClientRows = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return filteredInvoices.slice(start, start + pageSize);
-  }, [filteredInvoices, page, pageSize]);
+    return uniqueClientRows.slice(start, start + pageSize);
+  }, [uniqueClientRows, page, pageSize]);
 
   const selectedClientInvoices = useMemo(() => {
     if (!selectedClientKey) return [];
@@ -303,8 +335,8 @@ export default function Invoices() {
     };
   }, [selectedClientInvoices]);
 
-  function onView(inv) {
-    setSelectedClientKey(makeClientKeyFromInvoice(inv));
+  function onView(clientRow) {
+    setSelectedClientKey(clientRow.clientKey);
     setTimeout(() => {
       const el = document.getElementById("tt-client-panel");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -488,40 +520,42 @@ export default function Invoices() {
             </thead>
 
             <tbody>
-              {pagedInvoices.map((inv) => {
-                const totals = calcTotals(inv);
-                const invId = String(inv?.id || "").trim();
-                const dotClass = statusDotClass(String(inv.status || "Overdue"));
+              {pagedClientRows.map((clientRow) => {
+                const latestInvoice = clientRow.invoices[0] || null;
+                const totals = latestInvoice ? calcTotals(latestInvoice) : { total: 0 };
+                const dotClass = statusDotClass(String(clientRow.latestStatus || "Overdue"));
 
                 return (
-                  <tr key={invId}>
-                    <td className="tt-cell-strong">{invId}</td>
+                  <tr key={clientRow.clientKey}>
+                    <td className="tt-cell-strong">{clientRow.latestInvoiceId}</td>
 
                     <td>
                       <span className="tt-badge">
                         <span className={`tt-dot ${dotClass}`} />
-                        <span className="tt-badge-text">{inv.status}</span>
+                        <span className="tt-badge-text">{clientRow.latestStatus}</span>
                       </span>
                     </td>
 
                     <td>
                       <div className="tt-customer">
-                        <span className="tt-customer-name">{inv.customer}</span>
-                        <span className="tt-customer-email">{inv.customerEmail}</span>
+                        <span className="tt-customer-name">{clientRow.customer}</span>
+                        <span className="tt-customer-email">{clientRow.customerEmail}</span>
                       </div>
                     </td>
 
-                    <td>{inv.dateIssued}</td>
-                    <td>{inv.dueDate}</td>
+                    <td>{clientRow.latestDateIssued}</td>
+                    <td>{clientRow.latestDueDate}</td>
 
-                    <td className="tt-td-right tt-cell-strong">{money(totals.total, inv.currency)}</td>
+                    <td className="tt-td-right tt-cell-strong">
+                      {money(totals.total || 0, clientRow.currency)}
+                    </td>
 
                     <td className="tt-td-right">
                       <button
                         type="button"
                         className="tt-iconbtn tt-iconbtn-view"
-                        onClick={() => onView(inv)}
-                        aria-label={`View invoices for ${inv.customer}`}
+                        onClick={() => onView(clientRow)}
+                        aria-label={`View invoices for ${clientRow.customer}`}
                         title="View client invoices"
                       >
                         <SvgEye />
@@ -531,7 +565,7 @@ export default function Invoices() {
                 );
               })}
 
-              {pagedInvoices.length === 0 && !loading && (
+              {pagedClientRows.length === 0 && !loading && (
                 <tr>
                   <td colSpan={7} style={{ padding: 18, color: "rgba(255,255,255,0.70)" }}>
                     No invoices match your current filters.
