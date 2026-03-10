@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 
 import Login from "./pages/Login";
@@ -46,9 +46,23 @@ function PublicNotFound() {
   );
 }
 
+function hasStoredAdminSession() {
+  try {
+    const raw = localStorage.getItem("tt_user");
+    if (!raw) return false;
+
+    const parsed = JSON.parse(raw);
+    return !!parsed;
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
-  const [authed, setAuthed] = useState(false);
   const location = useLocation();
+
+  const [authed, setAuthed] = useState(() => hasStoredAdminSession());
+  const [bootChecked, setBootChecked] = useState(false);
 
   // Anything under /portal or /invoice or /tabbyden is PUBLIC.
   const isPublicRoute = useMemo(() => {
@@ -59,6 +73,24 @@ export default function App() {
       p.startsWith("/tabbyden")
     );
   }, [location.pathname]);
+
+  useEffect(() => {
+    setAuthed(hasStoredAdminSession());
+    setBootChecked(true);
+  }, []);
+
+  function handleLogin() {
+    setAuthed(true);
+  }
+
+  function handleLogout() {
+    try {
+      localStorage.removeItem("tt_user");
+    } catch {
+      // ignore storage cleanup failure
+    }
+    setAuthed(false);
+  }
 
   // Public client routes render WITHOUT AppShell and WITHOUT login.
   if (isPublicRoute) {
@@ -74,8 +106,13 @@ export default function App() {
     );
   }
 
-  // Admin app (requires login)
-  if (!authed) return <Login onLogin={() => setAuthed(true)} />;
+  // Prevent flashing login before localStorage auth is checked.
+  if (!bootChecked) {
+    return null;
+  }
 
-  return <AppShell onLogout={() => setAuthed(false)} />;
+  // Admin app (requires login)
+  if (!authed) return <Login onLogin={handleLogin} />;
+
+  return <AppShell onLogout={handleLogout} />;
 }
