@@ -1,5 +1,32 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+const NOTIFICATION_MONITOR_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let notificationMonitorCache = {
+  today: "LIVE",
+  kpis: {
+    sentToday: 0,
+    delivered: 0,
+    opened: 0,
+    failed: 0,
+    queued: 0,
+  },
+  notificationRows: [],
+  failedRows: [],
+  byTemplate: [],
+  error: "",
+  lastLoadedAt: 0,
+};
+
+function hasFreshNotificationMonitorCache() {
+  return (
+    (Array.isArray(notificationMonitorCache.notificationRows) &&
+      notificationMonitorCache.notificationRows.length > 0) ||
+    (Array.isArray(notificationMonitorCache.byTemplate) &&
+      notificationMonitorCache.byTemplate.length > 0)
+  ) && Date.now() - Number(notificationMonitorCache.lastLoadedAt || 0) < NOTIFICATION_MONITOR_CACHE_TTL_MS;
+}
+
 function cx(...arr) {
   return arr.filter(Boolean).join(" ");
 }
@@ -321,24 +348,61 @@ function PremiumButton({ children, onClick, title, disabled = false }) {
 }
 
 export default function NotificationMonitoring() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [today, setToday] = useState("LIVE");
-  const [kpis, setKpis] = useState({
-    sentToday: 0,
-    delivered: 0,
-    opened: 0,
-    failed: 0,
-    queued: 0,
-  });
-  const [notificationRows, setNotificationRows] = useState([]);
-  const [failedRows, setFailedRows] = useState([]);
-  const [byTemplate, setByTemplate] = useState([]);
+  const [loading, setLoading] = useState(() => !hasFreshNotificationMonitorCache());
+  const [error, setError] = useState(() => safeStr(notificationMonitorCache.error));
+  const [today, setToday] = useState(() => safeStr(notificationMonitorCache.today || "LIVE"));
+  const [kpis, setKpis] = useState(() => ({
+    sentToday: Number(notificationMonitorCache.kpis?.sentToday || 0),
+    delivered: Number(notificationMonitorCache.kpis?.delivered || 0),
+    opened: Number(notificationMonitorCache.kpis?.opened || 0),
+    failed: Number(notificationMonitorCache.kpis?.failed || 0),
+    queued: Number(notificationMonitorCache.kpis?.queued || 0),
+  }));
+  const [notificationRows, setNotificationRows] = useState(() =>
+    Array.isArray(notificationMonitorCache.notificationRows) ? notificationMonitorCache.notificationRows : []
+  );
+  const [failedRows, setFailedRows] = useState(() =>
+    Array.isArray(notificationMonitorCache.failedRows) ? notificationMonitorCache.failedRows : []
+  );
+  const [byTemplate, setByTemplate] = useState(() =>
+    Array.isArray(notificationMonitorCache.byTemplate) ? notificationMonitorCache.byTemplate : []
+  );
+
+  useEffect(() => {
+    notificationMonitorCache = {
+      ...notificationMonitorCache,
+      today,
+      kpis,
+      notificationRows,
+      failedRows,
+      byTemplate,
+      error,
+      lastLoadedAt: notificationMonitorCache.lastLoadedAt,
+    };
+  }, [today, kpis, notificationRows, failedRows, byTemplate, error]);
 
   useEffect(() => {
     let active = true;
 
-    async function loadNotificationMonitor() {
+    async function loadNotificationMonitor({ force = false } = {}) {
+      if (!force && hasFreshNotificationMonitorCache()) {
+        if (!active) return;
+        setToday(safeStr(notificationMonitorCache.today || "LIVE"));
+        setKpis({
+          sentToday: Number(notificationMonitorCache.kpis?.sentToday || 0),
+          delivered: Number(notificationMonitorCache.kpis?.delivered || 0),
+          opened: Number(notificationMonitorCache.kpis?.opened || 0),
+          failed: Number(notificationMonitorCache.kpis?.failed || 0),
+          queued: Number(notificationMonitorCache.kpis?.queued || 0),
+        });
+        setByTemplate(Array.isArray(notificationMonitorCache.byTemplate) ? notificationMonitorCache.byTemplate : []);
+        setNotificationRows(Array.isArray(notificationMonitorCache.notificationRows) ? notificationMonitorCache.notificationRows : []);
+        setFailedRows(Array.isArray(notificationMonitorCache.failedRows) ? notificationMonitorCache.failedRows : []);
+        setError(safeStr(notificationMonitorCache.error));
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -380,26 +444,117 @@ export default function NotificationMonitoring() {
 
         if (!active) return;
 
-        setToday(safeStr(data?.today || "LIVE"));
+        const nextToday = safeStr(data?.today || "LIVE");
+
+        setToday(nextToday);
         setKpis(mappedKpis);
         setByTemplate(templates);
         setNotificationRows(mappedRows);
         setFailedRows(mappedFailedRows);
+
+        notificationMonitorCache = {
+          ...notificationMonitorCache,
+          today: nextToday,
+          kpis: mappedKpis,
+          byTemplate: templates,
+          notificationRows: mappedRows,
+          failedRows: mappedFailedRows,
+          error: "",
+          lastLoadedAt: Date.now(),
+        };
       } catch (e) {
         if (!active) return;
-        setError(String(e?.message || e));
+        const nextError = String(e?.message || e);
+        setError(nextError);
+
+        notificationMonitorCache = {
+          ...notificationMonitorCache,
+          error: nextError,
+          lastLoadedAt: 0,
+        };
       } finally {
         if (!active) return;
         setLoading(false);
       }
     }
 
-    loadNotificationMonitor();
+    loadNotificationMonitor({ force: false });
 
     return () => {
       active = false;
     };
   }, []);
+
+  async function syncNow() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch(buildApiUrl("/api/dashboard/notification-monitor"), {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(String(json?.error || `Request failed (${res.status})`));
+      }
+
+      const data = json?.data || {};
+      const todayStatus = data?.todayStatus || {};
+      const latest = Array.isArray(data?.latest) ? data.latest : [];
+      const templates = Array.isArray(data?.byTemplate) ? data.byTemplate : [];
+
+      const mappedKpis = mapTodayStatus(todayStatus);
+
+      const mappedRows = latest.map((row) => ({
+        created_at: safeStr(row?.created_at || row?.sent_at || ""),
+        client_id: safeStr(row?.related_id || ""),
+        email: safeStr(row?.recipient_email || ""),
+        template_name: normalizeTemplateName(row?.template_name || ""),
+        status: safeStr(row?.status || ""),
+        failure_reason: safeStr(row?.error_message || ""),
+        related_type: safeStr(row?.related_type || ""),
+        provider: safeStr(row?.provider || ""),
+        provider_message_id: safeStr(row?.provider_message_id || ""),
+        reference: safeStr(row?.reference || ""),
+      }));
+
+      const mappedFailedRows = mappedRows.filter((row) => String(row?.status || "").trim().toLowerCase() === "failed");
+      const nextToday = safeStr(data?.today || "LIVE");
+
+      setToday(nextToday);
+      setKpis(mappedKpis);
+      setByTemplate(templates);
+      setNotificationRows(mappedRows);
+      setFailedRows(mappedFailedRows);
+
+      notificationMonitorCache = {
+        ...notificationMonitorCache,
+        today: nextToday,
+        kpis: mappedKpis,
+        byTemplate: templates,
+        notificationRows: mappedRows,
+        failedRows: mappedFailedRows,
+        error: "",
+        lastLoadedAt: Date.now(),
+      };
+    } catch (e) {
+      const nextError = String(e?.message || e);
+      setError(nextError);
+
+      notificationMonitorCache = {
+        ...notificationMonitorCache,
+        error: nextError,
+        lastLoadedAt: 0,
+      };
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const isLive = !error;
 
@@ -502,6 +657,10 @@ export default function NotificationMonitoring() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <PremiumButton title="Refresh notification monitor" onClick={syncNow} disabled={loading}>
+            {loading ? "Syncing..." : "Sync now"}
+          </PremiumButton>
+
           <div
             style={{
               display: "flex",
