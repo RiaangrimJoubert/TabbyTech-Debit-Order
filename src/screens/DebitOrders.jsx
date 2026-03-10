@@ -1,6 +1,28 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request } from "../api";
 
+const DEBIT_ORDERS_CACHE_TTL_MS = 60 * 1000;
+
+let debitOrdersScreenCache = {
+  rows: [],
+  query: "",
+  statusFilter: "All",
+  selectedIds: [],
+  pageSize: 20,
+  page: 1,
+  errorText: "",
+  focusRowId: "",
+  lastLoadedAt: 0,
+};
+
+function hasFreshDebitOrdersCache() {
+  return (
+    Array.isArray(debitOrdersScreenCache.rows) &&
+    debitOrdersScreenCache.rows.length > 0 &&
+    Date.now() - Number(debitOrdersScreenCache.lastLoadedAt || 0) < DEBIT_ORDERS_CACHE_TTL_MS
+  );
+}
+
 const styles = {
   page: { height: "100%", display: "flex", flexDirection: "column", gap: 16 },
   headerRow: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 },
@@ -432,24 +454,57 @@ function RecordsDropdown({ value, onChange, disabled }) {
  * Passed by AppShell when opened from Clients.
  */
 export default function DebitOrders({ presetSearch = "", presetFocusClientId = "" }) {
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [query, setQuery] = useState(() => safeText(debitOrdersScreenCache.query));
+  const [statusFilter, setStatusFilter] = useState(() => safeText(debitOrdersScreenCache.statusFilter) || "All");
   const [hoverRow, setHoverRow] = useState(null);
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(() =>
+    Array.isArray(debitOrdersScreenCache.selectedIds) ? debitOrdersScreenCache.selectedIds : []
+  );
 
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState("");
+  const [rows, setRows] = useState(() =>
+    Array.isArray(debitOrdersScreenCache.rows) ? debitOrdersScreenCache.rows : []
+  );
+  const [loading, setLoading] = useState(() => !hasFreshDebitOrdersCache());
+  const [errorText, setErrorText] = useState(() => safeText(debitOrdersScreenCache.errorText));
 
-  const [pageSize, setPageSize] = useState(20);
-  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(() => {
+    const n = Number(debitOrdersScreenCache.pageSize || 20);
+    return Number.isFinite(n) && n > 0 ? n : 20;
+  });
+  const [page, setPage] = useState(() => {
+    const n = Number(debitOrdersScreenCache.page || 1);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  });
 
-  const [focusRowId, setFocusRowId] = useState("");
+  const [focusRowId, setFocusRowId] = useState(() => safeText(debitOrdersScreenCache.focusRowId));
   const rowRefs = useRef({});
 
-  async function load() {
+  useEffect(() => {
+    debitOrdersScreenCache = {
+      ...debitOrdersScreenCache,
+      rows,
+      query,
+      statusFilter,
+      selectedIds,
+      pageSize,
+      page,
+      errorText,
+      focusRowId,
+      lastLoadedAt: debitOrdersScreenCache.lastLoadedAt,
+    };
+  }, [rows, query, statusFilter, selectedIds, pageSize, page, errorText, focusRowId]);
+
+  async function load({ force = false } = {}) {
+    if (!force && hasFreshDebitOrdersCache()) {
+      setRows(Array.isArray(debitOrdersScreenCache.rows) ? debitOrdersScreenCache.rows : []);
+      setErrorText(safeText(debitOrdersScreenCache.errorText));
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setErrorText("");
+
     try {
       const json = await request("/api/debit-orders", { method: "GET" });
 
@@ -459,16 +514,38 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       }
 
       setRows(json.data);
+
+      debitOrdersScreenCache = {
+        ...debitOrdersScreenCache,
+        rows: json.data,
+        query,
+        statusFilter,
+        selectedIds,
+        pageSize,
+        page,
+        errorText: "",
+        focusRowId,
+        lastLoadedAt: Date.now(),
+      };
     } catch (e) {
       setRows([]);
-      setErrorText(safeText(e?.message || e));
+      const nextError = safeText(e?.message || e);
+      setErrorText(nextError);
+
+      debitOrdersScreenCache = {
+        ...debitOrdersScreenCache,
+        rows: [],
+        errorText: nextError,
+        lastLoadedAt: 0,
+      };
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    load({ force: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Apply preset search coming from Clients (client id)
@@ -487,7 +564,6 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       .filter((d) => {
         if (!q) return true;
 
-        // Search broadly so client id can hit multiple shapes
         const candidates = [
           d?.clientId,
           d?.zohoClientId,
@@ -692,7 +768,13 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                 );
               })}
 
-              <button style={styles.btn("primary", loading)} type="button" disabled={loading} onClick={load} title="Re-fetch latest data">
+              <button
+                style={styles.btn("primary", loading)}
+                type="button"
+                disabled={loading}
+                onClick={() => load({ force: true })}
+                title="Re-fetch latest data"
+              >
                 {loading ? "Syncing..." : "Sync now"}
               </button>
             </div>
