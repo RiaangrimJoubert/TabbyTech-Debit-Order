@@ -4,6 +4,27 @@ import * as XLSX from "xlsx";
 import { money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
 
+const INVOICES_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let invoicesScreenCache = {
+  invoices: [],
+  q: "",
+  status: "All",
+  selectedClientKey: "",
+  pageSize: 10,
+  page: 1,
+  loadErr: "",
+  lastLoadedAt: 0,
+};
+
+function hasFreshInvoicesCache() {
+  return (
+    Array.isArray(invoicesScreenCache.invoices) &&
+    invoicesScreenCache.invoices.length > 0 &&
+    Date.now() - Number(invoicesScreenCache.lastLoadedAt || 0) < INVOICES_CACHE_TTL_MS
+  );
+}
+
 function getApiBase() {
   const base = String(import.meta.env.VITE_API_BASE_URL || "").trim();
   return base.endsWith("/") ? base.slice(0, -1) : base;
@@ -197,36 +218,90 @@ function SvgEye({ size = 18 }) {
 }
 
 export default function Invoices() {
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("All");
-  const [selectedClientKey, setSelectedClientKey] = useState("");
-  const [pageSize, setPageSize] = useState(10);
-  const [page, setPage] = useState(1);
+  const [q, setQ] = useState(() => String(invoicesScreenCache.q || ""));
+  const [status, setStatus] = useState(() => String(invoicesScreenCache.status || "All"));
+  const [selectedClientKey, setSelectedClientKey] = useState(() => String(invoicesScreenCache.selectedClientKey || ""));
+  const [pageSize, setPageSize] = useState(() => {
+    const n = Number(invoicesScreenCache.pageSize || 10);
+    return Number.isFinite(n) && n > 0 ? n : 10;
+  });
+  const [page, setPage] = useState(() => {
+    const n = Number(invoicesScreenCache.page || 1);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  });
 
-  const [invoices, setInvoices] = useState([]);
-  const [loadErr, setLoadErr] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState(() =>
+    Array.isArray(invoicesScreenCache.invoices) ? invoicesScreenCache.invoices : []
+  );
+  const [loadErr, setLoadErr] = useState(() => String(invoicesScreenCache.loadErr || ""));
+  const [loading, setLoading] = useState(() => !hasFreshInvoicesCache());
+
+  useEffect(() => {
+    invoicesScreenCache = {
+      ...invoicesScreenCache,
+      invoices,
+      q,
+      status,
+      selectedClientKey,
+      pageSize,
+      page,
+      loadErr,
+      lastLoadedAt: invoicesScreenCache.lastLoadedAt,
+    };
+  }, [invoices, q, status, selectedClientKey, pageSize, page, loadErr]);
 
   useEffect(() => {
     let alive = true;
 
-    async function run() {
+    async function run({ force = false } = {}) {
+      if (!force && hasFreshInvoicesCache()) {
+        if (!alive) return;
+        setInvoices(Array.isArray(invoicesScreenCache.invoices) ? invoicesScreenCache.invoices : []);
+        setLoadErr(String(invoicesScreenCache.loadErr || ""));
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setLoadErr("");
+
       try {
         const items = await fetchInvoicesFromApi();
         if (!alive) return;
-        setInvoices(items || []);
+
+        const nextItems = items || [];
+        setInvoices(nextItems);
+
+        invoicesScreenCache = {
+          ...invoicesScreenCache,
+          invoices: nextItems,
+          q,
+          status,
+          selectedClientKey,
+          pageSize,
+          page,
+          loadErr: "",
+          lastLoadedAt: Date.now(),
+        };
       } catch (e) {
         if (!alive) return;
+
+        const nextErr = e?.message || "Failed to load invoices";
         setInvoices([]);
-        setLoadErr(e?.message || "Failed to load invoices");
+        setLoadErr(nextErr);
+
+        invoicesScreenCache = {
+          ...invoicesScreenCache,
+          invoices: [],
+          loadErr: nextErr,
+          lastLoadedAt: 0,
+        };
       } finally {
         if (alive) setLoading(false);
       }
     }
 
-    run();
+    run({ force: false });
 
     return () => {
       alive = false;
@@ -313,10 +388,16 @@ export default function Invoices() {
     return Math.max(1, Math.ceil(uniqueClientRows.length / Math.max(1, pageSize)));
   }, [uniqueClientRows.length, pageSize]);
 
+  const pageClamped = useMemo(() => {
+    if (page < 1) return 1;
+    if (page > totalPages) return totalPages;
+    return page;
+  }, [page, totalPages]);
+
   const pagedClientRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
+    const start = (pageClamped - 1) * pageSize;
     return uniqueClientRows.slice(start, start + pageSize);
-  }, [uniqueClientRows, page, pageSize]);
+  }, [uniqueClientRows, pageClamped, pageSize]);
 
   const selectedClientInvoices = useMemo(() => {
     if (!selectedClientKey) return [];
@@ -400,6 +481,42 @@ export default function Invoices() {
     }
   }
 
+  async function syncNow() {
+    setLoading(true);
+    setLoadErr("");
+
+    try {
+      const items = await fetchInvoicesFromApi();
+      const nextItems = items || [];
+      setInvoices(nextItems);
+
+      invoicesScreenCache = {
+        ...invoicesScreenCache,
+        invoices: nextItems,
+        q,
+        status,
+        selectedClientKey,
+        pageSize,
+        page,
+        loadErr: "",
+        lastLoadedAt: Date.now(),
+      };
+    } catch (e) {
+      const nextErr = e?.message || "Failed to load invoices";
+      setInvoices([]);
+      setLoadErr(nextErr);
+
+      invoicesScreenCache = {
+        ...invoicesScreenCache,
+        invoices: [],
+        loadErr: nextErr,
+        lastLoadedAt: 0,
+      };
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function exportFilteredToExcel() {
     const rows = filteredInvoices.map((inv) => {
       const totals = calcTotals(inv);
@@ -443,8 +560,8 @@ export default function Invoices() {
     XLSX.writeFile(wb, filename, { bookType: "xlsx", compression: true });
   }
 
-  const canPrev = page > 1;
-  const canNext = page < totalPages;
+  const canPrev = pageClamped > 1;
+  const canNext = pageClamped < totalPages;
 
   return (
     <div className="tt-page tt-invoices">
@@ -480,6 +597,16 @@ export default function Invoices() {
                   <option value="Overdue">Overdue</option>
                 </select>
               </div>
+
+              <button
+                type="button"
+                className="tt-btn tt-btn-primary"
+                onClick={syncNow}
+                disabled={loading}
+                aria-label="Sync invoices now"
+              >
+                {loading ? "Syncing..." : "Sync now"}
+              </button>
             </div>
 
             <button
@@ -596,7 +723,7 @@ export default function Invoices() {
 
             <div className="tt-pager-right">
               <div className="tt-pager-meta">
-                Page {page} of {totalPages}
+                Page {pageClamped} of {totalPages}
               </div>
 
               <button
