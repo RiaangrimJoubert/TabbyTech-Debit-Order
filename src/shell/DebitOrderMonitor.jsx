@@ -1,6 +1,18 @@
 // src/shell/DebitOrderMonitor.jsx
 import React, { useEffect, useMemo, useState } from "react";
 
+const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let debitOrderMonitorCache = {
+  data: null,
+  error: "",
+  lastLoadedAt: 0,
+};
+
+function hasFreshDebitOrderMonitorCache() {
+  return !!debitOrderMonitorCache.data && Date.now() - Number(debitOrderMonitorCache.lastLoadedAt || 0) < DEBIT_ORDER_MONITOR_CACHE_TTL_MS;
+}
+
 function cx(...arr) {
   return arr.filter(Boolean).join(" ");
 }
@@ -215,8 +227,6 @@ function DonutChart({ data }) {
     const endAngle = currentAngle + angle;
     currentAngle += angle;
 
-    // SVG arc cannot render a full 360 in one path.
-    // Split full circle into two 180 degree slices.
     if (angle >= 359.999) {
       const mid = startAngle + 180;
       const p1 = buildSlicePath(startAngle, mid);
@@ -248,12 +258,14 @@ function DonutChart({ data }) {
     </div>
   );
 }
-function PremiumButton({ children, onClick, title }) {
+
+function PremiumButton({ children, onClick, title, disabled = false }) {
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
+      disabled={disabled}
       style={{
         padding: "0.5rem 1rem",
         borderRadius: "0.75rem",
@@ -262,7 +274,8 @@ function PremiumButton({ children, onClick, title }) {
         fontSize: "0.75rem",
         fontWeight: 600,
         border: "none",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.65 : 1,
         boxShadow: "0 4px 14px rgba(139, 92, 246, 0.3)",
         whiteSpace: "nowrap",
       }}
@@ -279,7 +292,7 @@ function PremiumButton({ children, onClick, title }) {
  */
 function getApiBase() {
   const envBase = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
-  const winBase = String(window?.__TABBYTECH_API_BASE_URL || "").trim(); // optional future injection
+  const winBase = String(window?.__TABBYTECH_API_BASE_URL || "").trim();
   const hardDefault = "https://api.tabbytech.co.za";
 
   const base = (envBase || winBase || hardDefault).replace(/\/+$/, "");
@@ -297,7 +310,6 @@ async function fetchDebitOrderMonitor() {
 
   const ct = String(resp.headers.get("content-type") || "").toLowerCase();
 
-  // If we accidentally got HTML, show a useful error immediately
   if (!ct.includes("application/json")) {
     const preview = await resp.text().catch(() => "");
     const head = preview.slice(0, 220).replace(/\s+/g, " ").trim();
@@ -312,35 +324,100 @@ async function fetchDebitOrderMonitor() {
 }
 
 export default function DebitOrderMonitor() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(() => !hasFreshDebitOrderMonitorCache());
+  const [error, setError] = useState(() => safeStr(debitOrderMonitorCache.error));
+  const [data, setData] = useState(() => debitOrderMonitorCache.data || null);
+
+  useEffect(() => {
+    debitOrderMonitorCache = {
+      ...debitOrderMonitorCache,
+      data,
+      error,
+      lastLoadedAt: debitOrderMonitorCache.lastLoadedAt,
+    };
+  }, [data, error]);
 
   useEffect(() => {
     let alive = true;
 
-    async function load() {
+    async function load({ force = false } = {}) {
+      if (!force && hasFreshDebitOrderMonitorCache()) {
+        if (!alive) return;
+        setData(debitOrderMonitorCache.data || null);
+        setError(safeStr(debitOrderMonitorCache.error));
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
         const d = await fetchDebitOrderMonitor();
-        if (alive) setData(d);
+        if (!alive) return;
+
+        setData(d);
+
+        debitOrderMonitorCache = {
+          ...debitOrderMonitorCache,
+          data: d,
+          error: "",
+          lastLoadedAt: Date.now(),
+        };
       } catch (e) {
-        if (alive) setError(String(e?.message || e));
+        if (!alive) return;
+        const nextError = String(e?.message || e);
+        setError(nextError);
+
+        debitOrderMonitorCache = {
+          ...debitOrderMonitorCache,
+          error: nextError,
+          lastLoadedAt: 0,
+        };
       } finally {
-        if (alive) setLoading(false);
+        if (!alive) return;
+        setLoading(false);
       }
     }
 
-    load();
-    const t = setInterval(load, 30000);
+    load({ force: false });
+
+    const t = setInterval(() => {
+      load({ force: true });
+    }, 30000);
+
     return () => {
       alive = false;
       clearInterval(t);
     };
   }, []);
 
-  // Your API response is: { ok: true, data: { today, crm, lastCron } }
+  async function syncNow() {
+    try {
+      setLoading(true);
+      setError("");
+      const d = await fetchDebitOrderMonitor();
+      setData(d);
+
+      debitOrderMonitorCache = {
+        ...debitOrderMonitorCache,
+        data: d,
+        error: "",
+        lastLoadedAt: Date.now(),
+      };
+    } catch (e) {
+      const nextError = String(e?.message || e);
+      setError(nextError);
+
+      debitOrderMonitorCache = {
+        ...debitOrderMonitorCache,
+        error: nextError,
+        lastLoadedAt: 0,
+      };
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const api = data?.data || {};
   const today = api?.today || "";
 
@@ -368,7 +445,6 @@ export default function DebitOrderMonitor() {
     ];
   }, [lastCron]);
 
-  // No attempts are returned by your current API response, so keep empty for now
   const attempts = [];
 
   const successToday = Number(lastCron?.summary?.success || 0);
@@ -515,6 +591,10 @@ export default function DebitOrderMonitor() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <PremiumButton title="Refresh debit order monitor" onClick={syncNow} disabled={loading}>
+            {loading ? "Syncing..." : "Sync now"}
+          </PremiumButton>
+
           <div
             style={{
               display: "flex",
