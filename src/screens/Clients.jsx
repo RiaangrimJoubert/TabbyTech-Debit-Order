@@ -2,6 +2,29 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
+const CLIENTS_CACHE_TTL_MS = 60 * 1000;
+
+let clientsScreenCache = {
+  clients: [],
+  selectedId: "",
+  query: "",
+  statusFilter: "All",
+  perPage: 10,
+  page: 1,
+  zohoCrmStatus: "Loading",
+  syncError: "",
+  lastRequestUrl: "",
+  lastLoadedAt: 0,
+};
+
+function hasFreshClientsCache() {
+  return (
+    Array.isArray(clientsScreenCache.clients) &&
+    clientsScreenCache.clients.length > 0 &&
+    Date.now() - Number(clientsScreenCache.lastLoadedAt || 0) < CLIENTS_CACHE_TTL_MS
+  );
+}
+
 export default function Clients({ onOpenDebitOrders }) {
   // Keep seed only for manual add patterns and shape reference, but do not mount UI with it.
   useMemo(
@@ -42,8 +65,10 @@ export default function Clients({ onOpenDebitOrders }) {
   );
 
   // Live data only
-  const [clients, setClients] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
+  const [clients, setClients] = useState(() =>
+    Array.isArray(clientsScreenCache.clients) ? clientsScreenCache.clients : []
+  );
+  const [selectedId, setSelectedId] = useState(() => String(clientsScreenCache.selectedId || ""));
   const [hoverId, setHoverId] = useState("");
 
   const [toast, setToast] = useState("");
@@ -53,18 +78,24 @@ export default function Clients({ onOpenDebitOrders }) {
     showToast._t = window.setTimeout(() => setToast(""), 2200);
   }
 
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [query, setQuery] = useState(() => String(clientsScreenCache.query || ""));
+  const [statusFilter, setStatusFilter] = useState(() => String(clientsScreenCache.statusFilter || "All"));
 
-  const [zohoCrmStatus, setZohoCrmStatus] = useState("Loading");
+  const [zohoCrmStatus, setZohoCrmStatus] = useState(() => String(clientsScreenCache.zohoCrmStatus || "Loading"));
   const [syncing, setSyncing] = useState(false);
-  const [syncError, setSyncError] = useState("");
-  const [lastRequestUrl, setLastRequestUrl] = useState("");
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [syncError, setSyncError] = useState(() => String(clientsScreenCache.syncError || ""));
+  const [lastRequestUrl, setLastRequestUrl] = useState(() => String(clientsScreenCache.lastRequestUrl || ""));
+  const [initialLoading, setInitialLoading] = useState(() => !hasFreshClientsCache());
 
   // Records + paging (UI-only paging for now, still one fetch)
-  const [perPage, setPerPage] = useState(10);
-  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(() => {
+    const v = Number(clientsScreenCache.perPage || 10);
+    return Number.isFinite(v) && v > 0 ? v : 10;
+  });
+  const [page, setPage] = useState(() => {
+    const v = Number(clientsScreenCache.page || 1);
+    return Number.isFinite(v) && v > 0 ? v : 1;
+  });
 
   const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
 
@@ -106,14 +137,50 @@ export default function Clients({ onOpenDebitOrders }) {
     return filteredAll.slice(start, start + perPage);
   }, [filteredAll, page, perPage]);
 
-  async function syncFromZoho({ silent = false } = {}) {
+  useEffect(() => {
+    clientsScreenCache = {
+      ...clientsScreenCache,
+      clients,
+      selectedId,
+      query,
+      statusFilter,
+      perPage,
+      page,
+      zohoCrmStatus,
+      syncError,
+      lastRequestUrl,
+      lastLoadedAt: clientsScreenCache.lastLoadedAt,
+    };
+  }, [clients, selectedId, query, statusFilter, perPage, page, zohoCrmStatus, syncError, lastRequestUrl]);
+
+  async function syncFromZoho({ silent = false, force = false } = {}) {
+    if (!force && hasFreshClientsCache()) {
+      const cachedClients = Array.isArray(clientsScreenCache.clients) ? clientsScreenCache.clients : [];
+
+      setClients(cachedClients);
+      setLastRequestUrl(clientsScreenCache.lastRequestUrl || "");
+      setSyncError(clientsScreenCache.syncError || "");
+      setZohoCrmStatus(clientsScreenCache.zohoCrmStatus || "Connected");
+
+      const cachedSelectedStillExists = cachedClients.some((c) => c.id === clientsScreenCache.selectedId);
+      if (cachedSelectedStillExists) {
+        setSelectedId(clientsScreenCache.selectedId || "");
+      } else if (cachedClients[0]?.id) {
+        setSelectedId(cachedClients[0].id);
+      }
+
+      setInitialLoading(false);
+      return;
+    }
+
     try {
       setSyncError("");
       setSyncing(true);
       setZohoCrmStatus("Loading");
 
       const resp = await fetchZohoClients({ page: 1, perPage: 200 });
-      setLastRequestUrl(resp.requestUrl || "");
+      const nextRequestUrl = resp.requestUrl || "";
+      setLastRequestUrl(nextRequestUrl);
 
       if (!resp.ok) {
         const msg = resp?.raw?.error || resp?.raw?.message || "Zoho sync failed.";
@@ -122,29 +189,51 @@ export default function Clients({ onOpenDebitOrders }) {
 
       const zohoClients = Array.isArray(resp.clients) ? resp.clients : [];
 
-      setClients(() => {
-        const next = [...zohoClients];
+      let nextSelectedId = selectedId;
+      const stillExists = zohoClients.some((c) => c.id === nextSelectedId);
 
-        const stillExists = next.some((c) => c.id === selectedId);
-        if (!stillExists) {
-          const first = next[0]?.id || "";
-          setSelectedId(first);
-        }
+      if (!stillExists) {
+        nextSelectedId = zohoClients[0]?.id || "";
+      }
 
-        if (!selectedId && next[0]?.id) {
-          setSelectedId(next[0].id);
-        }
+      if (!nextSelectedId && zohoClients[0]?.id) {
+        nextSelectedId = zohoClients[0].id;
+      }
 
-        return next;
-      });
-
+      setClients(zohoClients);
+      setSelectedId(nextSelectedId);
       setZohoCrmStatus("Connected");
+
+      clientsScreenCache = {
+        ...clientsScreenCache,
+        clients: zohoClients,
+        selectedId: nextSelectedId,
+        query,
+        statusFilter,
+        perPage,
+        page,
+        zohoCrmStatus: "Connected",
+        syncError: "",
+        lastRequestUrl: nextRequestUrl,
+        lastLoadedAt: Date.now(),
+      };
+
       if (!silent) showToast(`Synced ${zohoClients.length} client(s) from Zoho.`);
     } catch (e) {
       const msg = e?.message || String(e);
-      const urlNote = lastRequestUrl ? ` Request: ${lastRequestUrl}` : "";
-      setSyncError(`${msg}${urlNote}`.trim());
+      const requestUrlForNote = lastRequestUrl || clientsScreenCache.lastRequestUrl || "";
+      const urlNote = requestUrlForNote ? ` Request: ${requestUrlForNote}` : "";
+      const nextError = `${msg}${urlNote}`.trim();
+
+      setSyncError(nextError);
       setZohoCrmStatus("Error");
+
+      clientsScreenCache = {
+        ...clientsScreenCache,
+        syncError: nextError,
+        zohoCrmStatus: "Error",
+      };
+
       if (!silent) showToast(`Sync failed: ${msg}`);
     } finally {
       setSyncing(false);
@@ -153,7 +242,7 @@ export default function Clients({ onOpenDebitOrders }) {
   }
 
   useEffect(() => {
-    syncFromZoho({ silent: true });
+    syncFromZoho({ silent: true, force: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -640,7 +729,6 @@ export default function Clients({ onOpenDebitOrders }) {
                 </p>
               </div>
 
-              {/* IMPORTANT: dropdown inline with purple buttons, placed LEFT of Back */}
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <RecordsDropdown
                   value={perPage}
@@ -659,7 +747,12 @@ export default function Clients({ onOpenDebitOrders }) {
                   Next
                 </button>
 
-                <button type="button" className="tt-btn tt-btnPrimary" onClick={() => syncFromZoho()} disabled={syncing}>
+                <button
+                  type="button"
+                  className="tt-btn tt-btnPrimary"
+                  onClick={() => syncFromZoho({ force: true })}
+                  disabled={syncing}
+                >
                   {syncing ? "Syncing..." : "Sync now"}
                 </button>
               </div>
