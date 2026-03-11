@@ -1,7 +1,5 @@
+import BatchesScreen from "../screens/Batches";
+
 export default function Batches() {
-  return (
-    <div className="tt-shell-placeholder">
-      Batches screen coming next
-    </div>
-  );
+  return <BatchesScreen />;
 }
