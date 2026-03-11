@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const styles = {
   page: { height: "100%", display: "flex", flexDirection: "column", gap: 16 },
@@ -135,6 +135,7 @@ const styles = {
       Validated: { bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.30)" },
       Warning: { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.32)" },
       Failed: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)" },
+      Linked: { bg: "rgba(59,130,246,0.14)", bd: "rgba(59,130,246,0.28)" },
     };
     const t = map[tone] || map.Ready;
     return {
@@ -176,37 +177,65 @@ const steps = [
   { key: "results", label: "Results" },
 ];
 
-const batchItems = [
+const baseBatchItems = [
   { id: "DO-90021", client: "Mkhize Holdings", amount: 3990, status: "Validated" },
   { id: "DO-90022", client: "Sable Properties", amount: 12500, status: "Warning" },
   { id: "DO-90023", client: "Aurora Wellness Group", amount: 1790, status: "Validated" },
   { id: "DO-90025", client: "TabbyTech Partners", amount: 2500, status: "Ready" },
 ];
 
-export default function Batches() {
+export default function Batches({ presetClientId = "", presetBatchId = "" }) {
   const [step, setStep] = useState("create");
+
+  useEffect(() => {
+    if (presetBatchId || presetClientId) {
+      setStep("review");
+    }
+  }, [presetBatchId, presetClientId]);
 
   const activeIndex = useMemo(() => steps.findIndex((s) => s.key === step), [step]);
 
-  const totals = useMemo(() => {
-    const total = batchItems.reduce((acc, x) => acc + x.amount, 0);
-    const warnings = batchItems.filter((x) => x.status === "Warning").length;
-    const validated = batchItems.filter((x) => x.status === "Validated").length;
-    const ready = batchItems.filter((x) => x.status === "Ready").length;
-    return { total, warnings, validated, ready, count: batchItems.length };
-  }, []);
+  const mockBatch = useMemo(() => {
+    const hasPreset = String(presetClientId || "").trim() || String(presetBatchId || "").trim();
 
-  const mockBatch = useMemo(
-    () => ({
-      id: "BT-20260208-0003",
+    return {
+      id: String(presetBatchId || "").trim() || "BT-20260208-0003",
       runDate: "2026-02-12T10:00:00.000Z",
       created: "2026-02-08T08:45:00.000Z",
       createdBy: "Admin",
       channel: "EFT / DebiCheck",
-      notes: "UI-only workflow. No submission occurs.",
-    }),
-    []
-  );
+      notes: hasPreset
+        ? "Opened from client context. Preset batch/client link is active."
+        : "UI-only workflow. No submission occurs.",
+      linkedClientId: String(presetClientId || "").trim(),
+      linkedBatchId: String(presetBatchId || "").trim(),
+    };
+  }, [presetBatchId, presetClientId]);
+
+  const batchItems = useMemo(() => {
+    if (!presetClientId && !presetBatchId) return baseBatchItems;
+
+    const linkedClientLabel = presetClientId || "Linked client";
+
+    return [
+      {
+        id: presetBatchId || "DO-LINKED-0001",
+        client: linkedClientLabel,
+        amount: 1,
+        status: "Linked",
+      },
+      ...baseBatchItems,
+    ];
+  }, [presetBatchId, presetClientId]);
+
+  const totals = useMemo(() => {
+    const total = batchItems.reduce((acc, x) => acc + Number(x.amount || 0), 0);
+    const warnings = batchItems.filter((x) => x.status === "Warning").length;
+    const validated = batchItems.filter((x) => x.status === "Validated").length;
+    const ready = batchItems.filter((x) => x.status === "Ready").length;
+    const linked = batchItems.filter((x) => x.status === "Linked").length;
+    return { total, warnings, validated, ready, linked, count: batchItems.length };
+  }, [batchItems]);
 
   function goNext() {
     const i = steps.findIndex((s) => s.key === step);
@@ -265,6 +294,25 @@ export default function Batches() {
         </div>
 
         <div style={styles.content}>
+          {(presetClientId || presetBatchId) && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                border: "1px solid rgba(168,85,247,0.30)",
+                background: "rgba(168,85,247,0.10)",
+              }}
+            >
+              <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.88)", marginBottom: 6 }}>
+                Opened from client context
+              </div>
+              <div style={styles.hint}>
+                {presetClientId ? `Client ID: ${presetClientId}` : "Client ID not supplied"}
+                {presetBatchId ? ` • Batch ID: ${presetBatchId}` : " • No existing batch id linked yet"}
+              </div>
+            </div>
+          )}
+
           <div style={styles.grid}>
             <div style={styles.card}>
               <p style={styles.cardTitle}>
@@ -326,7 +374,7 @@ export default function Batches() {
                       </thead>
                       <tbody>
                         {batchItems.map((x) => (
-                          <tr key={x.id}>
+                          <tr key={`${x.id}-${x.client}`}>
                             <td style={styles.td}>{x.id}</td>
                             <td style={styles.td}>{x.client}</td>
                             <td style={styles.td}>{currencyZar(x.amount)}</td>
@@ -469,6 +517,7 @@ export default function Batches() {
                     >
                       <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.84)", marginBottom: 8 }}>Result breakdown</div>
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        {totals.linked > 0 ? <span style={styles.badge("Linked")}>Linked {totals.linked}</span> : null}
                         <span style={styles.badge("Validated")}>Validated {totals.validated}</span>
                         <span style={styles.badge("Warning")}>Warnings {totals.warnings}</span>
                         <span style={styles.badge("Ready")}>Ready {totals.ready}</span>
@@ -491,6 +540,12 @@ export default function Batches() {
                   <div style={styles.v}>{totals.validated}</div>
                   <div style={styles.k}>Warnings</div>
                   <div style={styles.v}>{totals.warnings}</div>
+                  {(presetClientId || presetBatchId) && (
+                    <>
+                      <div style={styles.k}>Linked client</div>
+                      <div style={styles.v}>{presetClientId || "Not supplied"}</div>
+                    </>
+                  )}
                 </div>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "8px 0" }} />
