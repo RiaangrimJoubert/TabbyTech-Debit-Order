@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 function moneyZar(value) {
   const n = Number(value || 0);
@@ -31,6 +31,21 @@ function fmtDateTime(value) {
   });
 }
 
+function ymdToday() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function ymdMonthStart() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}-01`;
+}
+
 function clampPct(v) {
   const n = Number(v || 0);
   if (!Number.isFinite(n) || n < 0) return 0;
@@ -38,78 +53,15 @@ function clampPct(v) {
   return n;
 }
 
-const baseRows = [
-  {
-    debitOrderId: "DO-90021",
-    clientId: "6234246000009545001",
-    client: "Azsia Argento",
-    amount: 1,
-    status: "Successful",
-    retryDate: "",
-    reference: "TB250325-00021",
-    invoiceId: "INV-5156553000011",
-    paymentId: "PAY-5156553000091",
-    notification: "Sent",
-    failureReason: "",
-    updatedAt: "2026-03-09T23:04:00.000Z",
-  },
-  {
-    debitOrderId: "DO-90022",
-    clientId: "6234246000009545002",
-    client: "Rias Grimoire",
-    amount: 150,
-    status: "Retry Scheduled",
-    retryDate: "2026-04-01",
-    reference: "TB250325-00022",
-    invoiceId: "INV-5156553000012",
-    paymentId: "",
-    notification: "Sent",
-    failureReason: "Insufficient funds",
-    updatedAt: "2026-03-09T23:07:00.000Z",
-  },
-  {
-    debitOrderId: "DO-90023",
-    clientId: "6234246000009545003",
-    client: "Riaan Grim",
-    amount: 150,
-    status: "Failed",
-    retryDate: "",
-    reference: "TB250325-00023",
-    invoiceId: "INV-5156553000013",
-    paymentId: "",
-    notification: "Sent",
-    failureReason: "Authorisation declined",
-    updatedAt: "2026-03-09T23:09:00.000Z",
-  },
-  {
-    debitOrderId: "DO-90024",
-    clientId: "6234246000009545004",
-    client: "Mewtwo Joubert",
-    amount: 1,
-    status: "Successful",
-    retryDate: "",
-    reference: "TB250325-00024",
-    invoiceId: "INV-5156553000014",
-    paymentId: "PAY-5156553000092",
-    notification: "Sent",
-    failureReason: "",
-    updatedAt: "2026-03-09T23:10:00.000Z",
-  },
-  {
-    debitOrderId: "DO-90025",
-    clientId: "6234246000009545005",
-    client: "Maurice Moloisane",
-    amount: 150,
-    status: "Suspended",
-    retryDate: "",
-    reference: "TB250401-00025",
-    invoiceId: "INV-5156553000015",
-    paymentId: "",
-    notification: "Admin Alert Sent",
-    failureReason: "Retry failed on 1st",
-    updatedAt: "2026-03-09T23:12:00.000Z",
-  },
-];
+function metricIcon(kind) {
+  if (kind === "successful") return "✓";
+  if (kind === "failed") return "↺";
+  if (kind === "suspended") return "!";
+  if (kind === "status") return "◫";
+  if (kind === "value") return "R";
+  if (kind === "retry") return "↻";
+  return "•";
+}
 
 function statusTone(status) {
   if (status === "Successful") return "success";
@@ -120,99 +72,285 @@ function statusTone(status) {
   return "neutral";
 }
 
-function metricIcon(kind) {
-  if (kind === "successful") return "✓";
-  if (kind === "failed") return "↺";
-  if (kind === "suspended") return "!";
-  if (kind === "status") return "◫";
-  if (kind === "value") return "R";
-  return "•";
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function safeText(value) {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function csvEscape(value) {
+  const s = safeText(value);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+async function fetchBatchesLive({ startDate, endDate, presetClientId, presetBatchId }) {
+  const params = new URLSearchParams();
+
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  if (presetClientId) params.set("clientId", presetClientId);
+  if (presetBatchId) params.set("batchId", presetBatchId);
+
+  const requestUrl = `/api/dashboard/batches?${params.toString()}`;
+
+  const resp = await fetch(requestUrl, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  const rawText = await resp.text().catch(() => "");
+  let json = {};
+  try {
+    json = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    json = { raw: rawText };
+  }
+
+  if (!resp.ok) {
+    throw new Error(
+      json?.error || json?.message || `Batch request failed ${resp.status}`
+    );
+  }
+
+  return {
+    ok: true,
+    requestUrl,
+    raw: json,
+    batch: json?.data?.batch || null,
+    rows: safeArray(json?.data?.rows),
+  };
+}
+
+function RecordsDropdown({ value, onChange, disabled = false }) {
+  const [open, setOpen] = useState(false);
+
+  const options = [
+    { value: 10, label: "10 records" },
+    { value: 20, label: "20 records" },
+    { value: 50, label: "50 records" },
+    { value: 100, label: "100 records" },
+  ];
+
+  const active = options.find((o) => o.value === value) || options[0];
+
+  useEffect(() => {
+    function handleDown(event) {
+      const node = document.getElementById("tt-batches-records-wrap");
+      if (!node) return;
+      if (node.contains(event.target)) return;
+      setOpen(false);
+    }
+
+    window.addEventListener("mousedown", handleDown);
+    window.addEventListener("touchstart", handleDown);
+
+    return () => {
+      window.removeEventListener("mousedown", handleDown);
+      window.removeEventListener("touchstart", handleDown);
+    };
+  }, []);
+
+  return (
+    <div id="tt-batches-records-wrap" className="tt-ddWrap">
+      <span className="tt-ddLabel">Records</span>
+
+      <div className="tt-ddRel">
+        <button
+          type="button"
+          className={open ? "tt-ddBtn tt-ddBtnOpen" : "tt-ddBtn"}
+          onClick={() => {
+            if (disabled) return;
+            setOpen((v) => !v);
+          }}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span>{active.label}</span>
+          <span className="tt-ddCaret">▾</span>
+        </button>
+
+        {open ? (
+          <div className="tt-ddMenu" role="listbox" aria-label="Records per page">
+            {options.map((option, idx) => {
+              const isActive = option.value === value;
+
+              return (
+                <div
+                  key={option.value}
+                  role="option"
+                  aria-selected={isActive}
+                  className={isActive ? "tt-ddItem tt-ddItemActive" : "tt-ddItem"}
+                  style={{
+                    borderBottom:
+                      idx === options.length - 1
+                        ? "none"
+                        : "1px solid rgba(255,255,255,0.06)",
+                  }}
+                  tabIndex={0}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      onChange(option.value);
+                      setOpen(false);
+                    }
+                  }}
+                >
+                  <span>{option.label}</span>
+                  {isActive ? (
+                    <span className="tt-ddTick">✓</span>
+                  ) : (
+                    <span style={{ width: 18 }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 export default function Batches({ presetClientId = "", presetBatchId = "" }) {
-  const [resultFilter, setResultFilter] = useState("All");
   const [query, setQuery] = useState("");
+  const [resultFilter, setResultFilter] = useState("All");
+
+  const [startDate, setStartDate] = useState(ymdMonthStart());
+  const [endDate, setEndDate] = useState(ymdToday());
+
+  const [recordsPerPage, setRecordsPerPage] = useState(10);
+
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState("");
+  const [lastRequestUrl, setLastRequestUrl] = useState("");
+
+  const [liveBatch, setLiveBatch] = useState(null);
+  const [liveRows, setLiveRows] = useState([]);
 
   const batch = useMemo(() => {
-    const resolvedBatchId = String(presetBatchId || "").trim() || "BT-20260325-0003";
-    const resolvedClientId = String(presetClientId || "").trim();
+    const fallbackId = String(presetBatchId || "").trim() || "No batch loaded";
 
     return {
-      id: resolvedBatchId,
-      runDate: "2026-03-25T21:10:00.000Z",
-      chargeDate: "2026-03-25",
-      createdAt: "2026-03-25T20:55:00.000Z",
-      startedAt: "2026-03-25T21:10:00.000Z",
-      endedAt: "2026-03-25T21:16:00.000Z",
-      createdBy: "Admin",
-      batchType: resolvedBatchId.includes("0401") ? "Retry Batch - 1st" : "Primary Batch - 25th",
-      runStatus: "Completed with Exceptions",
-      channel: "Paystack / Debit Order Run",
-      linkedClientId: resolvedClientId,
-      notes: resolvedClientId
-        ? "Opened from client context. This view should help ops confirm whether the client was billed, retried, failed, or suspended."
-        : "Operational batch summary for debit order processing, collections, retries, failures, and suspension outcomes.",
+      id: safeText(liveBatch?.id || fallbackId),
+      runDate: safeText(liveBatch?.runDate || endDate),
+      chargeDate: safeText(liveBatch?.chargeDate || ""),
+      createdAt: safeText(liveBatch?.createdAt || ""),
+      startedAt: safeText(liveBatch?.startedAt || ""),
+      endedAt: safeText(liveBatch?.endedAt || ""),
+      createdBy: safeText(liveBatch?.createdBy || "System"),
+      batchType: safeText(liveBatch?.batchType || "Live Range View"),
+      runStatus: safeText(liveBatch?.runStatus || (error ? "Load Error" : "Awaiting live data")),
+      channel: safeText(liveBatch?.channel || "Live API"),
+      linkedClientId: safeText(presetClientId || liveBatch?.linkedClientId || ""),
+      notes: safeText(
+        liveBatch?.notes ||
+          "This view is now expecting live data from the backend batch endpoint."
+      ),
     };
-  }, [presetBatchId, presetClientId]);
+  }, [liveBatch, presetBatchId, presetClientId, endDate, error]);
 
-  const rows = useMemo(() => {
-    if (!presetClientId) return baseRows;
+  const loadLiveData = useCallback(
+    async ({ silent = false } = {}) => {
+      const from = String(startDate || "").trim();
+      const to = String(endDate || "").trim();
 
-    const found = baseRows.filter((row) => String(row.clientId) === String(presetClientId));
-    if (found.length > 0) return found;
+      if (!from || !to) {
+        setError("Start date and end date are required.");
+        return;
+      }
 
-    return [
-      {
-        debitOrderId: presetBatchId || "DO-LINKED-0001",
-        clientId: presetClientId,
-        client: presetClientId,
-        amount: 1,
-        status: "Processing",
-        retryDate: "",
-        reference: "TB-LINKED-0001",
-        invoiceId: "Pending",
-        paymentId: "",
-        notification: "Pending",
-        failureReason: "",
-        updatedAt: "2026-03-09T23:15:00.000Z",
-      },
-    ];
-  }, [presetClientId, presetBatchId]);
+      if (from > to) {
+        setError("Start date cannot be later than end date.");
+        return;
+      }
+
+      try {
+        if (!silent) setLoading(true);
+        setSyncing(true);
+        setError("");
+
+        const result = await fetchBatchesLive({
+          startDate: from,
+          endDate: to,
+          presetClientId,
+          presetBatchId,
+        });
+
+        setLastRequestUrl(result.requestUrl || "");
+        setLiveBatch(result.batch || null);
+        setLiveRows(safeArray(result.rows));
+      } catch (e) {
+        setError(String(e?.message || e));
+        setLiveBatch(null);
+        setLiveRows([]);
+      } finally {
+        setLoading(false);
+        setSyncing(false);
+      }
+    },
+    [startDate, endDate, presetClientId, presetBatchId]
+  );
 
   useEffect(() => {
-    if (presetClientId) {
-      setResultFilter("All");
-    }
-  }, [presetClientId]);
+    loadLiveData({ silent: false });
+  }, [loadLiveData]);
 
   const filteredRows = useMemo(() => {
     const q = String(query || "").trim().toLowerCase();
 
-    return rows.filter((row) => {
-      const statusMatch = resultFilter === "All" ? true : row.status === resultFilter;
+    const result = liveRows.filter((row) => {
+      const status = safeText(row?.status);
+      const statusMatch = resultFilter === "All" ? true : status === resultFilter;
+
       const searchMatch =
         !q ||
-        String(row.client || "").toLowerCase().includes(q) ||
-        String(row.clientId || "").toLowerCase().includes(q) ||
-        String(row.debitOrderId || "").toLowerCase().includes(q) ||
-        String(row.reference || "").toLowerCase().includes(q) ||
-        String(row.invoiceId || "").toLowerCase().includes(q);
+        safeText(row?.client).toLowerCase().includes(q) ||
+        safeText(row?.clientId).toLowerCase().includes(q) ||
+        safeText(row?.debitOrderId).toLowerCase().includes(q) ||
+        safeText(row?.reference).toLowerCase().includes(q) ||
+        safeText(row?.invoiceId).toLowerCase().includes(q);
 
       return statusMatch && searchMatch;
     });
-  }, [rows, resultFilter, query]);
+
+    return result.slice(0, recordsPerPage);
+  }, [liveRows, query, resultFilter, recordsPerPage]);
 
   const totals = useMemo(() => {
-    const totalExpected = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const successfulRows = rows.filter((row) => row.status === "Successful");
-    const failedRows = rows.filter((row) => row.status === "Failed");
-    const retryRows = rows.filter((row) => row.status === "Retry Scheduled");
-    const suspendedRows = rows.filter((row) => row.status === "Suspended");
+    const totalExpected = liveRows.reduce((sum, row) => sum + Number(row?.amount || 0), 0);
+    const successfulRows = liveRows.filter((row) => row?.status === "Successful");
+    const failedRows = liveRows.filter((row) => row?.status === "Failed");
+    const retryRows = liveRows.filter((row) => row?.status === "Retry Scheduled");
+    const suspendedRows = liveRows.filter((row) => row?.status === "Suspended");
 
-    const collected = successfulRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const failedValue = failedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const retryValue = retryRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const suspendedValue = suspendedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const collected = successfulRows.reduce((sum, row) => sum + Number(row?.amount || 0), 0);
+    const failedValue = failedRows.reduce((sum, row) => sum + Number(row?.amount || 0), 0);
+    const retryValue = retryRows.reduce((sum, row) => sum + Number(row?.amount || 0), 0);
+    const suspendedValue = suspendedRows.reduce((sum, row) => sum + Number(row?.amount || 0), 0);
 
     return {
       totalExpected,
@@ -224,25 +362,29 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
       failedCount: failedRows.length,
       retryCount: retryRows.length,
       suspendedCount: suspendedRows.length,
-      totalCount: rows.length,
-      collectionRate: totalExpected > 0 ? Math.round((collected / totalExpected) * 100) : 0,
+      totalCount: liveRows.length,
+      collectionRate:
+        totalExpected > 0 ? Math.round((collected / totalExpected) * 100) : 0,
     };
-  }, [rows]);
+  }, [liveRows]);
 
   const filterCounts = useMemo(() => {
     return {
-      All: rows.length,
-      Successful: rows.filter((row) => row.status === "Successful").length,
-      "Retry Scheduled": rows.filter((row) => row.status === "Retry Scheduled").length,
-      Failed: rows.filter((row) => row.status === "Failed").length,
-      Suspended: rows.filter((row) => row.status === "Suspended").length,
+      All: liveRows.length,
+      Successful: liveRows.filter((row) => row?.status === "Successful").length,
+      "Retry Scheduled": liveRows.filter((row) => row?.status === "Retry Scheduled").length,
+      Failed: liveRows.filter((row) => row?.status === "Failed").length,
+      Suspended: liveRows.filter((row) => row?.status === "Suspended").length,
     };
-  }, [rows]);
+  }, [liveRows]);
 
   const distribution = useMemo(() => {
     const total = Math.max(
       1,
-      totals.successfulCount + totals.retryCount + totals.failedCount + totals.suspendedCount
+      totals.successfulCount +
+        totals.retryCount +
+        totals.failedCount +
+        totals.suspendedCount
     );
 
     return {
@@ -252,6 +394,41 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
       suspended: Math.round((totals.suspendedCount / total) * 100),
     };
   }, [totals]);
+
+  function onExportBatch() {
+    if (!liveRows.length) return;
+
+    const header = [
+      "Client",
+      "Client ID",
+      "Debit Order ID",
+      "Amount",
+      "Status",
+      "Retry Date",
+      "Reference",
+      "Invoice ID",
+      "Notification",
+      "Failure Reason",
+      "Updated At",
+    ];
+
+    const body = liveRows.map((row) => [
+      safeText(row?.client),
+      safeText(row?.clientId),
+      safeText(row?.debitOrderId),
+      safeText(row?.amount),
+      safeText(row?.status),
+      safeText(row?.retryDate),
+      safeText(row?.reference),
+      safeText(row?.invoiceId),
+      safeText(row?.notification),
+      safeText(row?.failureReason),
+      safeText(row?.updatedAt),
+    ]);
+
+    const fileName = `tabbytech-batches-${startDate}-to-${endDate}.csv`;
+    downloadCsv(fileName, [header, ...body]);
+  }
 
   const screenCss = `
   .tt-batches {
@@ -267,10 +444,6 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
     --tt-muted: rgba(255,255,255,0.58);
     --tt-soft: rgba(255,255,255,0.72);
     --tt-white: rgba(255,255,255,0.92);
-    --tt-success: rgba(34,197,94,0.92);
-    --tt-warning: rgba(245,158,11,0.92);
-    --tt-danger: rgba(239,68,68,0.92);
-    --tt-info: rgba(59,130,246,0.92);
   }
 
   .tt-batchesWrap {
@@ -356,6 +529,219 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
     flex-direction: column;
     gap: 14px;
     min-height: 0;
+  }
+
+  .tt-toolbarTop {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .tt-filterGroup {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .tt-dateGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+  }
+
+  .tt-dateLabel {
+    font-size: 12px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.62);
+    letter-spacing: 0.2px;
+  }
+
+  .tt-dateInput {
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid rgba(124,58,237,0.55);
+    background: rgba(0,0,0,0.30);
+    color: rgba(255,255,255,0.92);
+    padding: 0 12px;
+    font-size: 13px;
+    outline: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .tt-dateInput:focus {
+    border-color: rgba(168,85,247,0.72);
+    box-shadow: 0 0 0 6px rgba(124,58,237,0.18);
+  }
+
+  .tt-controlsRight {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .tt-btn {
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.88);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+
+  .tt-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(255,255,255,0.14);
+  }
+
+  .tt-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .tt-btnPrimary {
+    background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
+    border-color: rgba(124,58,237,0.55);
+    box-shadow: 0 14px 34px rgba(124,58,237,0.28);
+    color: #fff;
+  }
+
+  .tt-btnPrimary:hover {
+    filter: brightness(1.06);
+  }
+
+  .tt-ddWrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .tt-ddLabel {
+    font-size: 12px;
+    color: rgba(255,255,255,0.62);
+    font-weight: 800;
+  }
+
+  .tt-ddRel {
+    position: relative;
+    display: inline-block;
+  }
+
+  .tt-ddBtn {
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(124,58,237,0.55);
+    background: rgba(0,0,0,0.30);
+    color: rgba(255,255,255,0.92);
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    min-width: 150px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .tt-ddBtnOpen {
+    background: rgba(168,85,247,0.16);
+    box-shadow: 0 14px 34px rgba(124,58,237,0.20);
+  }
+
+  .tt-ddCaret {
+    opacity: 0.95;
+  }
+
+  .tt-ddMenu {
+    position: absolute;
+    top: 46px;
+    left: 0;
+    min-width: 190px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(10,10,14,0.95);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+    z-index: 50;
+  }
+
+  .tt-ddItem {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: rgba(255,255,255,0.88);
+    background: transparent;
+  }
+
+  .tt-ddItemActive {
+    background: rgba(168,85,247,0.22);
+  }
+
+  .tt-ddTick {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(168,85,247,0.25);
+    border: 1px solid rgba(168,85,247,0.35);
+    font-weight: 900;
+  }
+
+  .tt-syncWrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.03);
+  }
+
+  .tt-syncMeta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tt-syncMetaTop {
+    font-size: 12px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.84);
+  }
+
+  .tt-syncMetaSub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.56);
   }
 
   .tt-infoBanner {
@@ -851,56 +1237,22 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
     border-color: rgba(168,85,247,0.30);
   }
 
-  .tt-btnRow {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  .tt-btn {
-    height: 40px;
-    padding: 0 14px;
-    border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(255,255,255,0.06);
-    color: rgba(255,255,255,0.88);
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    user-select: none;
-    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.2px;
-    white-space: nowrap;
-  }
-
-  .tt-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(0,0,0,0.28);
-    background: rgba(255,255,255,0.10);
-    border-color: rgba(255,255,255,0.14);
-  }
-
-  .tt-btnPrimary {
-    background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
-    border-color: rgba(124,58,237,0.55);
-    box-shadow: 0 14px 34px rgba(124,58,237,0.28);
-    color: #fff;
-  }
-
-  .tt-btnPrimary:hover {
-    filter: brightness(1.06);
-  }
-
   .tt-empty {
     padding: 20px;
     border-radius: 14px;
     border: 1px solid var(--tt-border);
     background: rgba(255,255,255,0.03);
     color: rgba(255,255,255,0.72);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .tt-error {
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(239,68,68,0.28);
+    background: rgba(239,68,68,0.10);
+    color: rgba(255,255,255,0.88);
     font-size: 13px;
     line-height: 1.5;
   }
@@ -937,6 +1289,16 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
     .tt-kv {
       grid-template-columns: 1fr;
     }
+
+    .tt-toolbarTop {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .tt-filterGroup,
+    .tt-controlsRight {
+      width: 100%;
+    }
   }
   `;
 
@@ -954,24 +1316,97 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
           </div>
         </div>
 
-        <div className="tt-glass" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div
+          className="tt-glass"
+          style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}
+        >
           <div className="tt-sectionHead">
             <div className="tt-sectionHeadLeft">
               <p className="tt-sectionTitle">Batch overview</p>
               <p className="tt-sectionMeta">
-                {batch.id} · {batch.batchType} · Charge date {batch.chargeDate} · {batch.runStatus}
+                {batch.id} · {batch.batchType} ·
+                {batch.chargeDate ? ` Charge date ${batch.chargeDate} ·` : ""}
+                {" "}
+                {batch.runStatus}
               </p>
-            </div>
-
-            <div className="tt-btnRow">
-              <button type="button" className="tt-btn tt-btnPrimary">
-                Export batch
-              </button>
             </div>
           </div>
 
           <div className="tt-sectionBody">
-            {(presetClientId || presetBatchId) && (
+            <div className="tt-toolbarTop">
+              <div className="tt-filterGroup">
+                <div className="tt-dateGroup">
+                  <label className="tt-dateLabel" htmlFor="tt-batches-start-date">
+                    Start date
+                  </label>
+                  <input
+                    id="tt-batches-start-date"
+                    className="tt-dateInput"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="tt-dateGroup">
+                  <label className="tt-dateLabel" htmlFor="tt-batches-end-date">
+                    End date
+                  </label>
+                  <input
+                    id="tt-batches-end-date"
+                    className="tt-dateInput"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="tt-btn tt-btnPrimary"
+                  onClick={() => loadLiveData({ silent: false })}
+                >
+                  Apply range
+                </button>
+
+                <button
+                  type="button"
+                  className="tt-btn tt-btnPrimary"
+                  onClick={onExportBatch}
+                  disabled={!liveRows.length}
+                >
+                  Export batch
+                </button>
+              </div>
+
+              <div className="tt-controlsRight">
+                <RecordsDropdown
+                  value={recordsPerPage}
+                  onChange={(n) => setRecordsPerPage(Number(n) || 10)}
+                  disabled={loading || syncing}
+                />
+
+                <div className="tt-syncWrap">
+                  <div className="tt-syncMeta">
+                    <div className="tt-syncMetaTop">{syncing ? "Syncing live data" : "Live batch sync"}</div>
+                    <div className="tt-syncMetaSub">
+                      {lastRequestUrl ? "Connected to live endpoint" : "Waiting for first successful response"}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="tt-btn tt-btnPrimary"
+                    onClick={() => loadLiveData({ silent: false })}
+                    disabled={syncing}
+                  >
+                    {syncing ? "Syncing..." : "Sync now"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {(presetClientId || presetBatchId) ? (
               <div className="tt-infoBanner">
                 <div className="tt-infoBannerTitle">Opened from client context</div>
                 <div className="tt-infoBannerText">
@@ -979,7 +1414,19 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
                   {presetBatchId ? ` • Batch ID: ${presetBatchId}` : " • No stored batch id found yet"}
                 </div>
               </div>
-            )}
+            ) : null}
+
+            {error ? (
+              <div className="tt-error">
+                <strong>Live batch data could not be loaded.</strong>
+                <div style={{ marginTop: 6 }}>{error}</div>
+                {lastRequestUrl ? (
+                  <div style={{ marginTop: 6, color: "rgba(255,255,255,0.68)" }}>
+                    Request: {lastRequestUrl}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="tt-topMetrics">
               <div className="tt-metric tt-metricGlow-purple">
@@ -1003,7 +1450,7 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
               <div className="tt-metric tt-metricGlow-warning">
                 <div className="tt-metricTop">
                   <p className="tt-metricLabel">Retry Scheduled</p>
-                  <span className="tt-metricIcon tt-metricIcon-warning">↻</span>
+                  <span className="tt-metricIcon tt-metricIcon-warning">{metricIcon("retry")}</span>
                 </div>
                 <p className="tt-metricValue">{moneyZar(totals.retryValue)}</p>
                 <p className="tt-metricSub">{totals.retryCount} moving to 1st</p>
@@ -1135,9 +1582,7 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
                               tabIndex={0}
                               onClick={() => setResultFilter(filter)}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  setResultFilter(filter);
-                                }
+                                if (e.key === "Enter" || e.key === " ") setResultFilter(filter);
                               }}
                             >
                               <span>{filter}</span>
@@ -1164,42 +1609,48 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
                         </thead>
                         <tbody>
                           {filteredRows.map((row) => (
-                            <tr key={`${row.debitOrderId}-${row.clientId}`}>
+                            <tr key={`${safeText(row?.debitOrderId)}-${safeText(row?.clientId)}`}>
                               <td className="tt-td">
                                 <div className="tt-rowMain">
-                                  <span className="tt-rowTitle">{row.client}</span>
+                                  <span className="tt-rowTitle">{safeText(row?.client)}</span>
                                   <span className="tt-rowSub">
-                                    {row.clientId} · {row.debitOrderId}
+                                    {safeText(row?.clientId)} · {safeText(row?.debitOrderId)}
                                   </span>
                                 </div>
                               </td>
 
-                              <td className="tt-td">{moneyZar(row.amount)}</td>
+                              <td className="tt-td">{moneyZar(row?.amount)}</td>
 
                               <td className="tt-td">
-                                <span className={`tt-pill tt-pill-${statusTone(row.status)}`}>
-                                  {row.status}
+                                <span className={`tt-pill tt-pill-${statusTone(row?.status)}`}>
+                                  {safeText(row?.status)}
                                 </span>
-                                {row.failureReason ? (
+                                {safeText(row?.failureReason) ? (
                                   <div className="tt-rowSub" style={{ marginTop: 6 }}>
-                                    {row.failureReason}
+                                    {safeText(row?.failureReason)}
                                   </div>
                                 ) : null}
                               </td>
 
-                              <td className="tt-td">{row.retryDate ? row.retryDate : "-"}</td>
-                              <td className="tt-td">{row.reference || "-"}</td>
-                              <td className="tt-td">{row.invoiceId || "-"}</td>
-                              <td className="tt-td">{row.notification || "-"}</td>
-                              <td className="tt-td">{fmtDateTime(row.updatedAt)}</td>
+                              <td className="tt-td">{safeText(row?.retryDate) || "-"}</td>
+                              <td className="tt-td">{safeText(row?.reference) || "-"}</td>
+                              <td className="tt-td">{safeText(row?.invoiceId) || "-"}</td>
+                              <td className="tt-td">{safeText(row?.notification) || "-"}</td>
+                              <td className="tt-td">{fmtDateTime(row?.updatedAt)}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
 
-                      {filteredRows.length === 0 ? (
+                      {!loading && !filteredRows.length ? (
                         <div className="tt-empty">
-                          No rows match your current search or filter. Change the filter or search again.
+                          No live batch rows match your search, filter, or selected date range.
+                        </div>
+                      ) : null}
+
+                      {loading ? (
+                        <div className="tt-empty">
+                          Loading live batch data for the selected date range.
                         </div>
                       ) : null}
                     </div>
@@ -1271,7 +1722,7 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
                       <div className="tt-v">{batch.runStatus}</div>
 
                       <div className="tt-k">Charge date</div>
-                      <div className="tt-v">{batch.chargeDate}</div>
+                      <div className="tt-v">{batch.chargeDate || "Not supplied"}</div>
 
                       <div className="tt-k">Created by</div>
                       <div className="tt-v">{batch.createdBy}</div>
@@ -1280,13 +1731,13 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
                       <div className="tt-v">{batch.channel}</div>
 
                       <div className="tt-k">Created at</div>
-                      <div className="tt-v">{fmtDateTime(batch.createdAt)}</div>
+                      <div className="tt-v">{batch.createdAt ? fmtDateTime(batch.createdAt) : "Not supplied"}</div>
 
                       <div className="tt-k">Started at</div>
-                      <div className="tt-v">{fmtDateTime(batch.startedAt)}</div>
+                      <div className="tt-v">{batch.startedAt ? fmtDateTime(batch.startedAt) : "Not supplied"}</div>
 
                       <div className="tt-k">Ended at</div>
-                      <div className="tt-v">{fmtDateTime(batch.endedAt)}</div>
+                      <div className="tt-v">{batch.endedAt ? fmtDateTime(batch.endedAt) : "Not supplied"}</div>
 
                       <div className="tt-k">Linked client</div>
                       <div className="tt-v">{batch.linkedClientId || "None"}</div>
@@ -1324,14 +1775,16 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
                       <div className="tt-actionCard">
                         <div className="tt-actionCardTitle">Notifications sent</div>
                         <div className="tt-actionCardValue">
-                          {rows.filter((row) => String(row.notification || "").toLowerCase().includes("sent")).length}
+                          {
+                            liveRows.filter((row) =>
+                              safeText(row?.notification).toLowerCase().includes("sent")
+                            ).length
+                          }
                         </div>
                       </div>
                     </div>
 
-                    <div className="tt-empty">
-                      {batch.notes}
-                    </div>
+                    <div className="tt-empty">{batch.notes}</div>
                   </div>
                 </div>
               </div>
@@ -1339,7 +1792,7 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div className="tt-sectionMeta">
-                Batch {batch.id} · Run date {fmtDate(batch.runDate)}
+                Batch {batch.id} · Range {startDate} to {endDate}
               </div>
               <div className="tt-sectionMeta">
                 Collected {moneyZar(totals.collected)} of {moneyZar(totals.totalExpected)}
