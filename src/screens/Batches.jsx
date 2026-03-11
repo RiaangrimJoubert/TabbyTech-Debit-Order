@@ -41,6 +41,10 @@ function safeNum(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function safeStr(v) {
+  return String(v == null ? "" : v).trim();
+}
+
 function moneyZar(v) {
   return safeNum(v).toLocaleString("en-ZA", {
     style: "currency",
@@ -101,8 +105,70 @@ function estimatePaystackFeeLocal(amount) {
   return percentFee + flatFee;
 }
 
-function mapBatchRow(raw, index) {
+function getApiBase() {
+  const v = safeStr(import.meta.env.VITE_API_BASE_URL);
+  return v || "";
+}
+
+async function fetchJson(path) {
+  const base = getApiBase();
+  const url = `${base}${path}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+
+  const json = await res.json().catch(() => ({}));
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.error || `Request failed ${res.status}`);
+  }
+
+  return json;
+}
+
+function buildDebitOrderLookup(payload) {
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  const map = new Map();
+
+  for (const row of rows) {
+    const id = safeStr(row?.id || row?.clientId);
+    if (!id) continue;
+
+    map.set(id, {
+      id,
+      name:
+        safeStr(row?.name) ||
+        safeStr(row?.clientName) ||
+        safeStr(row?.client) ||
+        "Unknown client",
+      amount: safeNum(row?.amount),
+      booksInvoiceId: safeStr(row?.booksInvoiceId),
+      status: safeStr(row?.status),
+      retryCount: safeNum(row?.retryCount),
+      failureReason: safeStr(row?.failureReason),
+      nextChargeDate: safeStr(row?.nextChargeDate),
+      updatedAt: safeStr(row?.updatedAt),
+    });
+  }
+
+  return map;
+}
+
+function mapBatchRow(raw, index, debitOrderLookup) {
   const row = raw || {};
+
+  const rowClientId =
+    safeStr(row.clientId) ||
+    safeStr(row.client_id) ||
+    safeStr(row.crm_debit_order_id) ||
+    safeStr(row.crm_record_id);
+
+  const linkedDebitOrder = rowClientId ? debitOrderLookup.get(rowClientId) : null;
 
   const amount =
     safeNum(row.amount) ||
@@ -110,6 +176,7 @@ function mapBatchRow(raw, index) {
     safeNum(row.Amount) ||
     safeNum(row.total_amount) ||
     safeNum(row.estimated_amount) ||
+    safeNum(linkedDebitOrder?.amount) ||
     0;
 
   const outcome = normalizeOutcome(
@@ -124,7 +191,7 @@ function mapBatchRow(raw, index) {
     row.retry_label ||
     row.retry ||
     row.retry_status ||
-    (String(row.charge_day || "") === "1" ? "1st retry" : "Primary");
+    (String(row.charge_day || row.chargeDay || "") === "1" ? "1st retry" : "Primary");
 
   return {
     id:
@@ -133,6 +200,7 @@ function mapBatchRow(raw, index) {
       row.rowId ||
       row.crm_debit_order_id ||
       row.client_id ||
+      row.clientId ||
       `row-${index + 1}`,
     client:
       row.client_name ||
@@ -140,12 +208,9 @@ function mapBatchRow(raw, index) {
       row.client ||
       row.crm_name ||
       row.customer_name ||
+      linkedDebitOrder?.name ||
       "Unknown client",
-    clientId:
-      row.client_id ||
-      row.crm_debit_order_id ||
-      row.crm_record_id ||
-      "",
+    clientId: rowClientId,
     amount,
     outcome,
     retry: retryValue,
@@ -158,6 +223,7 @@ function mapBatchRow(raw, index) {
       row.invoice ||
       row.books_invoice_id ||
       row.invoice_id ||
+      linkedDebitOrder?.booksInvoiceId ||
       "",
     notification:
       row.notification ||
@@ -169,7 +235,9 @@ function mapBatchRow(raw, index) {
       row.last_attempt_at ||
       row.attemptedAt ||
       row.charge_date ||
+      row.chargeDate ||
       row.created_at ||
+      linkedDebitOrder?.updatedAt ||
       "",
     raw: row,
   };
@@ -451,27 +519,19 @@ export default function Batches() {
         endDate,
       });
 
-      const apiBase = String(import.meta.env.VITE_API_BASE_URL || "").trim();
-      const url = apiBase
-        ? `${apiBase}/api/dashboard/batches?${qs.toString()}`
-        : `/api/dashboard/batches?${qs.toString()}`;
+      const [batchJson, debitOrdersJson] = await Promise.all([
+        fetchJson(`/api/dashboard/batches?${qs.toString()}`),
+        fetchJson(`/api/debit-orders`),
+      ]);
 
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-        },
-      });
+      const debitOrderLookup = buildDebitOrderLookup(debitOrdersJson);
 
-      const json = await res.json().catch(() => ({}));
+      const merged = {
+        ...batchJson,
+        __debitOrderLookup: debitOrderLookup,
+      };
 
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || `Request failed ${res.status}`);
-      }
-
-      setData(json);
+      setData(merged);
 
       batchesScreenCache = {
         ...batchesScreenCache,
@@ -480,7 +540,7 @@ export default function Batches() {
         perPage,
         query,
         outcomeFilter,
-        data: json,
+        data: merged,
         error: "",
         lastLoadedAt: Date.now(),
       };
@@ -522,9 +582,13 @@ export default function Batches() {
     return [];
   }, [data]);
 
+  const debitOrderLookup = useMemo(() => {
+    return data?.__debitOrderLookup instanceof Map ? data.__debitOrderLookup : new Map();
+  }, [data]);
+
   const rows = useMemo(() => {
-    return rawRows.map(mapBatchRow);
-  }, [rawRows]);
+    return rawRows.map((row, index) => mapBatchRow(row, index, debitOrderLookup));
+  }, [rawRows, debitOrderLookup]);
 
   const filteredRowsAll = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1841,7 +1905,7 @@ export default function Batches() {
                       <div className="ttb-runV">
                         {cards?.dateRange?.startDate
                           ? `${fmtDate(cards.dateRange.startDate)} to ${fmtDate(cards.dateRange.endDate)}`
-                          : "Not supplied"}
+                          : `${fmtDate(startDate)} to ${fmtDate(endDate)}`}
                       </div>
 
                       <div className="ttb-runK">Created by</div>
@@ -1887,7 +1951,7 @@ export default function Batches() {
                     </div>
 
                     <div className="ttb-empty" style={{ marginTop: 12 }}>
-                      This view is now expecting live data from the backend batch endpoint.
+                      This view is now using live batch attempts enriched with live debit order data.
                     </div>
                   </div>
                 </div>
