@@ -26,7 +26,6 @@ function hasFreshClientsCache() {
 }
 
 export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
-  // Keep seed only for manual add patterns and shape reference, but do not mount UI with it.
   useMemo(
     () => [
       {
@@ -64,7 +63,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     []
   );
 
-  // Live data only
   const [clients, setClients] = useState(() =>
     Array.isArray(clientsScreenCache.clients) ? clientsScreenCache.clients : []
   );
@@ -87,7 +85,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   const [lastRequestUrl, setLastRequestUrl] = useState(() => String(clientsScreenCache.lastRequestUrl || ""));
   const [initialLoading, setInitialLoading] = useState(() => !hasFreshClientsCache());
 
-  // Records + paging (UI-only paging for now, still one fetch)
   const [perPage, setPerPage] = useState(() => {
     const v = Number(clientsScreenCache.perPage || 10);
     return Number.isFinite(v) && v > 0 ? v : 10;
@@ -292,6 +289,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   function goPrev() {
     setPage((p) => Math.max(1, p - 1));
   }
+
   function goNext() {
     setPage((p) => Math.min(pageCount, p + 1));
   }
@@ -299,14 +297,12 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   function onViewDebitOrders() {
     if (!selected) return;
 
-    // You said client id is the correct key. Example: 6234246000009192082
     const clientId = String(selected?.id || "").trim();
     if (!clientId) {
       showToast("Client id not available.");
       return;
     }
 
-    // Switch module via AppShell, do not use react-router here.
     if (typeof onOpenDebitOrders === "function") {
       onOpenDebitOrders({ clientId });
       return;
@@ -338,7 +334,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     showToast("Open in Zoho can be wired once we confirm the CRM record URL format.");
   }
 
-  // Custom records dropdown to match your premium black menu and purple highlight
   function useOnClickOutside(ref, handler) {
     useEffect(() => {
       function onDown(e) {
@@ -404,7 +399,9 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                     role="option"
                     aria-selected={isActive}
                     className={isActive ? "tt-ddItem tt-ddItemActive" : "tt-ddItem"}
-                    style={{ borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)" }}
+                    style={{
+                      borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                    }}
                     onClick={() => select(o.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") select(o.value);
@@ -428,10 +425,8 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     width: 100%;
     height: 100%;
     color: rgba(255,255,255,0.92);
-    --tt-purple: rgba(124,58,237,0.95);
-    --tt-purple2: rgba(168,85,247,0.95);
-    --tt-black: rgba(0,0,0,0.55);
-    --tt-black2: rgba(0,0,0,0.35);
+    --tt-purple: rgba(124,58,237,0.98);
+    --tt-purple2: rgba(168,85,247,0.98);
   }
 
   .tt-clientsWrap { height: 100%; display: flex; flex-direction: column; gap: 16px; }
@@ -599,38 +594,62 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   .tt-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 10px 0; }
 
   .tt-btn {
-    height: 38px;
-    padding: 0 12px;
-    border-radius: 12px;
+    height: 30px;
+    padding: 0 14px;
+    border-radius: 10px;
     border: 1px solid rgba(255,255,255,0.12);
     background: rgba(255,255,255,0.06);
     color: rgba(255,255,255,0.88);
     display: inline-flex;
-    alignItems: center;
-    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     cursor: pointer;
     user-select: none;
-    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
-    font-size: 13px;
+    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease, filter 160ms ease;
+    font-size: 12px;
     font-weight: 800;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.15px;
     white-space: nowrap;
+    box-sizing: border-box;
   }
-  .tt-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.14); }
+  .tt-btn:hover { transform: translateY(-1px); }
   .tt-btn:active { transform: translateY(0px); }
-  .tt-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+  .tt-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
 
   .tt-btnPrimary {
     background: linear-gradient(135deg, var(--tt-purple2), var(--tt-purple));
-    border-color: rgba(124,58,237,0.55);
-    box-shadow: 0 14px 34px rgba(124,58,237,0.28);
+    border-color: rgba(168,85,247,0.55);
     color: #fff;
+    box-shadow: 0 0 18px rgba(168,85,247,0.20), 0 10px 24px rgba(124,58,237,0.24);
   }
-  .tt-btnPrimary:hover { filter: brightness(1.06); }
+  .tt-btnPrimary:hover {
+    filter: brightness(1.05);
+    box-shadow: 0 0 22px rgba(168,85,247,0.24), 0 12px 28px rgba(124,58,237,0.28);
+  }
+
+  .tt-btnSecondary {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.88);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .tt-btnSecondary:hover {
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(255,255,255,0.18);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+  }
 
   .tt-btnDanger {
-    background: rgba(239,68,68,0.14);
-    border-color: rgba(239,68,68,0.35);
+    background: rgba(239,68,68,0.10);
+    border-color: rgba(239,68,68,0.32);
+    color: rgba(255,255,255,0.92);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+  }
+  .tt-btnDanger:hover {
+    background: rgba(239,68,68,0.16);
+    border-color: rgba(239,68,68,0.40);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.24);
   }
 
   .tt-toastWrap { position: fixed; bottom: 24px; right: 24px; z-index: 90; }
@@ -646,16 +665,15 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     max-width: 420px;
   }
 
-  /* Records dropdown (matches the premium black menu and purple active row) */
   .tt-ddWrap { display: inline-flex; align-items: center; gap: 10px; }
   .tt-ddLabel { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 800; }
   .tt-ddRel { position: relative; display: inline-block; }
   .tt-ddBtn {
-    height: 34px;
+    height: 30px;
     padding: 0 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(168,85,247,0.55);
-    background: rgba(0,0,0,0.55);
+    border-radius: 10px;
+    border: 1px solid rgba(168,85,247,0.40);
+    background: rgba(0,0,0,0.42);
     color: rgba(255,255,255,0.92);
     display: inline-flex;
     align-items: center;
@@ -664,14 +682,15 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     cursor: pointer;
     font-size: 12px;
     font-weight: 900;
-    letter-spacing: 0.2px;
-    min-width: 140px;
+    letter-spacing: 0.15px;
+    min-width: 130px;
+    box-sizing: border-box;
   }
   .tt-ddBtnOpen { background: rgba(168,85,247,0.16); }
   .tt-ddCaret { opacity: 0.95; }
   .tt-ddMenu {
     position: absolute;
-    top: 40px;
+    top: 36px;
     left: 0;
     min-width: 190px;
     border-radius: 14px;
@@ -910,7 +929,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <button type="button" className="tt-btn" onClick={() => showToast("Edit stays UI-only for now.")} disabled={!selected}>
+                <button type="button" className="tt-btn tt-btnSecondary" onClick={() => showToast("Edit stays UI-only for now.")} disabled={!selected}>
                   Edit
                 </button>
                 <button type="button" className="tt-btn tt-btnDanger" onClick={() => showToast("Disable stays UI-only for now.")} disabled={!selected}>
@@ -1057,10 +1076,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   );
 }
 
-/* ---------------------------
-   Small UI bits
----------------------------- */
-
 function Dot() {
   return (
     <span
@@ -1086,10 +1101,6 @@ function IconSearch({ size = 16 }) {
   );
 }
 
-/* ---------------------------
-   Helpers
----------------------------- */
-
 function safeText(v) {
   if (v === null || v === undefined) return "";
   return String(v);
@@ -1098,11 +1109,11 @@ function safeText(v) {
 function downloadCsv(filename, rows) {
   const csvEscape = (v) => {
     const s = safeText(v);
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    if (/[",\n]/.test(s)) return \`"\${s.replace(/"/g, '""')}"\`;
     return s;
   };
 
-  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\\n");
   const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
 
