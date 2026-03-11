@@ -594,7 +594,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   .tt-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 10px 0; }
 
   .tt-btn {
-    height: 30px;
+    height: 32px;
     padding: 0 14px;
     border-radius: 10px;
     border: 1px solid rgba(255,255,255,0.12);
@@ -669,7 +669,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   .tt-ddLabel { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 800; }
   .tt-ddRel { position: relative; display: inline-block; }
   .tt-ddBtn {
-    height: 30px;
+    height: 32px;
     padding: 0 12px;
     border-radius: 10px;
     border: 1px solid rgba(168,85,247,0.40);
@@ -690,7 +690,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   .tt-ddCaret { opacity: 0.95; }
   .tt-ddMenu {
     position: absolute;
-    top: 36px;
+    top: 38px;
     left: 0;
     min-width: 190px;
     border-radius: 14px;
@@ -1109,11 +1109,11 @@ function safeText(v) {
 function downloadCsv(filename, rows) {
   const csvEscape = (v) => {
     const s = safeText(v);
-    if (/[",\n]/.test(s)) return \`"\${s.replace(/"/g, '""')}"\`;
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
 
-  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\\n");
+  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
   const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
 
