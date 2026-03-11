@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
-const CLIENTS_CACHE_TTL_MS = 60 * 1000;
+const CLIENTS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 let clientsScreenCache = {
   clients: [],
