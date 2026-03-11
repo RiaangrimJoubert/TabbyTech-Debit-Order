@@ -130,6 +130,7 @@ function mapBatchRow(raw, index) {
     id:
       row.id ||
       row.ROWID ||
+      row.rowId ||
       row.crm_debit_order_id ||
       row.client_id ||
       `row-${index + 1}`,
@@ -166,6 +167,7 @@ function mapBatchRow(raw, index) {
     updated:
       row.updated_at ||
       row.last_attempt_at ||
+      row.attemptedAt ||
       row.charge_date ||
       row.created_at ||
       "",
@@ -187,6 +189,166 @@ function useOnClickOutside(ref, handler) {
       window.removeEventListener("touchstart", onDown);
     };
   }, [ref, handler]);
+}
+
+function formatPickerMonth(date) {
+  return date.toLocaleDateString("en-ZA", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function toYmd(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseYmdLocal(value) {
+  if (!value) return null;
+  const s = String(value).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  const dt = new Date(y, mo, d);
+  if (
+    dt.getFullYear() !== y ||
+    dt.getMonth() !== mo ||
+    dt.getDate() !== d
+  ) {
+    return null;
+  }
+  return dt;
+}
+
+function PremiumDatePicker({ value, onChange, ariaLabel }) {
+  const wrapRef = useRef(null);
+  const parsedValue = parseYmdLocal(value) || new Date();
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(
+    () => new Date(parsedValue.getFullYear(), parsedValue.getMonth(), 1)
+  );
+
+  useEffect(() => {
+    const next = parseYmdLocal(value);
+    if (!next) return;
+    setViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
+  }, [value]);
+
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const selectedYmd = value || "";
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+
+  for (let i = 0; i < startWeekday; i += 1) {
+    cells.push({ type: "empty", key: `e-${i}` });
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dt = new Date(year, month, day);
+    const ymd = toYmd(dt);
+    cells.push({
+      type: "day",
+      key: ymd,
+      ymd,
+      label: day,
+      isSelected: ymd === selectedYmd,
+      isToday: ymd === todayYmdLocal(),
+    });
+  }
+
+  function selectDate(ymd) {
+    onChange(ymd);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={wrapRef} className="ttb-datePickerWrap">
+      <button
+        type="button"
+        className={open ? "ttb-dateInput ttb-dateInputOpen" : "ttb-dateInput"}
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((x) => !x)}
+      >
+        <span>{value || "Select date"}</span>
+        <span className="ttb-dateCaret">▾</span>
+      </button>
+
+      {open && (
+        <div className="ttb-datePopup" role="dialog" aria-label={ariaLabel}>
+          <div className="ttb-datePopupHead">
+            <button
+              type="button"
+              className="ttb-dateNavBtn"
+              onClick={() => setViewDate(new Date(year, month - 1, 1))}
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+
+            <div className="ttb-dateMonthLabel">{formatPickerMonth(viewDate)}</div>
+
+            <button
+              type="button"
+              className="ttb-dateNavBtn"
+              onClick={() => setViewDate(new Date(year, month + 1, 1))}
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="ttb-dateWeekdays">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="ttb-dateWeekday">
+                {d}
+              </div>
+            ))}
+          </div>
+
+          <div className="ttb-dateGrid">
+            {cells.map((cell) => {
+              if (cell.type === "empty") {
+                return <div key={cell.key} className="ttb-dateCell ttb-dateCellEmpty" />;
+              }
+
+              const cls = [
+                "ttb-dateCell",
+                "ttb-dateCellDay",
+                cell.isSelected ? "ttb-dateCellSelected" : "",
+                cell.isToday ? "ttb-dateCellToday" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+              return (
+                <button
+                  key={cell.key}
+                  type="button"
+                  className={cls}
+                  onClick={() => selectDate(cell.ymd)}
+                >
+                  {cell.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function RecordsDropdown({ value, onChange, disabled }) {
@@ -289,10 +451,17 @@ export default function Batches() {
         endDate,
       });
 
-      const res = await fetch(`/api/dashboard/batches?${qs.toString()}`, {
+      const apiBase = String(import.meta.env.VITE_API_BASE_URL || "").trim();
+      const url = apiBase
+        ? `${apiBase}/api/dashboard/batches?${qs.toString()}`
+        : `/api/dashboard/batches?${qs.toString()}`;
+
+      const res = await fetch(url, {
         method: "GET",
         headers: {
           Accept: "application/json",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
         },
       });
 
@@ -302,7 +471,7 @@ export default function Batches() {
         throw new Error(json?.error || `Request failed ${res.status}`);
       }
 
-      setData(json.data || null);
+      setData(json);
 
       batchesScreenCache = {
         ...batchesScreenCache,
@@ -311,7 +480,7 @@ export default function Batches() {
         perPage,
         query,
         outcomeFilter,
-        data: json.data || null,
+        data: json,
         error: "",
         lastLoadedAt: Date.now(),
       };
@@ -346,10 +515,16 @@ export default function Batches() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const rows = useMemo(() => {
-    const rawRows = Array.isArray(data?.attempts?.rows) ? data.attempts.rows : [];
-    return rawRows.map(mapBatchRow);
+  const rawRows = useMemo(() => {
+    if (Array.isArray(data?.rows)) return data.rows;
+    if (Array.isArray(data?.attempts?.rows)) return data.attempts.rows;
+    if (Array.isArray(data?.data?.attempts?.rows)) return data.data.attempts.rows;
+    return [];
   }, [data]);
+
+  const rows = useMemo(() => {
+    return rawRows.map(mapBatchRow);
+  }, [rawRows]);
 
   const filteredRowsAll = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -378,12 +553,18 @@ export default function Batches() {
     return filteredRowsAll.slice(0, perPage);
   }, [filteredRowsAll, perPage]);
 
+  const attemptsSummary = data?.attempts?.summary || data?.data?.attempts?.summary || {};
+
   const totalBatchValue = useMemo(() => {
     if (filteredRowsAll.length > 0) {
       return filteredRowsAll.reduce((sum, row) => sum + safeNum(row.amount), 0);
     }
-    return safeNum(data?.attempts?.summary?.totalAmountEstimate);
-  }, [filteredRowsAll, data]);
+    return safeNum(
+      attemptsSummary?.totalAmountEstimate ||
+      data?.totalAmountEstimate ||
+      data?.data?.totalAmountEstimate
+    );
+  }, [filteredRowsAll, attemptsSummary, data]);
 
   const successfulRows = useMemo(() => {
     return filteredRowsAll.filter((row) => row.outcome === "Successful");
@@ -436,8 +617,8 @@ export default function Batches() {
   const failedPct = distributionTotal ? (failedRows.length / distributionTotal) * 100 : 0;
   const suspendedPct = distributionTotal ? (suspendedRows.length / distributionTotal) * 100 : 0;
 
-  const latestRun = data?.latestRun || null;
-  const cards = data?.cards || {};
+  const latestRun = data?.latestRun || data?.data?.latestRun || null;
+  const cards = data?.cards || data?.data?.cards || {};
   const lastCronResult = cards?.lastCronResult || "N/A";
 
   const css = `
@@ -522,21 +703,167 @@ export default function Batches() {
     text-transform: none;
   }
 
+  .ttb-datePickerWrap {
+    position: relative;
+  }
+
   .ttb-dateInput {
     height: 40px;
-    min-width: 136px;
+    min-width: 160px;
     border-radius: 12px;
-    border: 1px solid rgba(168,85,247,0.55);
-    background: rgba(0,0,0,0.45);
-    color: rgba(255,255,255,0.92);
+    border: 1px solid rgba(168,85,247,0.65);
+    background:
+      linear-gradient(135deg, rgba(168,85,247,0.18), rgba(124,58,237,0.18)),
+      rgba(0,0,0,0.45);
+    color: rgba(255,255,255,0.96);
     padding: 0 12px;
     font-size: 13px;
     font-weight: 800;
     outline: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 10px 24px rgba(124,58,237,0.12);
+    cursor: pointer;
+    user-select: none;
   }
 
-  .ttb-dateInput:focus {
-    box-shadow: 0 0 0 6px rgba(124,58,237,0.18);
+  .ttb-dateInput:hover {
+    border-color: rgba(168,85,247,0.90);
+    box-shadow: 0 12px 28px rgba(124,58,237,0.22);
+    transform: translateY(-1px);
+  }
+
+  .ttb-dateInputOpen {
+    border-color: rgba(168,85,247,0.95);
+    box-shadow:
+      0 0 0 4px rgba(124,58,237,0.20),
+      0 16px 34px rgba(124,58,237,0.26);
+  }
+
+  .ttb-dateCaret {
+    opacity: 0.96;
+    font-size: 12px;
+  }
+
+  .ttb-datePopup {
+    position: absolute;
+    top: 46px;
+    right: 0;
+    width: 292px;
+    border-radius: 16px;
+    border: 1px solid rgba(168,85,247,0.38);
+    background:
+      linear-gradient(180deg, rgba(18,12,36,0.96) 0%, rgba(11,10,22,0.96) 100%);
+    box-shadow: 0 24px 56px rgba(0,0,0,0.46);
+    backdrop-filter: blur(16px);
+    padding: 12px;
+    z-index: 80;
+    animation: ttbDatePopIn 140ms ease-out;
+  }
+
+  @keyframes ttbDatePopIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .ttb-datePopupHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .ttb-dateMonthLabel {
+    font-size: 13px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.94);
+    letter-spacing: 0.15px;
+  }
+
+  .ttb-dateNavBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    border: 1px solid rgba(168,85,247,0.28);
+    background: rgba(124,58,237,0.16);
+    color: rgba(255,255,255,0.96);
+    font-size: 18px;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .ttb-dateNavBtn:hover {
+    background: rgba(168,85,247,0.26);
+    border-color: rgba(168,85,247,0.50);
+  }
+
+  .ttb-dateWeekdays,
+  .ttb-dateGrid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .ttb-dateWeekdays {
+    margin-bottom: 6px;
+  }
+
+  .ttb-dateWeekday {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.50);
+  }
+
+  .ttb-dateCell {
+    min-height: 34px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+  }
+
+  .ttb-dateCellEmpty {
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .ttb-dateCellDay {
+    color: rgba(255,255,255,0.90);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .ttb-dateCellDay:hover {
+    background: rgba(168,85,247,0.18);
+    border-color: rgba(168,85,247,0.26);
+  }
+
+  .ttb-dateCellToday {
+    border-color: rgba(168,85,247,0.42);
+    box-shadow: inset 0 0 0 1px rgba(168,85,247,0.12);
+  }
+
+  .ttb-dateCellSelected {
+    background: linear-gradient(135deg, var(--ttb-purple2), var(--ttb-purple));
+    border-color: rgba(168,85,247,0.80);
+    color: #fff;
+    box-shadow: 0 10px 22px rgba(124,58,237,0.28);
   }
 
   .ttb-btn {
@@ -1117,12 +1444,24 @@ export default function Batches() {
     .ttb-opsGrid {
       grid-template-columns: 1fr;
     }
+    .ttb-datePopup {
+      right: auto;
+      left: 0;
+    }
   }
 
   @media (max-width: 640px) {
     .ttb-cardGrid6,
     .ttb-miniGrid4 {
       grid-template-columns: 1fr;
+    }
+
+    .ttb-dateInput {
+      min-width: 140px;
+    }
+
+    .ttb-datePopup {
+      width: 280px;
     }
   }
   `;
@@ -1153,7 +1492,7 @@ export default function Batches() {
             <div>
               <p className="ttb-title">Batch overview</p>
               <p className="ttb-meta">
-                {latestRun?.run_id ? `Run ${latestRun.run_id}` : "No batch loaded"} · Live Range View ·{" "}
+                {latestRun?.runId || latestRun?.run_id ? `Run ${latestRun?.runId || latestRun?.run_id}` : "No batch loaded"} · Live Range View ·{" "}
                 {loading ? "Loading data" : error ? "API error" : "Awaiting live data"}
               </p>
             </div>
@@ -1161,21 +1500,19 @@ export default function Batches() {
             <div className="ttb-headerActions">
               <div className="ttb-fieldWrap">
                 <span className="ttb-label">Start date</span>
-                <input
-                  type="date"
-                  className="ttb-dateInput"
+                <PremiumDatePicker
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={setStartDate}
+                  ariaLabel="Start date"
                 />
               </div>
 
               <div className="ttb-fieldWrap">
                 <span className="ttb-label">End date</span>
-                <input
-                  type="date"
-                  className="ttb-dateInput"
+                <PremiumDatePicker
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={setEndDate}
+                  ariaLabel="End date"
                 />
               </div>
 
@@ -1492,7 +1829,7 @@ export default function Batches() {
                   <div className="ttb-panelBody">
                     <div className="ttb-runKv">
                       <div className="ttb-runK">Batch ID</div>
-                      <div className="ttb-runV">{latestRun?.run_id || "No batch loaded"}</div>
+                      <div className="ttb-runV">{latestRun?.runId || latestRun?.run_id || "No batch loaded"}</div>
 
                       <div className="ttb-runK">Run type</div>
                       <div className="ttb-runV">Live Range View</div>
@@ -1501,7 +1838,11 @@ export default function Batches() {
                       <div className="ttb-runV">{lastCronResult || "Awaiting live data"}</div>
 
                       <div className="ttb-runK">Charge date</div>
-                      <div className="ttb-runV">{cards?.dateRange?.startDate ? `${fmtDate(cards.dateRange.startDate)} to ${fmtDate(cards.dateRange.endDate)}` : "Not supplied"}</div>
+                      <div className="ttb-runV">
+                        {cards?.dateRange?.startDate
+                          ? `${fmtDate(cards.dateRange.startDate)} to ${fmtDate(cards.dateRange.endDate)}`
+                          : "Not supplied"}
+                      </div>
 
                       <div className="ttb-runK">Created by</div>
                       <div className="ttb-runV">System</div>
@@ -1555,8 +1896,8 @@ export default function Batches() {
 
             <div className="ttb-footerBar">
               <div>
-                {latestRun?.run_id
-                  ? `Run ${latestRun.run_id} · Range ${startDate} to ${endDate}`
+                {latestRun?.runId || latestRun?.run_id
+                  ? `Run ${latestRun?.runId || latestRun?.run_id} · Range ${startDate} to ${endDate}`
                   : `No batch loaded · Range ${startDate} to ${endDate}`}
               </div>
               <div>
