@@ -494,6 +494,7 @@ export default function Batches() {
   const [startDate, setStartDate] = useState(() => batchesScreenCache.startDate || startOfMonthYmdLocal());
   const [endDate, setEndDate] = useState(() => batchesScreenCache.endDate || todayYmdLocal());
   const [perPage, setPerPage] = useState(() => Number(batchesScreenCache.perPage || 10));
+  const [page, setPage] = useState(1);
   const [query, setQuery] = useState(() => String(batchesScreenCache.query || ""));
   const [outcomeFilter, setOutcomeFilter] = useState(() => String(batchesScreenCache.outcomeFilter || "All"));
   const [loading, setLoading] = useState(() => !hasFreshBatchesCache());
@@ -575,6 +576,10 @@ export default function Batches() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    setPage(1);
+  }, [query, outcomeFilter, perPage, startDate, endDate]);
+
   const rawRows = useMemo(() => {
     if (Array.isArray(data?.rows)) return data.rows;
     if (Array.isArray(data?.attempts?.rows)) return data.attempts.rows;
@@ -613,9 +618,12 @@ export default function Batches() {
     return Math.max(1, Math.ceil(filteredRowsAll.length / perPage));
   }, [filteredRowsAll.length, perPage]);
 
+  const currentPage = Math.min(page, pageCount);
+
   const pagedRows = useMemo(() => {
-    return filteredRowsAll.slice(0, perPage);
-  }, [filteredRowsAll, perPage]);
+    const startIndex = (currentPage - 1) * perPage;
+    return filteredRowsAll.slice(startIndex, startIndex + perPage);
+  }, [filteredRowsAll, perPage, currentPage]);
 
   const attemptsSummary = data?.attempts?.summary || data?.data?.attempts?.summary || {};
 
@@ -966,6 +974,37 @@ export default function Batches() {
     border-color: rgba(124,58,237,0.55);
     box-shadow: 0 14px 34px rgba(124,58,237,0.28);
     color: #fff;
+  }
+
+  .ttb-pageBtn {
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(124,58,237,0.55);
+    background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    min-width: 74px;
+    box-shadow: 0 12px 28px rgba(124,58,237,0.26);
+    transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+  }
+
+  .ttb-pageBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 32px rgba(124,58,237,0.32);
+  }
+
+  .ttb-pageBtn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 
   .ttb-content {
@@ -1835,6 +1874,24 @@ export default function Batches() {
                         disabled={false}
                         onChange={(n) => setPerPage(Number(n))}
                       />
+
+                      <button
+                        type="button"
+                        className="ttb-pageBtn"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage <= 1}
+                      >
+                        Back
+                      </button>
+
+                      <button
+                        type="button"
+                        className="ttb-pageBtn"
+                        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                        disabled={currentPage >= pageCount}
+                      >
+                        Next
+                      </button>
                     </div>
                   </div>
 
