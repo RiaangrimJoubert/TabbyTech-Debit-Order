@@ -7,7 +7,7 @@ import DebitOrderMonitor from "./DebitOrderMonitor";
 import NotificationMonitoring from "../screens/NotificationMonitoring";
 import Clients from "../screens/Clients";
 import DebitOrders from "../screens/DebitOrders";
-import Batches from "../screens/Batches";
+import Batches from "./Batches";
 import Invoices from "../screens/Invoices";
 import Reports from "./Reports";
 import Settings from "../screens/Settings";
@@ -30,6 +30,8 @@ export default function AppShell({ onLogout }) {
   // Presets for cross-module navigation
   const [debitOrdersPresetSearch, setDebitOrdersPresetSearch] = useState("");
   const [debitOrdersPresetFocusClientId, setDebitOrdersPresetFocusClientId] = useState("");
+  const [batchesPresetClientId, setBatchesPresetClientId] = useState("");
+  const [batchesPresetBatchId, setBatchesPresetBatchId] = useState("");
 
   const pageTitle = useMemo(() => TITLES[activeKey] || "Dashboard", [activeKey]);
 
@@ -40,6 +42,11 @@ export default function AppShell({ onLogout }) {
     if (key !== "debitorders") {
       setDebitOrdersPresetSearch("");
       setDebitOrdersPresetFocusClientId("");
+    }
+
+    if (key !== "batches") {
+      setBatchesPresetClientId("");
+      setBatchesPresetBatchId("");
     }
   }
 
@@ -54,6 +61,14 @@ export default function AppShell({ onLogout }) {
             setDebitOrdersPresetSearch(id);
             setDebitOrdersPresetFocusClientId(id);
             setActiveKey("debitorders");
+          }}
+          onOpenBatches={({ clientId, batchId }) => {
+            const nextClientId = String(clientId || "").trim();
+            const nextBatchId = String(batchId || "").trim();
+
+            setBatchesPresetClientId(nextClientId);
+            setBatchesPresetBatchId(nextBatchId);
+            setActiveKey("batches");
           }}
         />
       );
@@ -70,13 +85,26 @@ export default function AppShell({ onLogout }) {
 
     if (activeKey === "debitordermonitor") return <DebitOrderMonitor />;
     if (activeKey === "notificationmonitoring") return <NotificationMonitoring />;
-    if (activeKey === "batches") return <Batches />;
+    if (activeKey === "batches") {
+      return (
+        <Batches
+          presetClientId={batchesPresetClientId}
+          presetBatchId={batchesPresetBatchId}
+        />
+      );
+    }
     if (activeKey === "invoices") return <Invoices />;
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
 
     return <Dashboard />;
-  }, [activeKey, debitOrdersPresetSearch, debitOrdersPresetFocusClientId]);
+  }, [
+    activeKey,
+    debitOrdersPresetSearch,
+    debitOrdersPresetFocusClientId,
+    batchesPresetClientId,
+    batchesPresetBatchId,
+  ]);
 
   return (
     <div className="tt-appshell">
