@@ -25,7 +25,7 @@ function hasFreshClientsCache() {
   );
 }
 
-export default function Clients({ onOpenDebitOrders }) {
+export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   // Keep seed only for manual add patterns and shape reference, but do not mount UI with it.
   useMemo(
     () => [
@@ -316,7 +316,22 @@ export default function Clients({ onOpenDebitOrders }) {
   }
 
   function onViewBatches() {
-    showToast("Batches page navigation can be wired next.");
+    if (!selected) return;
+
+    const clientId = String(selected?.id || "").trim();
+    const batchId = String(selected?.debit?.debitRunBatchId || "").trim();
+
+    if (!clientId) {
+      showToast("Client id not available.");
+      return;
+    }
+
+    if (typeof onOpenBatches === "function") {
+      onOpenBatches({ clientId, batchId });
+      return;
+    }
+
+    showToast("Batches navigation not wired in AppShell yet.");
   }
 
   function onOpenZoho() {
@@ -591,7 +606,7 @@ export default function Clients({ onOpenDebitOrders }) {
     background: rgba(255,255,255,0.06);
     color: rgba(255,255,255,0.88);
     display: inline-flex;
-    align-items: center;
+    alignItems: center;
     gap: 10px;
     cursor: pointer;
     user-select: none;
