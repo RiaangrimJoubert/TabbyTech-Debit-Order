@@ -1,4 +1,3 @@
-// src/screens/Clients.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
@@ -23,6 +22,10 @@ function hasFreshClientsCache() {
     clientsScreenCache.clients.length > 0 &&
     Date.now() - Number(clientsScreenCache.lastLoadedAt || 0) < CLIENTS_CACHE_TTL_MS
   );
+}
+
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
@@ -94,6 +97,9 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     return Number.isFinite(v) && v > 0 ? v : 1;
   });
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState(null);
+
   const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
 
   const counts = useMemo(() => {
@@ -149,6 +155,15 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
       lastLoadedAt: clientsScreenCache.lastLoadedAt,
     };
   }, [clients, selectedId, query, statusFilter, perPage, page, zohoCrmStatus, syncError, lastRequestUrl]);
+
+  useEffect(() => {
+    if (!editOpen) return;
+    const bodyPrev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyPrev;
+    };
+  }, [editOpen]);
 
   async function syncFromZoho({ silent = false, force = false } = {}) {
     if (!force && hasFreshClientsCache()) {
@@ -331,7 +346,58 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   }
 
   function onOpenZoho() {
-    showToast("Open in Zoho can be wired once we confirm the CRM record URL format.");
+    if (!selected?.zohoClientId) {
+      showToast("Zoho CRM record id is not available for this client.");
+      return;
+    }
+
+    const url = `https://crm.zoho.com/crm/org0000000000/tab/Contacts/${encodeURIComponent(selected.zohoClientId)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function onOpenEdit() {
+    if (!selected) {
+      showToast("Select a client first.");
+      return;
+    }
+
+    setEditDraft(deepClone(selected));
+    setEditOpen(true);
+  }
+
+  function onCloseEdit() {
+    setEditOpen(false);
+    setEditDraft(null);
+  }
+
+  function updateDraft(path, value) {
+    setEditDraft((prev) => {
+      if (!prev) return prev;
+      const next = deepClone(prev);
+      const parts = path.split(".");
+      let cur = next;
+      for (let i = 0; i < parts.length - 1; i += 1) {
+        const key = parts[i];
+        if (!cur[key] || typeof cur[key] !== "object") cur[key] = {};
+        cur = cur[key];
+      }
+      cur[parts[parts.length - 1]] = value;
+      return next;
+    });
+  }
+
+  function onSaveEdit() {
+    if (!editDraft?.id) return;
+
+    const nextUpdated = {
+      ...editDraft,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setClients((prev) => prev.map((item) => (item.id === nextUpdated.id ? nextUpdated : item)));
+    setSelectedId(nextUpdated.id);
+    onCloseEdit();
+    showToast("Client details updated in UI.");
   }
 
   function useOnClickOutside(ref, handler) {
@@ -427,6 +493,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     color: rgba(255,255,255,0.92);
     --tt-purple: rgba(124,58,237,0.98);
     --tt-purple2: rgba(168,85,247,0.98);
+    --tt-purple3: rgba(99,36,206,0.98);
   }
 
   .tt-clientsWrap { height: 100%; display: flex; flex-direction: column; gap: 16px; }
@@ -574,16 +641,19 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   .tt-statValue { margin: 6px 0 0 0; font-size: 18px; font-weight: 900; color: rgba(255,255,255,0.90); letter-spacing: 0.2px; }
 
   .tt-section {
-    border-radius: 16px;
+    border-radius: 18px;
     border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(0,0,0,0.14);
-    padding: 12px;
+    background:
+      radial-gradient(circle at top right, rgba(124,58,237,0.08), transparent 26%),
+      rgba(0,0,0,0.16);
+    padding: 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
   }
   .tt-sectionTitle {
     margin: 0;
     font-size: 12px;
     font-weight: 900;
-    color: rgba(255,255,255,0.78);
+    color: rgba(255,255,255,0.82);
     letter-spacing: 0.2px;
     text-transform: uppercase;
   }
@@ -637,18 +707,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   .tt-btnSecondary:hover {
     background: rgba(255,255,255,0.10);
     border-color: rgba(255,255,255,0.18);
-    box-shadow: 0 10px 24px rgba(0,0,0,0.24);
-  }
-
-  .tt-btnDanger {
-    background: rgba(239,68,68,0.10);
-    border-color: rgba(239,68,68,0.32);
-    color: rgba(255,255,255,0.92);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
-  }
-  .tt-btnDanger:hover {
-    background: rgba(239,68,68,0.16);
-    border-color: rgba(239,68,68,0.40);
     box-shadow: 0 10px 24px rgba(0,0,0,0.24);
   }
 
@@ -727,10 +785,170 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     font-weight: 900;
   }
 
+  .tt-editOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2,4,10,0.58);
+    backdrop-filter: blur(4px);
+    z-index: 110;
+    animation: ttFadeIn 180ms ease;
+  }
+
+  .tt-editDrawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(620px, 100vw);
+    height: 100vh;
+    z-index: 111;
+    background:
+      radial-gradient(circle at top left, rgba(168,85,247,0.20), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(124,58,237,0.18), transparent 24%),
+      linear-gradient(180deg, rgba(12,10,30,0.98) 0%, rgba(7,8,20,0.98) 100%);
+    border-left: 1px solid rgba(168,85,247,0.24);
+    box-shadow: -24px 0 60px rgba(0,0,0,0.46);
+    display: flex;
+    flex-direction: column;
+    animation: ttSlideIn 220ms ease-out;
+  }
+
+  .tt-editHead {
+    padding: 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .tt-editTitle {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.96);
+    letter-spacing: 0.2px;
+  }
+
+  .tt-editSub {
+    margin: 6px 0 0 0;
+    font-size: 12px;
+    color: rgba(255,255,255,0.62);
+    line-height: 1.45;
+  }
+
+  .tt-editBody {
+    padding: 18px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .tt-editSection {
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    padding: 14px;
+  }
+
+  .tt-editSectionTitle {
+    margin: 0 0 12px 0;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.82);
+  }
+
+  .tt-formGrid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .tt-formField {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tt-formFieldFull {
+    grid-column: 1 / -1;
+  }
+
+  .tt-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.62);
+    font-weight: 800;
+  }
+
+  .tt-inputDark,
+  .tt-textareaDark,
+  .tt-selectDark {
+    width: 100%;
+    border-radius: 14px;
+    border: 1px solid rgba(168,85,247,0.18);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+      rgba(3,4,12,0.72);
+    color: rgba(255,255,255,0.94);
+    outline: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .tt-inputDark,
+  .tt-selectDark {
+    height: 42px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .tt-textareaDark {
+    min-height: 98px;
+    padding: 12px;
+    font-size: 13px;
+    resize: vertical;
+  }
+
+  .tt-inputDark:focus,
+  .tt-textareaDark:focus,
+  .tt-selectDark:focus {
+    border-color: rgba(168,85,247,0.48);
+    box-shadow:
+      0 0 0 5px rgba(124,58,237,0.16),
+      inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .tt-editFoot {
+    padding: 16px 18px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background: rgba(0,0,0,0.12);
+  }
+
+  @keyframes ttSlideIn {
+    from { transform: translateX(100%); opacity: 0.8; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes ttFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   @media (max-width: 1100px) {
     .tt-grid { grid-template-columns: 1fr; }
     .tt-kv { grid-template-columns: 1fr; }
     .tt-split { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 760px) {
+    .tt-formGrid2 { grid-template-columns: 1fr; }
+    .tt-editDrawer { width: 100vw; }
   }
   `;
 
@@ -929,11 +1147,8 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <button type="button" className="tt-btn tt-btnSecondary" onClick={() => showToast("Edit stays UI-only for now.")} disabled={!selected}>
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={onOpenEdit} disabled={!selected}>
                   Edit
-                </button>
-                <button type="button" className="tt-btn tt-btnDanger" onClick={() => showToast("Disable stays UI-only for now.")} disabled={!selected}>
-                  Disable
                 </button>
               </div>
             </div>
@@ -1004,7 +1219,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                         View batches
                       </button>
                       <button type="button" className="tt-btn tt-btnPrimary" onClick={onOpenZoho}>
-                        Open in Zoho
+                        Open in Zoho CRM
                       </button>
                     </div>
                   </div>
@@ -1065,6 +1280,224 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
             </div>
           </div>
         </div>
+
+        {editOpen && editDraft ? (
+          <>
+            <div className="tt-editOverlay" onClick={onCloseEdit} />
+            <div className="tt-editDrawer" role="dialog" aria-modal="true" aria-label="Edit client">
+              <div className="tt-editHead">
+                <div>
+                  <h2 className="tt-editTitle">Edit client</h2>
+                  <p className="tt-editSub">
+                    Premium edit view for filling in missing client data before go-live. This currently updates the UI state only.
+                  </p>
+                </div>
+
+                <button type="button" className="tt-btn tt-btnSecondary" onClick={onCloseEdit}>
+                  Close
+                </button>
+              </div>
+
+              <div className="tt-editBody">
+                <div className="tt-editSection">
+                  <p className="tt-editSectionTitle">Profile details</p>
+                  <div className="tt-formGrid2">
+                    <div className="tt-formField">
+                      <label className="tt-label">Client name</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.name || ""}
+                        onChange={(e) => updateDraft("name", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Owner</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.owner || ""}
+                        onChange={(e) => updateDraft("owner", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Primary email</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.primaryEmail || ""}
+                        onChange={(e) => updateDraft("primaryEmail", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Secondary email</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.secondaryEmail || ""}
+                        onChange={(e) => updateDraft("secondaryEmail", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Phone</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.phone || ""}
+                        onChange={(e) => updateDraft("phone", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Industry</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.industry || ""}
+                        onChange={(e) => updateDraft("industry", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Risk</label>
+                      <select
+                        className="tt-selectDark"
+                        value={editDraft.risk || ""}
+                        onChange={(e) => updateDraft("risk", e.target.value)}
+                      >
+                        <option value="">Select risk</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Client status</label>
+                      <select
+                        className="tt-selectDark"
+                        value={editDraft.status || ""}
+                        onChange={(e) => updateDraft("status", e.target.value)}
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Paused">Paused</option>
+                        <option value="Risk">Risk</option>
+                        <option value="New">New</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="tt-editSection">
+                  <p className="tt-editSectionTitle">Debit details</p>
+                  <div className="tt-formGrid2">
+                    <div className="tt-formField">
+                      <label className="tt-label">Billing cycle</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.debit?.billingCycle || ""}
+                        onChange={(e) => updateDraft("debit.billingCycle", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Debit status</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.debit?.debitStatus || ""}
+                        onChange={(e) => updateDraft("debit.debitStatus", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Next charge date</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.debit?.nextChargeDate || ""}
+                        onChange={(e) => updateDraft("debit.nextChargeDate", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Amount (ZAR)</label>
+                      <input
+                        className="tt-inputDark"
+                        type="number"
+                        value={editDraft.debit?.amountZar ?? ""}
+                        onChange={(e) => updateDraft("debit.amountZar", Number(e.target.value || 0))}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Books invoice id</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.debit?.booksInvoiceId || ""}
+                        onChange={(e) => updateDraft("debit.booksInvoiceId", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Retry count</label>
+                      <input
+                        className="tt-inputDark"
+                        type="number"
+                        value={editDraft.debit?.retryCount ?? 0}
+                        onChange={(e) => updateDraft("debit.retryCount", Number(e.target.value || 0))}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Paystack customer code</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.debit?.paystackCustomerCode || ""}
+                        onChange={(e) => updateDraft("debit.paystackCustomerCode", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField">
+                      <label className="tt-label">Paystack authorization code</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.debit?.paystackAuthorizationCode || ""}
+                        onChange={(e) => updateDraft("debit.paystackAuthorizationCode", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="tt-formField tt-formFieldFull">
+                      <label className="tt-label">Failure reason</label>
+                      <input
+                        className="tt-inputDark"
+                        value={editDraft.debit?.failureReason || ""}
+                        onChange={(e) => updateDraft("debit.failureReason", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="tt-editSection">
+                  <p className="tt-editSectionTitle">Notes</p>
+                  <div className="tt-formField">
+                    <label className="tt-label">Internal notes</label>
+                    <textarea
+                      className="tt-textareaDark"
+                      value={editDraft.notes || ""}
+                      onChange={(e) => updateDraft("notes", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="tt-editFoot">
+                <button type="button" className="tt-btn tt-btnSecondary" onClick={onCloseEdit}>
+                  Cancel
+                </button>
+                <button type="button" className="tt-btn tt-btnPrimary" onClick={onSaveEdit}>
+                  Save client
+                </button>
+              </div>
+            </div>
+          </>
+        ) : null}
 
         {toast ? (
           <div className="tt-toastWrap">
