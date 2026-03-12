@@ -1964,7 +1964,7 @@ export default function Dashboard({ onNavigate }) {
         <div>
           <h2 className="ttd-title">Collection Cycle Overview</h2>
           <p className="ttd-subtitle">
-            Premium debit order cycle dashboard for sign-ups, next collection windows, latest runs, exceptions, and finance visibility
+            Debit order cycle dashboard for sign-ups, next collection windows, latest runs, exceptions, and finance visibility
             {overallLoading ? " • syncing..." : ""}
             {overallError ? " • error" : ""}
             {subView ? ` • ${String(subView)}` : ""}
