@@ -88,25 +88,31 @@ export default function Settings() {
     }));
   }
 
-  function handleTest(key) {
+  function handleRefreshHealth() {
+    const now = new Date().toLocaleString();
+    const next = {};
+
+    for (const service of orderedServices) {
+      next[service.key] = {
+        ...service,
+        lastChecked: now,
+      };
+    }
+
+    setServices((prev) => ({
+      ...prev,
+      ...next,
+    }));
+
+    showToast("Health snapshot refreshed.");
+  }
+
+  function handleServiceRefresh(key) {
     patchService(key, {
       lastChecked: new Date().toLocaleString(),
       health: "Healthy",
     });
     showToast("Connection check recorded.");
-  }
-
-  function handleToggleStatus(key) {
-    const current = services[key];
-    const nextConnected = current.status !== "connected";
-
-    patchService(key, {
-      status: nextConnected ? "connected" : "not_connected",
-      health: nextConnected ? "Healthy" : "Not connected",
-      lastChecked: nextConnected ? new Date().toLocaleString() : "Not checked",
-    });
-
-    showToast(nextConnected ? `${current.name} marked connected.` : `${current.name} marked disconnected.`);
   }
 
   return (
@@ -127,17 +133,10 @@ export default function Settings() {
             <div className="tti-heroActions">
               <button
                 type="button"
-                className="tti-btn tti-btnGhost"
-                onClick={() => showToast("Health snapshot refreshed.")}
+                className="tti-btn tti-btnPrimary"
+                onClick={handleRefreshHealth}
               >
                 Refresh health
-              </button>
-              <button
-                type="button"
-                className="tti-btn tti-btnPrimary"
-                onClick={() => showToast("Integration view saved.")}
-              >
-                Save view
               </button>
             </div>
           </div>
@@ -181,7 +180,6 @@ export default function Settings() {
 
             <div className="tti-inlinePills">
               <StatusPill tone="good">Core stack</StatusPill>
-              <StatusPill tone="neutral">UI-first</StatusPill>
             </div>
           </div>
 
@@ -234,16 +232,9 @@ export default function Settings() {
                 <button
                   type="button"
                   className="tti-btn tti-btnGhost"
-                  onClick={() => handleTest(selected.key)}
+                  onClick={() => handleServiceRefresh(selected.key)}
                 >
-                  Test
-                </button>
-                <button
-                  type="button"
-                  className={selected.status === "connected" ? "tti-btn tti-btnGhost" : "tti-btn tti-btnPrimary"}
-                  onClick={() => handleToggleStatus(selected.key)}
-                >
-                  {selected.status === "connected" ? "Disconnect" : "Connect"}
+                  Refresh
                 </button>
               </div>
             </div>
@@ -467,7 +458,7 @@ const css = `
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 140ms ease, background 180ms ease, border-color 180ms ease;
+  transition: transform 140ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .tti-btn:hover {
@@ -478,8 +469,19 @@ const css = `
 
 .tti-btnPrimary {
   background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
-  border-color: rgba(168,85,247,0.35);
-  box-shadow: 0 14px 34px rgba(124,58,237,0.24);
+  border: 1px solid rgba(168,85,247,0.34);
+  color: #fff;
+  box-shadow:
+    0 14px 34px rgba(124,58,237,0.24),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+}
+
+.tti-btnPrimary:hover {
+  background: linear-gradient(135deg, rgba(186,104,255,0.98), rgba(139,92,246,0.98));
+  border-color: rgba(186,104,255,0.42);
+  box-shadow:
+    0 18px 38px rgba(124,58,237,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.14);
 }
 
 .tti-btnGhost {
