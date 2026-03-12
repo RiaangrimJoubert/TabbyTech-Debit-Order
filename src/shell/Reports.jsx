@@ -2022,7 +2022,7 @@ export default function Reports() {
         <div className="ttr-head">
           <h1>Reports</h1>
           <p>
-            Premium reporting view for debit order performance, settlement estimates, outcome mix,
+            Reporting view for debit order performance, settlement estimates, outcome mix,
             and attempt-level finance operations review.
           </p>
         </div>
