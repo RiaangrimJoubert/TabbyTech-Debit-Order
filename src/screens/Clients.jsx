@@ -345,15 +345,24 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     showToast("Batches navigation not wired in AppShell yet.");
   }
 
-  function onOpenZoho() {
-    if (!selected?.zohoClientId) {
-      showToast("Zoho CRM record id is not available for this client.");
-      return;
-    }
-
-    const url = `https://crm.zoho.com/crm/org0000000000/tab/Contacts/${encodeURIComponent(selected.zohoClientId)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+ function onOpenZoho() {
+  if (!selected) {
+    showToast("Select a client first.");
+    return;
   }
+
+  const recordId =
+    String(selected?.zohoClientId || "").trim() ||
+    String(selected?.id || "").trim();
+
+  if (!recordId) {
+    showToast("Zoho CRM record id is not available for this client.");
+    return;
+  }
+
+  const url = `https://one.zoho.com/zohoone/emarketingconcepts/home/cxapp/crm/org851960402/tab/CustomModule5/${encodeURIComponent(recordId)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 
   function onOpenEdit() {
     if (!selected) {
