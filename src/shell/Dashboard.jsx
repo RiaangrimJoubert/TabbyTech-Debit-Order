@@ -308,6 +308,25 @@ function normalizeDashboardBatchRow(raw, index) {
   };
 }
 
+function getNextCollectionCycleLabel() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+
+  if (day < 25) {
+    const next25 = new Date(year, month, 25);
+    return `Next cycle • ${next25.toLocaleDateString("en-ZA", { month: "short", day: "2-digit" })} run`;
+  }
+
+  const next1 = new Date(year, month + 1, 1);
+  return `Next cycle • ${next1.toLocaleDateString("en-ZA", { month: "short", day: "2-digit" })} run`;
+}
+
+function getCollectionScheduleText() {
+  return "Collections run on the 25th and 1st of each month";
+}
+
 // Icons
 const IconFileInvoice = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -833,11 +852,14 @@ export default function Dashboard({ onNavigate }) {
   else if (lastResult === "SUCCESS") cronStatus = "ok";
   else if (lastResult === "RUNNING") cronStatus = "running";
 
+  const nextCycleLabel = getNextCollectionCycleLabel();
+  const collectionScheduleText = getCollectionScheduleText();
+
   const cronJobs = [
     {
       id: 1,
-      name: "Daily Debit Order Runner",
-      schedule: "Daily 02:10",
+      name: "Debit order cycle runner",
+      schedule: "25th and 1st cycle schedule",
       status: cronStatus,
       lastRun: lastRun?.startedAt
         ? fmtWhen(lastRun.startedAt)
@@ -1940,14 +1962,15 @@ export default function Dashboard({ onNavigate }) {
 
       <header className="ttd-header">
         <div>
-          <h2 className="ttd-title">Dashboard Overview</h2>
+          <h2 className="ttd-title">Collection Cycle Overview</h2>
           <p className="ttd-subtitle">
-            Executive financial overview for collections, settlement, cron health, batches, and notifications
+            Premium debit order cycle dashboard for sign-ups, next collection windows, latest runs, exceptions, and finance visibility
             {overallLoading ? " • syncing..." : ""}
             {overallError ? " • error" : ""}
             {subView ? ` • ${String(subView)}` : ""}
             {metric ? ` • ${String(metric)}` : ""}
             {summaryData?.asOfDate ? ` • as of ${summaryData.asOfDate}` : ""}
+            {` • ${nextCycleLabel}`}
           </p>
         </div>
 
@@ -1955,7 +1978,7 @@ export default function Dashboard({ onNavigate }) {
           <div className="ttd-headerTools">
             <div className="ttd-livePill">
               <span className="ttd-liveDot" />
-              Live
+              Cycle view
             </div>
 
             <div className="ttd-headerDivider" />
@@ -1966,7 +1989,7 @@ export default function Dashboard({ onNavigate }) {
               </span>
               <input
                 type="text"
-                placeholder="Quick filter batches"
+                placeholder="Quick filter run history"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="ttd-headerFilterInput"
@@ -1978,15 +2001,15 @@ export default function Dashboard({ onNavigate }) {
 
       <div className="ttd-grid4">
         <MetricCard
-          title="Total Debit Order Value"
+          title="Cycle Pipeline Value"
           value={formatZAR(data.top.totalDebitOrderValue)}
-          subtext={`${safeNum(summaryCards.attemptedToday)} attempts in current live view`}
+          subtext={collectionScheduleText}
           trend={
             overallError
               ? "API Error"
               : overallLoading
               ? "Syncing"
-              : `${safeNum(data.top.successRate).toFixed(0)}% success rate`
+              : nextCycleLabel
           }
           trendUp={!overallError}
           icon={IconFileInvoice}
@@ -1994,30 +2017,30 @@ export default function Dashboard({ onNavigate }) {
         />
 
         <MetricCard
-          title="Total Collected"
+          title="Latest Successful Collections"
           value={formatZAR(data.top.totalCollected)}
-          subtext={`${safeNum(summaryCards.successfulToday)} successful charges today`}
-          trend={safeNum(summaryCards.successfulToday) > 0 ? "Collections active" : ""}
+          subtext={`${safeNum(summaryCards.successfulToday)} successful items in current summary window`}
+          trend={safeNum(summaryCards.successfulToday) > 0 ? "Latest run has successful collections" : "Awaiting next collection run"}
           trendUp={true}
           icon={IconCheckCircle}
           color="green"
         />
 
         <MetricCard
-          title="Money To Bank"
+          title="Projected Settlement"
           value={formatZAR2(data.top.estimatedMoneyToBank)}
-          subtext="Estimated net after fees"
-          trend={safeNum(data.top.estimatedMoneyToBank) > 0 ? "Settlement positive" : ""}
+          subtext="Estimated money to bank after fees"
+          trend={safeNum(data.top.estimatedMoneyToBank) > 0 ? "Settlement projection available" : "Projection updates after live collection runs"}
           trendUp={true}
           icon={IconWallet}
           color="blue"
         />
 
         <MetricCard
-          title="Paystack Fees"
+          title="Exceptions and Fees"
           value={formatZAR2(data.top.estimatedPaystackFees)}
-          subtext={`Failed today ${safeNum(summaryCards.failedToday)} • Retry ${safeNum(data.top.retryScheduled)}`}
-          trend={safeNum(summaryCards.failedToday) > 0 ? "Watch fee leakage" : ""}
+          subtext={`Failed ${safeNum(summaryCards.failedToday)} • Retry ${safeNum(data.top.retryScheduled)}`}
+          trend={safeNum(summaryCards.failedToday) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
           trendUp={false}
           icon={IconRedo}
           color="orange"
@@ -2029,8 +2052,8 @@ export default function Dashboard({ onNavigate }) {
           <div className="ttd-panel">
             <div className="ttd-panelHeader">
               <div>
-                <h3 className="ttd-panelTitle">Debit order performance</h3>
-                <p className="ttd-panelSub">Live executive view of successful, failed, and retry flow</p>
+                <h3 className="ttd-panelTitle">Recent cycle performance</h3>
+                <p className="ttd-panelSub">Use this to track the latest successful, failed, and retry movement across the selected cycle window</p>
               </div>
 
               <div className="ttd-rangeGroup">
@@ -2057,15 +2080,15 @@ export default function Dashboard({ onNavigate }) {
           <div className="ttd-panel">
             <div className="ttd-panelHeader">
               <div>
-                <h3 className="ttd-panelTitle">Retry distribution</h3>
-                <p className="ttd-panelSub">Operational view of retry timing pressure</p>
+                <h3 className="ttd-panelTitle">Retry pressure by cycle</h3>
+                <p className="ttd-panelSub">Operational view of retry timing around your 25th and 1st collection windows</p>
               </div>
             </div>
 
             <div className="ttd-donutLayout">
               <DonutChart
                 centerValue={safeNum(data.top.retryScheduled)}
-                centerLabel="Retry items"
+                centerLabel="Retry queue"
                 segments={retrySegments}
               />
 
@@ -2093,15 +2116,15 @@ export default function Dashboard({ onNavigate }) {
           <div className="ttd-panel">
             <div className="ttd-panelHeader">
               <div>
-                <h3 className="ttd-panelTitle">Operations snapshot</h3>
-                <p className="ttd-panelSub">Financial and operational pressure points from the live cron state</p>
+                <h3 className="ttd-panelTitle">Current cycle activity</h3>
+                <p className="ttd-panelSub">Snapshot of successful, failed, retry, and suspended activity inside the selected dashboard window</p>
               </div>
             </div>
 
             <div className="ttd-donutLayout">
               <DonutChart
                 centerValue={safeNum(summaryCards.attemptedToday)}
-                centerLabel="Attempts today"
+                centerLabel="Cycle items"
                 segments={operationalSegments}
               />
 
@@ -2127,8 +2150,8 @@ export default function Dashboard({ onNavigate }) {
           <div className="ttd-panel">
             <div className="ttd-panelHeader">
               <div>
-                <h3 className="ttd-panelTitle">Rates and pressure</h3>
-                <p className="ttd-panelSub">Fast finance summary for live decision making</p>
+                <h3 className="ttd-panelTitle">Cycle health and pressure</h3>
+                <p className="ttd-panelSub">Fast finance view for latest run health, exception pressure, and collection quality</p>
               </div>
             </div>
 
@@ -2139,7 +2162,7 @@ export default function Dashboard({ onNavigate }) {
                   Success rate
                 </div>
                 <div className="ttd-opValue">{safeNum(data.top.successRate).toFixed(0)}%</div>
-                <div className="ttd-opSub">Based on attempts processed today</div>
+                <div className="ttd-opSub">Based on the selected dashboard summary window</div>
               </div>
 
               <div className="ttd-opStat">
@@ -2148,7 +2171,7 @@ export default function Dashboard({ onNavigate }) {
                   Failure rate
                 </div>
                 <div className="ttd-opValue">{safeNum(data.top.failureRate).toFixed(0)}%</div>
-                <div className="ttd-opSub">Live failed attempt pressure</div>
+                <div className="ttd-opSub">Tracks failed collection pressure</div>
               </div>
 
               <div className="ttd-opStat">
@@ -2157,13 +2180,13 @@ export default function Dashboard({ onNavigate }) {
                   Retry rate
                 </div>
                 <div className="ttd-opValue">{safeNum(data.top.retryRate).toFixed(0)}%</div>
-                <div className="ttd-opSub">Estimated retry queue from failures</div>
+                <div className="ttd-opSub">Indicates follow-up load between collection windows</div>
               </div>
 
               <div className="ttd-opStat">
                 <div className="ttd-opLabel">
                   <span className="ttd-miniDot" style={{ background: "#60a5fa" }} />
-                  Last cron result
+                  Last run result
                 </div>
                 <div className="ttd-opValue">
                   {safeStr(lastRun?.runStatus || lastRun?.result || "N/A") || "N/A"}
@@ -2201,8 +2224,8 @@ export default function Dashboard({ onNavigate }) {
                   <IconClock />
                 </div>
                 <div>
-                  <h3 className="ttd-panelTitle">Cron job monitor</h3>
-                  <p className="ttd-panelSub">{cronError ? `API error: ${cronError}` : "Live from DataStore"}</p>
+                  <h3 className="ttd-panelTitle">Collection schedule monitor</h3>
+                  <p className="ttd-panelSub">{cronError ? `API error: ${cronError}` : "Tracks the 25th and 1st debit order cycle runner"}</p>
                 </div>
               </div>
             </div>
@@ -2299,8 +2322,8 @@ export default function Dashboard({ onNavigate }) {
                   <IconEnvelope />
                 </div>
                 <div>
-                  <h3 className="ttd-panelTitle">ZeptoMail tracker</h3>
-                  <p className="ttd-panelSub">UI-ready summary until live email wiring is complete</p>
+                  <h3 className="ttd-panelTitle">Notification tracker</h3>
+                  <p className="ttd-panelSub">UI-ready notification visibility for collection confirmations, failures, and retry follow-up</p>
                 </div>
               </div>
             </div>
@@ -2398,11 +2421,11 @@ export default function Dashboard({ onNavigate }) {
           <div className="ttd-panel">
             <div className="ttd-panelHeader">
               <div>
-                <h3 className="ttd-panelTitle">Today's workflow</h3>
-                <p className="ttd-panelSub">Quick actions for finance operations and daily control</p>
+                <h3 className="ttd-panelTitle">Collection workflow</h3>
+                <p className="ttd-panelSub">Daily finance control for sign-ups, validation, exceptions, and the next 25th or 1st run</p>
               </div>
               <select className="ttd-select" value={subView} readOnly>
-                <option>Subscription tracking</option>
+                <option>Cycle tracking</option>
               </select>
             </div>
 
@@ -2410,15 +2433,15 @@ export default function Dashboard({ onNavigate }) {
               <div className="ttd-workflowItem">
                 <div>
                   <div className="ttd-workflowTitle">Review exceptions</div>
-                  <div className="ttd-workflowSub">Prioritise failed deductions and finance follow ups</div>
+                  <div className="ttd-workflowSub">Prioritise failed deductions, retry cases, and finance follow-up before the next collection window</div>
                 </div>
                 <button className="ttd-btn ttd-btnGhost">Open</button>
               </div>
 
               <div className="ttd-workflowItem">
                 <div>
-                  <div className="ttd-workflowTitle">Prepare next batch</div>
-                  <div className="ttd-workflowSub">Validate and queue debit orders for the next run</div>
+                  <div className="ttd-workflowTitle">Prepare next collection run</div>
+                  <div className="ttd-workflowSub">Validate sign-ups and queue debit orders for the next 25th or 1st cycle</div>
                 </div>
                 <button className="ttd-btn ttd-btnPrimary">Start</button>
               </div>
@@ -2426,7 +2449,7 @@ export default function Dashboard({ onNavigate }) {
               <div className="ttd-workflowItem">
                 <div>
                   <div className="ttd-workflowTitle">Export bank files</div>
-                  <div className="ttd-workflowSub">Generate bank-ready exports from approved batches</div>
+                  <div className="ttd-workflowSub">Generate bank-ready exports for approved cycle batches</div>
                 </div>
                 <button className="ttd-btn ttd-btnGhost">Export</button>
               </div>
@@ -2439,10 +2462,10 @@ export default function Dashboard({ onNavigate }) {
               }}
             >
               <div className="ttd-workflowTitle" style={{ marginBottom: "6px" }}>
-                Subscription tracking
+                Cycle tracking
               </div>
               <div className="ttd-workflowSub">
-                This remains UI-first for now. Later we can sync it from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.
+                This dashboard is now framed around sign-ups through the month and debit collections on the 25th and 1st, while keeping future subscription sync options open.
               </div>
             </div>
           </div>
@@ -2452,8 +2475,8 @@ export default function Dashboard({ onNavigate }) {
           <div className="ttd-panel">
             <div className="ttd-panelHeader">
               <div>
-                <h3 className="ttd-panelTitle">Recent batches</h3>
-                <p className="ttd-panelSub">Fast access to the most recent debit order batch states</p>
+                <h3 className="ttd-panelTitle">Recent run history</h3>
+                <p className="ttd-panelSub">Fast access to the latest debit order cycle runs and batch states</p>
               </div>
               <select
                 value={selectedBatch}
@@ -2476,7 +2499,7 @@ export default function Dashboard({ onNavigate }) {
               <table className="ttd-table">
                 <thead>
                   <tr>
-                    <th className="ttd-th">Batch</th>
+                    <th className="ttd-th">Run</th>
                     <th className="ttd-th">Status</th>
                     <th className="ttd-th" style={{ textAlign: "right" }}>Items</th>
                     <th className="ttd-th" style={{ textAlign: "right" }}>Value</th>
@@ -2512,8 +2535,8 @@ export default function Dashboard({ onNavigate }) {
               </div>
               <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "10px" }}>
                 {canRouteToBatches
-                  ? "Export uses the currently displayed rows. View opens the Batches module for deeper inspection."
-                  : "Export uses the currently displayed rows. View needs the parent shell navigation hook."}
+                  ? "Export uses the currently displayed run rows. View opens the Batches module for deeper inspection."
+                  : "Export uses the currently displayed run rows. View needs the parent shell navigation hook."}
               </div>
 
               {selectedBatchRow ? (
