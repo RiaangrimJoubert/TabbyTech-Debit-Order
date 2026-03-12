@@ -652,7 +652,7 @@ export default function NotificationMonitoring() {
             Notification Monitoring
           </h2>
           <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>
-            Premium email operations view for ZeptoMail delivery, opens, failures, and template usage
+            Operation view for ZeptoMail delivery, opens, failures, and template usage
           </p>
         </div>
 
