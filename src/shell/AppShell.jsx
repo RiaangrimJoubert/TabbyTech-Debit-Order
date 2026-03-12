@@ -138,8 +138,8 @@ export default function AppShell({ onLogout }) {
             <div className="tt-shell-user" role="button" tabIndex={0} aria-label="User menu">
               <div className="tt-shell-avatar">T</div>
               <div>
-                <div className="tt-shell-username">TabbyTech</div>
-                <div className="tt-shell-userrole">Ops</div>
+                <div className="tt-shell-username">TabbyPay</div>
+                <div className="tt-shell-userrole">PurAgent</div>
               </div>
             </div>
           </div>
