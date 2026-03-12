@@ -12,6 +12,9 @@ const nav = [
   { key: "reports", label: "Reports", icon: "📈" },
 ];
 
+const SIDEBAR_LOGO_URL =
+  "https://raw.githubusercontent.com/RiaangrimJoubert/TabbyTech-Debit-Order/refs/heads/main/public/WP%20LOGO%20(1).png";
+
 function ClientsIcon({ size = 18 }) {
   return (
     <svg
@@ -49,19 +52,70 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
   return (
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
-        <div className="tt-sidebrand">
-          <div className="tt-sidebrand-mark" aria-hidden="true">
+        <div
+          className="tt-sidebrand"
+          style={{
+            alignItems: "center",
+            gap: "14px",
+            padding: "6px 2px 2px",
+          }}
+        >
+          <div
+            className="tt-sidebrand-mark"
+            aria-hidden="true"
+            style={{
+              width: "72px",
+              height: "72px",
+              minWidth: "72px",
+              borderRadius: "20px",
+              display: "grid",
+              placeItems: "center",
+              padding: "10px",
+              background:
+                "radial-gradient(circle at 30% 20%, rgba(168,85,247,0.30), rgba(124,58,237,0.14) 42%, rgba(15,23,42,0.94) 100%)",
+              border: "1px solid rgba(168,85,247,0.28)",
+              boxShadow:
+                "0 18px 40px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.06)",
+              overflow: "hidden",
+            }}
+          >
             <img
-              src="/tabbytech-logo.png"
+              src={SIDEBAR_LOGO_URL}
               alt="TabbyTech"
               className="tt-sidebrand-logo"
               draggable={false}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                filter: "drop-shadow(0 8px 18px rgba(0,0,0,0.28))",
+                transform: "scale(1.08)",
+              }}
             />
           </div>
 
-          <div className="tt-sidebrand-text">
-            <div className="tt-sidebrand-name">TabbyPay</div>
-            <div className="tt-sidebrand-sub">by TabbyTech</div>
+          <div className="tt-sidebrand-text" style={{ minWidth: 0 }}>
+            <div
+              className="tt-sidebrand-name"
+              style={{
+                fontSize: "22px",
+                fontWeight: 800,
+                lineHeight: 1.05,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              TabbyPay
+            </div>
+            <div
+              className="tt-sidebrand-sub"
+              style={{
+                marginTop: "4px",
+                fontSize: "13px",
+                opacity: 0.9,
+              }}
+            >
+              by TabbyTech
+            </div>
           </div>
         </div>
 
@@ -91,16 +145,6 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
         </nav>
 
         <div className="tt-sidespacer" />
-
-        <div className="tt-sidepanel">
-          <div className="tt-sidepanel-title">Tip</div>
-          <div className="tt-sidepanel-text">
-            Validate bank fields before creating a batch to avoid exceptions.
-          </div>
-          <button type="button" className="tt-sidepanel-btn">
-            View checklist
-          </button>
-        </div>
 
         <div className="tt-sidedivider" />
 
