@@ -7,7 +7,12 @@ const LS = {
   subView: "tabbytech.dashboard.subView",
   metric: "tabbytech.dashboard.metric",
   batch: "tabbytech.dashboard.batch",
+  summaryCache: "tabbytech.dashboard.summaryCache",
+  cronCache: "tabbytech.dashboard.cronCache",
 };
+
+const SUMMARY_CACHE_MS = 10 * 60 * 1000;
+const CRON_LIVE_REFRESH_MS = 30 * 1000;
 
 function useLocalStorageState(key, initialValue) {
   const [val, setVal] = useState(() => {
@@ -128,6 +133,93 @@ async function fetchJson(path) {
   return json;
 }
 
+function getCachedObject(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedObject(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
+function getSummaryCache(range) {
+  const cache = getCachedObject(LS.summaryCache);
+  if (!cache) return null;
+  if (cache.range !== range) return null;
+  if (!cache.ts || Date.now() - cache.ts > SUMMARY_CACHE_MS) return null;
+  return cache.data || null;
+}
+
+function setSummaryCache(range, data) {
+  setCachedObject(LS.summaryCache, {
+    range,
+    ts: Date.now(),
+    data,
+  });
+}
+
+function getCronCache() {
+  const cache = getCachedObject(LS.cronCache);
+  if (!cache) return null;
+  if (!cache.ts || Date.now() - cache.ts > CRON_LIVE_REFRESH_MS) return null;
+  return cache.data || null;
+}
+
+function setCronCache(data) {
+  setCachedObject(LS.cronCache, {
+    ts: Date.now(),
+    data,
+  });
+}
+
+function exportRowsToCsv(filename, rows) {
+  const safe = (value) => {
+    const s = String(value == null ? "" : value);
+    const mustQuote = /[",\n\r]/.test(s);
+    const escaped = s.replace(/"/g, '""');
+    return mustQuote ? `"${escaped}"` : escaped;
+  };
+
+  const columns = [
+    { key: "batch", label: "Batch" },
+    { key: "status", label: "Status" },
+    { key: "items", label: "Items" },
+    { key: "value", label: "Value" },
+    { key: "date", label: "Date" },
+  ];
+
+  const csv = [
+    columns.map((c) => safe(c.label)).join(","),
+    ...rows.map((row) =>
+      columns
+        .map((c) => {
+          if (c.key === "value") return safe(formatZAR(safeNum(row[c.key])));
+          return safe(row[c.key]);
+        })
+        .join(",")
+    ),
+  ].join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // Icons
 const IconFileInvoice = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -216,6 +308,13 @@ const IconArrowDown = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="12" y1="5" x2="12" y2="19" />
     <polyline points="19 12 12 19 5 12" />
+  </svg>
+);
+
+const IconSearch = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
   </svg>
 );
 
@@ -525,19 +624,24 @@ async function fetchDashboardSummary(range) {
   return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
 }
 
-export default function Dashboard() {
+function resolveRealMetric(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export default function Dashboard({ onNavigate }) {
   const [search, setSearch] = useLocalStorageState(LS.search, "");
   const [range, setRange] = useLocalStorageState(LS.range, "24h");
   const [subView] = useLocalStorageState(LS.subView, "monthly");
   const [metric] = useLocalStorageState(LS.metric, "revenue");
   const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "FEB-03-PM");
 
-  const [cronMetrics, setCronMetrics] = useState(null);
-  const [cronLoading, setCronLoading] = useState(true);
+  const [cronMetrics, setCronMetrics] = useState(() => getCronCache());
+  const [cronLoading, setCronLoading] = useState(() => !getCronCache());
   const [cronError, setCronError] = useState("");
 
-  const [dashboardSummary, setDashboardSummary] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [dashboardSummary, setDashboardSummary] = useState(() => getSummaryCache("24h"));
+  const [summaryLoading, setSummaryLoading] = useState(() => !getSummaryCache("24h"));
   const [summaryError, setSummaryError] = useState("");
 
   useEffect(() => {
@@ -545,9 +649,10 @@ export default function Dashboard() {
 
     async function loadCron() {
       try {
-        setCronLoading(true);
+        if (!getCronCache()) setCronLoading(true);
         setCronError("");
         const data = await fetchCronMetrics();
+        setCronCache(data);
         if (alive) setCronMetrics(data);
       } catch (e) {
         if (alive) setCronError(String(e?.message || e));
@@ -557,7 +662,7 @@ export default function Dashboard() {
     }
 
     loadCron();
-    const t = setInterval(loadCron, 30000);
+    const t = setInterval(loadCron, CRON_LIVE_REFRESH_MS);
 
     return () => {
       alive = false;
@@ -567,12 +672,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     let alive = true;
+    const cached = getSummaryCache(range);
+
+    if (cached) {
+      setDashboardSummary(cached);
+      setSummaryLoading(false);
+    }
 
     async function loadSummary() {
       try {
-        setSummaryLoading(true);
+        if (!cached) setSummaryLoading(true);
         setSummaryError("");
         const data = await fetchDashboardSummary(range);
+        setSummaryCache(range, data);
         if (alive) setDashboardSummary(data);
       } catch (e) {
         if (alive) setSummaryError(String(e?.message || e));
@@ -647,6 +759,30 @@ export default function Dashboard() {
     },
   ];
 
+  const realMonthlyMRR =
+    resolveRealMetric(summaryCards.monthlyMRR) ||
+    resolveRealMetric(summaryCards.mrr) ||
+    resolveRealMetric(summaryData.monthlyMRR) ||
+    resolveRealMetric(summaryData.mrr);
+
+  const realAnnualARR =
+    resolveRealMetric(summaryCards.annualARR) ||
+    resolveRealMetric(summaryCards.arr) ||
+    resolveRealMetric(summaryData.annualARR) ||
+    resolveRealMetric(summaryData.arr);
+
+  const monthlyActive =
+    resolveRealMetric(summaryCards.monthlyActive) ||
+    resolveRealMetric(summaryData.monthlyActive) ||
+    resolveRealMetric(summaryCards.activeMonthlySubscriptions) ||
+    0;
+
+  const annualActive =
+    resolveRealMetric(summaryCards.annualActive) ||
+    resolveRealMetric(summaryData.annualActive) ||
+    resolveRealMetric(summaryCards.activeAnnualSubscriptions) ||
+    0;
+
   const data = useMemo(() => {
     return {
       top: {
@@ -660,10 +796,10 @@ export default function Dashboard() {
         failureRate: safeNum(summaryCards.failureRate),
         retryRate: safeNum(summaryCards.retryRate),
       },
-      monthlyActive: 86,
-      annualActive: 19,
-      monthlyMRR: 129900,
-      annualARR: 228000,
+      monthlyActive,
+      annualActive,
+      monthlyMRR: realMonthlyMRR,
+      annualARR: realAnnualARR,
       recentBatches: summaryBatches,
       notifications: {
         confirmation: {
@@ -683,7 +819,7 @@ export default function Dashboard() {
         },
       },
     };
-  }, [summaryBatches, summaryCards, summaryNotifications]);
+  }, [summaryBatches, summaryCards, summaryNotifications, monthlyActive, annualActive, realMonthlyMRR, realAnnualARR]);
 
   const debitPerformanceData = useMemo(() => {
     return Array.isArray(summaryCharts?.debitPerformance) ? summaryCharts.debitPerformance : [];
@@ -710,7 +846,8 @@ export default function Dashboard() {
       (b) =>
         safeStr(b.batch).toLowerCase().includes(q) ||
         safeStr(b.status).toLowerCase().includes(q) ||
-        String(safeNum(b.items)).includes(q)
+        String(safeNum(b.items)).includes(q) ||
+        fmtDateShort(b.date).toLowerCase().includes(q)
     );
   }, [data.recentBatches, search]);
 
@@ -719,6 +856,10 @@ export default function Dashboard() {
     const found = filteredBatches.some((b) => b.batch === selectedBatch);
     if (!found) setSelectedBatch(filteredBatches[0].batch);
   }, [filteredBatches, selectedBatch, setSelectedBatch]);
+
+  const selectedBatchRow = useMemo(() => {
+    return filteredBatches.find((b) => b.batch === selectedBatch) || null;
+  }, [filteredBatches, selectedBatch]);
 
   const retrySegments = useMemo(() => {
     const total = retryDistributionData.reduce((sum, item) => sum + safeNum(item.value), 0) || 1;
@@ -767,6 +908,29 @@ export default function Dashboard() {
 
   const overallLoading = cronLoading || summaryLoading;
   const overallError = cronError || summaryError;
+
+  function handleExportVisibleBatches() {
+    const rows = filteredBatches.map((b) => ({
+      batch: safeStr(b.batch),
+      status: safeStr(b.status),
+      items: safeNum(b.items),
+      value: safeNum(b.value),
+      date: safeStr(b.date || ""),
+    }));
+
+    exportRowsToCsv(`tabbytech-batches-${range}-${Date.now()}.csv`, rows);
+  }
+
+  function handleViewBatch() {
+    if (typeof onNavigate === "function") {
+      onNavigate("batches", {
+        batch: selectedBatch,
+        source: "dashboard",
+      });
+    }
+  }
+
+  const canRouteToBatches = typeof onNavigate === "function";
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
@@ -823,8 +987,59 @@ export default function Dashboard() {
     .ttd-headerRight {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .ttd-headerTools {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(12, 16, 33, 0.64);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+      flex-wrap: wrap;
+    }
+
+    .ttd-headerFilter {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      color: #9ca3af;
+    }
+
+    .ttd-headerFilterIcon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #8b93a7;
+      flex: 0 0 auto;
+    }
+
+    .ttd-headerFilterInput {
+      width: 180px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #d1d5db;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .ttd-headerFilterInput::placeholder {
+      color: #6b7280;
+    }
+
+    .ttd-headerDivider {
+      width: 1px;
+      height: 22px;
+      background: rgba(255,255,255,0.08);
+      flex: 0 0 auto;
     }
 
     .ttd-searchWrap {
@@ -868,6 +1083,7 @@ export default function Dashboard() {
       color: #4ade80;
       font-size: 12px;
       font-weight: 700;
+      white-space: nowrap;
     }
 
     .ttd-liveDot {
@@ -1402,6 +1618,11 @@ export default function Dashboard() {
       transition: all 0.2s ease;
     }
 
+    .ttd-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
     .ttd-btnGhost {
       background: rgba(26,26,46,0.8);
       border: 1px solid rgba(139,92,246,0.20);
@@ -1469,6 +1690,25 @@ export default function Dashboard() {
       color: #6b7280;
     }
 
+    .ttd-bottomValueMuted {
+      color: #a1a1aa;
+      font-size: 20px;
+    }
+
+    .ttd-bottomStateNote {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, 0.08);
+      border: 1px solid rgba(249, 115, 22, 0.16);
+      color: #fb923c;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
     .ttd-barsWrap {
       min-height: 150px;
       height: 150px;
@@ -1517,6 +1757,40 @@ export default function Dashboard() {
       text-align: center;
     }
 
+    .ttd-batchSummaryBox {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(18,18,31,0.30);
+      border: 1px solid rgba(139,92,246,0.10);
+    }
+
+    .ttd-batchSummaryGrid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .ttd-batchSummaryItem {
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      padding: 10px 12px;
+    }
+
+    .ttd-batchSummaryLabel {
+      font-size: 11px;
+      color: rgba(255,255,255,0.52);
+      margin-bottom: 6px;
+    }
+
+    .ttd-batchSummaryValue {
+      font-size: 13px;
+      font-weight: 800;
+      color: white;
+    }
+
     @media (max-width: 1500px) {
       .ttd-grid4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1542,6 +1816,19 @@ export default function Dashboard() {
       .ttd-search {
         width: 100%;
       }
+      .ttd-headerTools {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .ttd-headerFilter {
+        flex: 1 1 auto;
+      }
+      .ttd-headerFilterInput {
+        width: 100%;
+      }
+      .ttd-batchSummaryGrid {
+        grid-template-columns: 1fr;
+      }
     }
   `;
 
@@ -1563,25 +1850,26 @@ export default function Dashboard() {
         </div>
 
         <div className="ttd-headerRight">
-          <div className="ttd-searchWrap">
-            <input
-              type="text"
-              placeholder="Search orders, batches..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="ttd-search"
-            />
-            <div className="ttd-searchIcon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+          <div className="ttd-headerTools">
+            <div className="ttd-livePill">
+              <span className="ttd-liveDot" />
+              Live
             </div>
-          </div>
 
-          <div className="ttd-livePill">
-            <span className="ttd-liveDot" />
-            Live
+            <div className="ttd-headerDivider" />
+
+            <div className="ttd-headerFilter">
+              <span className="ttd-headerFilterIcon">
+                <IconSearch />
+              </span>
+              <input
+                type="text"
+                placeholder="Quick filter batches"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="ttd-headerFilterInput"
+              />
+            </div>
           </div>
         </div>
       </header>
@@ -2113,33 +2401,47 @@ export default function Dashboard() {
               </table>
             </div>
 
-            <div
-              style={{
-                marginTop: "14px",
-                padding: "14px",
-                borderRadius: "14px",
-                background: "rgba(18,18,31,0.30)",
-                border: "1px solid rgba(139,92,246,0.10)",
-              }}
-            >
+            <div className="ttd-batchSummaryBox">
               <div style={{ fontSize: "12px", fontWeight: 800, color: "white", marginBottom: "4px" }}>
                 Selected: {selectedBatch || "None"}
               </div>
               <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "10px" }}>
-                UI-only actions for now. We can wire these to batch workflows later.
+                Export uses the currently displayed rows. View is shell-ready and needs the parent navigation hook.
               </div>
 
-              <input
-                type="text"
-                placeholder="Type to filter batches"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="ttd-input ttd-inputFull"
-              />
+              {selectedBatchRow ? (
+                <div className="ttd-batchSummaryGrid">
+                  <div className="ttd-batchSummaryItem">
+                    <div className="ttd-batchSummaryLabel">Status</div>
+                    <div className="ttd-batchSummaryValue">{safeStr(selectedBatchRow.status) || "N/A"}</div>
+                  </div>
+                  <div className="ttd-batchSummaryItem">
+                    <div className="ttd-batchSummaryLabel">Items</div>
+                    <div className="ttd-batchSummaryValue">{safeNum(selectedBatchRow.items)}</div>
+                  </div>
+                  <div className="ttd-batchSummaryItem">
+                    <div className="ttd-batchSummaryLabel">Value</div>
+                    <div className="ttd-batchSummaryValue">{formatZAR(selectedBatchRow.value)}</div>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="ttd-actionsRow">
-                <button className="ttd-btn ttd-btnGhost">View</button>
-                <button className="ttd-btn ttd-btnPrimary">Export</button>
+                <button
+                  className="ttd-btn ttd-btnGhost"
+                  onClick={handleViewBatch}
+                  disabled={!selectedBatch || !canRouteToBatches}
+                  title={canRouteToBatches ? "Open Batches module" : "Needs shell navigation hook"}
+                >
+                  View
+                </button>
+                <button
+                  className="ttd-btn ttd-btnPrimary"
+                  onClick={handleExportVisibleBatches}
+                  disabled={!filteredBatches.length}
+                >
+                  Export
+                </button>
               </div>
             </div>
           </div>
@@ -2150,22 +2452,30 @@ export default function Dashboard() {
         <Card className="ttd-card">
           <div className="ttd-panel">
             <div className="ttd-bottomLabel">Monthly MRR</div>
-            <div className="ttd-bottomValue">{formatZAR(data.monthlyMRR)}</div>
-            <div className="ttd-bottomSub">
-              Active {data.monthlyActive} • Retry pressure {safeNum(data.top.retryScheduled)}
+            <div className={cx("ttd-bottomValue", !data.monthlyMRR && "ttd-bottomValueMuted")}>
+              {data.monthlyMRR ? formatZAR(data.monthlyMRR) : "Awaiting source"}
             </div>
+            <div className="ttd-bottomSub">
+              Active {safeNum(data.monthlyActive)} • Retry pressure {safeNum(data.top.retryScheduled)}
+            </div>
+            {!data.monthlyMRR ? (
+              <div className="ttd-bottomStateNote">No live MRR source exposed to dashboard yet</div>
+            ) : null}
           </div>
         </Card>
 
         <Card className="ttd-card">
           <div className="ttd-panel">
             <div className="ttd-bottomLabel">Annual ARR</div>
-            <div className="ttd-bottomValue">
-              {formatZAR(data.annualARR * 12 + data.monthlyMRR * 12)}
+            <div className={cx("ttd-bottomValue", !data.annualARR && "ttd-bottomValueMuted")}>
+              {data.annualARR ? formatZAR(data.annualARR) : "Awaiting source"}
             </div>
             <div className="ttd-bottomSub">
-              View monthly • Active annual {data.annualActive}
+              View monthly • Active annual {safeNum(data.annualActive)}
             </div>
+            {!data.annualARR ? (
+              <div className="ttd-bottomStateNote">No live ARR source exposed to dashboard yet</div>
+            ) : null}
           </div>
         </Card>
       </div>
