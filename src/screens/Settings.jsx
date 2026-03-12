@@ -1,58 +1,97 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { request } from "../api";
 
-const SERVICES = [
-  {
+const SERVICE_META = {
+  zohoCrm: {
     key: "zohoCrm",
     name: "Zoho CRM",
     purpose: "Client records, debit order metadata, account sync",
     category: "Core data",
-    status: "connected",
-    environment: "Live",
-    lastChecked: "Just now",
-    health: "Healthy",
     note: "Primary source for client and debit order context.",
   },
-  {
+  zohoBooks: {
     key: "zohoBooks",
     name: "Zoho Books",
     purpose: "Invoices, reconciliation, finance support",
     category: "Finance",
-    status: "connected",
-    environment: "Live",
-    lastChecked: "Just now",
-    health: "Healthy",
     note: "Used for invoice and finance-side record flow.",
   },
-  {
+  zeptoMail: {
     key: "zeptoMail",
     name: "ZeptoMail",
     purpose: "Transactional email delivery and notifications",
     category: "Notifications",
-    status: "connected",
-    environment: "Live",
-    lastChecked: "Just now",
-    health: "Healthy",
     note: "Notification transport layer for debit order messaging.",
   },
-  {
+  paystack: {
     key: "paystack",
     name: "Paystack",
     purpose: "Collections, charges, payment events, webhooks",
     category: "Payments",
-    status: "connected",
-    environment: "Live",
-    lastChecked: "Just now",
-    health: "Healthy",
     note: "Primary payment and charge processing service.",
   },
-];
+};
+
+const SERVICE_ORDER = ["zohoCrm", "zohoBooks", "zeptoMail", "paystack"];
+
+function safeStr(v) {
+  return String(v == null ? "" : v).trim();
+}
+
+function normalizeStatus(raw) {
+  const s = safeStr(raw).toLowerCase();
+  if (s === "connected") return "connected";
+  return "not_connected";
+}
+
+function normalizeHealth(raw) {
+  const s = safeStr(raw);
+  return s || "Unknown";
+}
+
+function formatLastChecked(value) {
+  const s = safeStr(value);
+  if (!s) return "Not yet checked";
+
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+
+  return d.toLocaleString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function buildServiceModel(apiData = {}) {
+  return SERVICE_ORDER.map((key) => {
+    const meta = SERVICE_META[key];
+    const live = apiData?.[key] || {};
+
+    return {
+      key,
+      name: safeStr(live.service) || meta.name,
+      purpose: meta.purpose,
+      category: meta.category,
+      note: meta.note,
+      status: normalizeStatus(live.status),
+      environment: safeStr(live.environment) || "Unknown",
+      lastChecked: formatLastChecked(live.lastChecked),
+      health: normalizeHealth(live.health),
+    };
+  });
+}
 
 export default function Settings() {
   const [toast, setToast] = useState(null);
   const [selectedService, setSelectedService] = useState("zohoCrm");
-  const [services, setServices] = useState(() =>
-    Object.fromEntries(SERVICES.map((service) => [service.key, service]))
-  );
+  const [services, setServices] = useState(() => buildServiceModel({}));
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
 
   function showToast(message) {
     setToast(message);
@@ -60,14 +99,40 @@ export default function Settings() {
     showToast._t = window.setTimeout(() => setToast(null), 2200);
   }
 
-  const orderedServices = useMemo(
-    () => SERVICES.map((service) => services[service.key] || service),
-    [services]
-  );
+  async function loadIntegrationHealth({ silent = false } = {}) {
+    try {
+      if (!silent) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+
+      setError("");
+
+      const res = await request("/api/settings/integrations-health");
+      const nextServices = buildServiceModel(res?.data || {});
+      setServices(nextServices);
+    } catch (err) {
+      const msg = String(err?.message || err || "Failed to load integration health");
+      setError(msg);
+      showToast("Could not refresh integration health.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    loadIntegrationHealth();
+  }, []);
+
+  const orderedServices = useMemo(() => {
+    return SERVICE_ORDER.map((key) => services.find((service) => service.key === key)).filter(Boolean);
+  }, [services]);
 
   const connectedCount = orderedServices.filter((service) => service.status === "connected").length;
-  const liveCount = orderedServices.filter((service) => service.environment === "Live").length;
-  const healthyCount = orderedServices.filter((service) => service.health === "Healthy").length;
+  const liveCount = orderedServices.filter((service) => safeStr(service.environment).toLowerCase() === "live").length;
+  const healthyCount = orderedServices.filter((service) => safeStr(service.health).toLowerCase() === "healthy").length;
 
   const readinessLabel =
     connectedCount === 4 && healthyCount === 4
@@ -76,43 +141,11 @@ export default function Settings() {
       ? "Almost ready"
       : "Needs attention";
 
-  const selected = services[selectedService] || orderedServices[0];
-
-  function patchService(key, patch) {
-    setServices((prev) => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        ...patch,
-      },
-    }));
-  }
+  const selected =
+    orderedServices.find((service) => service.key === selectedService) || orderedServices[0] || null;
 
   function handleRefreshHealth() {
-    const now = new Date().toLocaleString();
-    const next = {};
-
-    for (const service of orderedServices) {
-      next[service.key] = {
-        ...service,
-        lastChecked: now,
-      };
-    }
-
-    setServices((prev) => ({
-      ...prev,
-      ...next,
-    }));
-
-    showToast("Health snapshot refreshed.");
-  }
-
-  function handleServiceRefresh(key) {
-    patchService(key, {
-      lastChecked: new Date().toLocaleString(),
-      health: "Healthy",
-    });
-    showToast("Connection check recorded.");
+    loadIntegrationHealth({ silent: true });
   }
 
   return (
@@ -127,6 +160,9 @@ export default function Settings() {
               <div className="tti-subtitle">
                 Service status for the core tools that power TabbyPay operations, finance flow,
                 notifications, and collections.
+                {loading ? " • loading..." : ""}
+                {refreshing ? " • refreshing..." : ""}
+                {error ? " • attention needed" : ""}
               </div>
             </div>
 
@@ -135,8 +171,9 @@ export default function Settings() {
                 type="button"
                 className="tti-btn tti-btnPrimary"
                 onClick={handleRefreshHealth}
+                disabled={loading || refreshing}
               >
-                Refresh health
+                {refreshing ? "Refreshing..." : "Refresh health"}
               </button>
             </div>
           </div>
@@ -222,56 +259,66 @@ export default function Settings() {
 
         <div className="tti-detailGrid">
           <section className="tti-card">
-            <div className="tti-cardHead">
-              <div>
-                <div className="tti-cardTitle">{selected.name}</div>
-                <div className="tti-cardHint">{selected.note}</div>
-              </div>
+            {selected ? (
+              <>
+                <div className="tti-cardHead">
+                  <div>
+                    <div className="tti-cardTitle">{selected.name}</div>
+                    <div className="tti-cardHint">{selected.note}</div>
+                  </div>
 
-              <div className="tti-row">
-                <button
-                  type="button"
-                  className="tti-btn tti-btnGhost"
-                  onClick={() => handleServiceRefresh(selected.key)}
-                >
-                  Refresh
-                </button>
-              </div>
-            </div>
-
-            <div className="tti-divider" />
-
-            <div className="tti-kvGrid">
-              <KeyValue label="Service" value={selected.name} />
-              <KeyValue label="Category" value={selected.category} />
-              <KeyValue label="Environment" value={selected.environment} />
-              <KeyValue label="Status" value={selected.status === "connected" ? "Connected" : "Not connected"} />
-              <KeyValue label="Health" value={selected.health} />
-              <KeyValue label="Last checked" value={selected.lastChecked} />
-            </div>
-
-            <div className="tti-divider" />
-
-            <div className="tti-detailBlocks">
-              <div className="tti-miniCard">
-                <div className="tti-miniTitle">Purpose</div>
-                <div className="tti-miniText">{selected.purpose}</div>
-              </div>
-
-              <div className="tti-miniCard">
-                <div className="tti-miniTitle">Why it matters</div>
-                <div className="tti-miniText">
-                  This service supports a production path in the debit order workflow and should stay visible to ops.
+                  <div className="tti-row">
+                    <button
+                      type="button"
+                      className="tti-btn tti-btnGhost"
+                      onClick={handleRefreshHealth}
+                      disabled={loading || refreshing}
+                    >
+                      {refreshing ? "Refreshing..." : "Refresh"}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="tti-miniCard">
-                <div className="tti-miniTitle">Recommended next step</div>
-                <div className="tti-miniText">
-                  Keep connection state honest. Only add deeper config here when backend settings are truly wired.
+                <div className="tti-divider" />
+
+                <div className="tti-kvGrid">
+                  <KeyValue label="Service" value={selected.name} />
+                  <KeyValue label="Category" value={selected.category} />
+                  <KeyValue label="Environment" value={selected.environment} />
+                  <KeyValue
+                    label="Status"
+                    value={selected.status === "connected" ? "Connected" : "Not connected"}
+                  />
+                  <KeyValue label="Health" value={selected.health} />
+                  <KeyValue label="Last checked" value={selected.lastChecked} />
                 </div>
-              </div>
-            </div>
+
+                <div className="tti-divider" />
+
+                <div className="tti-detailBlocks">
+                  <div className="tti-miniCard">
+                    <div className="tti-miniTitle">Purpose</div>
+                    <div className="tti-miniText">{selected.purpose}</div>
+                  </div>
+
+                  <div className="tti-miniCard">
+                    <div className="tti-miniTitle">Why it matters</div>
+                    <div className="tti-miniText">
+                      This service supports a production path in the debit order workflow and should stay visible to ops.
+                    </div>
+                  </div>
+
+                  <div className="tti-miniCard">
+                    <div className="tti-miniTitle">Recommended next step</div>
+                    <div className="tti-miniText">
+                      Keep connection state honest. Only add deeper config here when backend settings are truly wired.
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="tti-emptyState">No integration selected.</div>
+            )}
           </section>
 
           <section className="tti-card">
@@ -315,6 +362,12 @@ export default function Settings() {
             </div>
           </section>
         </div>
+
+        {error ? (
+          <div className="tti-errorBar">
+            Settings API error: {error}
+          </div>
+        ) : null}
 
         {toast ? (
           <div className="tti-toastWrap">
@@ -465,6 +518,12 @@ const css = `
   transform: translateY(-1px);
   background: rgba(255,255,255,0.10);
   border-color: rgba(255,255,255,0.14);
+}
+
+.tti-btn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .tti-btnPrimary {
@@ -724,6 +783,26 @@ const css = `
   font-size: 12px;
   line-height: 1.5;
   color: rgba(255,255,255,0.68);
+}
+
+.tti-emptyState {
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 14px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.72);
+}
+
+.tti-errorBar {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(239,68,68,0.24);
+  background: rgba(239,68,68,0.08);
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .tti-toastWrap {
