@@ -37,6 +37,10 @@ function safeNum(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function safeStr(v) {
+  return String(v == null ? "" : v).trim();
+}
+
 function formatZAR(n) {
   return new Intl.NumberFormat("en-ZA", {
     style: "currency",
@@ -98,6 +102,30 @@ function makeAreaPath(points, baseY) {
   return `${makeLinePath(points)} L ${last.x.toFixed(2)} ${baseY.toFixed(
     2
   )} L ${first.x.toFixed(2)} ${baseY.toFixed(2)} Z`;
+}
+
+function getApiBase() {
+  const v = safeStr(import.meta.env.VITE_API_BASE_URL);
+  return v || "";
+}
+
+async function fetchJson(path) {
+  const base = getApiBase();
+  const url = `${base}${path}`;
+  const resp = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok || !json?.ok) {
+    throw new Error(json?.error || `Request failed ${resp.status}`);
+  }
+  return json;
 }
 
 // Icons
@@ -487,15 +515,14 @@ function BarChart({ data }) {
 }
 
 async function fetchCronMetrics() {
-  const resp = await fetch("/api/dashboard/cron-metrics", {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
+  return fetchJson("/api/dashboard/cron-metrics");
+}
+
+async function fetchDashboardSummary(range) {
+  const qs = new URLSearchParams({
+    range: String(range || "24h").toLowerCase(),
   });
-  const json = await resp.json().catch(() => ({}));
-  if (!resp.ok || !json?.ok) {
-    throw new Error(json?.error || `Request failed ${resp.status}`);
-  }
-  return json;
+  return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
 }
 
 export default function Dashboard() {
@@ -509,10 +536,14 @@ export default function Dashboard() {
   const [cronLoading, setCronLoading] = useState(true);
   const [cronError, setCronError] = useState("");
 
+  const [dashboardSummary, setDashboardSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState("");
+
   useEffect(() => {
     let alive = true;
 
-    async function load() {
+    async function loadCron() {
       try {
         setCronLoading(true);
         setCronError("");
@@ -525,18 +556,66 @@ export default function Dashboard() {
       }
     }
 
-    load();
-    const t = setInterval(load, 30000);
+    loadCron();
+    const t = setInterval(loadCron, 30000);
+
     return () => {
       alive = false;
       clearInterval(t);
     };
   }, []);
 
-  const attemptsToday = cronMetrics?.attemptsToday || { attempted: 0, success: 0, failed: 0 };
-  const lastRun = cronMetrics?.lastRun || null;
+  useEffect(() => {
+    let alive = true;
 
-  const lastResult = String(lastRun?.result || "").toUpperCase();
+    async function loadSummary() {
+      try {
+        setSummaryLoading(true);
+        setSummaryError("");
+        const data = await fetchDashboardSummary(range);
+        if (alive) setDashboardSummary(data);
+      } catch (e) {
+        if (alive) setSummaryError(String(e?.message || e));
+      } finally {
+        if (alive) setSummaryLoading(false);
+      }
+    }
+
+    loadSummary();
+
+    return () => {
+      alive = false;
+    };
+  }, [range]);
+
+  const summaryData = dashboardSummary?.data || {};
+  const summaryCards = summaryData?.cards || {};
+  const summaryCharts = summaryData?.charts || {};
+  const summaryNotifications = summaryData?.notifications || {};
+  const summaryBatches = Array.isArray(summaryData?.batches) ? summaryData.batches : [];
+
+  const attemptsToday = cronMetrics?.attemptsToday || {
+    attempted: safeNum(summaryCards.attemptedToday),
+    success: safeNum(summaryCards.successfulToday),
+    failed: safeNum(summaryCards.failedToday),
+    retry: safeNum(summaryCards.retryScheduledToday),
+    suspended: safeNum(summaryCards.suspendedToday),
+  };
+
+  const cronLatestRuns = Array.isArray(cronMetrics?.latestRuns) ? cronMetrics.latestRuns : [];
+  const cronLastRun = cronMetrics?.lastRun || null;
+  const summaryLastRun = summaryData?.cron?.lastRun || null;
+
+  const lastRun = cronLastRun || summaryLastRun || null;
+
+  const lastResult = String(
+    cronLastRun?.runStatus ||
+      cronLastRun?.result ||
+      summaryLastRun?.runStatus ||
+      summaryLastRun?.result ||
+      ""
+  ).toUpperCase();
+
   let cronStatus = "queued";
   if (!lastRun) cronStatus = "queued";
   else if (lastResult === "FAILED") cronStatus = "failed";
@@ -550,83 +629,69 @@ export default function Dashboard() {
       name: "Daily Debit Order Runner",
       schedule: "Daily 02:10",
       status: cronStatus,
-      lastRun: lastRun?.started_at ? fmtWhen(lastRun.started_at) : "Not yet run",
-      error: lastRun?.last_error ? String(lastRun.last_error) : "",
+      lastRun: lastRun?.startedAt
+        ? fmtWhen(lastRun.startedAt)
+        : lastRun?.started_at
+        ? fmtWhen(lastRun.started_at)
+        : "Not yet run",
+      error: safeStr(lastRun?.lastError || lastRun?.last_error),
       progress:
-        attemptsToday.attempted > 0
-          ? Math.min(100, Math.round((attemptsToday.success / Math.max(1, attemptsToday.attempted)) * 100))
+        safeNum(attemptsToday.attempted) > 0
+          ? Math.min(
+              100,
+              Math.round(
+                (safeNum(attemptsToday.success) / Math.max(1, safeNum(attemptsToday.attempted))) * 100
+              )
+            )
           : 0,
     },
   ];
 
   const data = useMemo(() => {
-    const totalAttempts = safeNum(attemptsToday.attempted);
-    const success = safeNum(attemptsToday.success);
-    const failed = safeNum(attemptsToday.failed);
-    const retryScheduled = Math.max(0, Math.round(failed * 0.55));
-    const suspended = Math.max(0, Math.round(failed * 0.18));
-    const totalDebitOrderValue = totalAttempts * 1450;
-    const totalCollected = success * 1450;
-    const estimatedPaystackFees = totalCollected * 0.029 + (success >= 1 ? success : 0);
-    const estimatedMoneyToBank = Math.max(0, totalCollected - estimatedPaystackFees);
-    const successRate = totalAttempts ? (success / totalAttempts) * 100 : 0;
-    const failureRate = totalAttempts ? (failed / totalAttempts) * 100 : 0;
-    const retryRate = totalAttempts ? (retryScheduled / totalAttempts) * 100 : 0;
-
     return {
       top: {
-        totalDebitOrderValue,
-        totalCollected,
-        estimatedMoneyToBank,
-        estimatedPaystackFees,
-        retryScheduled,
-        suspended,
-        successRate,
-        failureRate,
-        retryRate,
+        totalDebitOrderValue: safeNum(summaryCards.totalDebitOrderValue),
+        totalCollected: safeNum(summaryCards.totalCollected),
+        estimatedMoneyToBank: safeNum(summaryCards.estimatedMoneyToBank),
+        estimatedPaystackFees: safeNum(summaryCards.estimatedPaystackFees),
+        retryScheduled: safeNum(summaryCards.retryScheduledToday),
+        suspended: safeNum(summaryCards.suspendedToday),
+        successRate: safeNum(summaryCards.successRate),
+        failureRate: safeNum(summaryCards.failureRate),
+        retryRate: safeNum(summaryCards.retryRate),
       },
       monthlyActive: 86,
       annualActive: 19,
       monthlyMRR: 129900,
       annualARR: 228000,
-      recentBatches: [
-        { batch: "FEB-05-AM", status: "draft", items: 112, value: 164200 },
-        { batch: "FEB-03-PM", status: "exported", items: 98, value: 143100 },
-        { batch: "JAN-29-AM", status: "sent", items: 141, value: 205900 },
-      ],
+      recentBatches: summaryBatches,
       notifications: {
-        confirmation: { label: "Debit Order Confirmations", status: "Pending", count: 0 },
-        failed: { label: "Failed Payment Alerts", status: "Pending", count: failed },
-        retry: { label: "Retry Notifications", status: "Pending", count: retryScheduled },
+        confirmation: {
+          label: safeStr(summaryNotifications?.confirmation?.label || "Debit Order Confirmations"),
+          status: safeStr(summaryNotifications?.confirmation?.status || "Pending"),
+          count: safeNum(summaryNotifications?.confirmation?.count),
+        },
+        failed: {
+          label: safeStr(summaryNotifications?.failed?.label || "Failed Payment Alerts"),
+          status: safeStr(summaryNotifications?.failed?.status || "Pending"),
+          count: safeNum(summaryNotifications?.failed?.count),
+        },
+        retry: {
+          label: safeStr(summaryNotifications?.retry?.label || "Retry Notifications"),
+          status: safeStr(summaryNotifications?.retry?.status || "Pending"),
+          count: safeNum(summaryNotifications?.retry?.count),
+        },
       },
     };
-  }, [attemptsToday.attempted, attemptsToday.failed, attemptsToday.success]);
+  }, [summaryBatches, summaryCards, summaryNotifications]);
 
   const debitPerformanceData = useMemo(() => {
-    const success = safeNum(attemptsToday.success);
-    const failed = safeNum(attemptsToday.failed);
-    return [
-      { time: "00:00", successful: Math.max(6, Math.round(success * 0.20)), failed: Math.max(1, Math.round(failed * 0.22)), retry: Math.max(1, Math.round(failed * 0.08)) },
-      { time: "04:00", successful: Math.max(10, Math.round(success * 0.28)), failed: Math.max(2, Math.round(failed * 0.18)), retry: Math.max(1, Math.round(failed * 0.10)) },
-      { time: "08:00", successful: Math.max(16, Math.round(success * 0.46)), failed: Math.max(2, Math.round(failed * 0.26)), retry: Math.max(2, Math.round(failed * 0.16)) },
-      { time: "12:00", successful: Math.max(22, Math.round(success * 0.64)), failed: Math.max(3, Math.round(failed * 0.42)), retry: Math.max(2, Math.round(failed * 0.24)) },
-      { time: "16:00", successful: Math.max(28, Math.round(success * 0.82)), failed: Math.max(3, Math.round(failed * 0.62)), retry: Math.max(3, Math.round(failed * 0.34)) },
-      { time: "20:00", successful: Math.max(34, Math.round(success * 0.94)), failed: Math.max(4, Math.round(failed * 0.78)), retry: Math.max(3, Math.round(failed * 0.46)) },
-      { time: "Now", successful: success, failed, retry: Math.max(0, Math.round(failed * 0.55)) },
-    ];
-  }, [attemptsToday.failed, attemptsToday.success]);
+    return Array.isArray(summaryCharts?.debitPerformance) ? summaryCharts.debitPerformance : [];
+  }, [summaryCharts]);
 
   const retryDistributionData = useMemo(() => {
-    const retry = safeNum(data.top.retryScheduled);
-    const immediate = Math.max(0, Math.round(retry * 0.45));
-    const day1 = Math.max(0, Math.round(retry * 0.35));
-    const later = Math.max(0, retry - immediate - day1);
-    return [
-      { name: "Immediate", value: immediate, color: "#22c55e" },
-      { name: "24H Delay", value: day1, color: "#f59e0b" },
-      { name: "48H+", value: later, color: "#ef4444" },
-    ];
-  }, [data.top.retryScheduled]);
+    return Array.isArray(summaryCharts?.retryDistribution) ? summaryCharts.retryDistribution : [];
+  }, [summaryCharts]);
 
   const emailData = [
     { day: "Mon", sent: 120, opened: 80 },
@@ -643,19 +708,25 @@ export default function Dashboard() {
     if (!q) return data.recentBatches;
     return data.recentBatches.filter(
       (b) =>
-        b.batch.toLowerCase().includes(q) ||
-        b.status.toLowerCase().includes(q) ||
-        String(b.items).includes(q)
+        safeStr(b.batch).toLowerCase().includes(q) ||
+        safeStr(b.status).toLowerCase().includes(q) ||
+        String(safeNum(b.items)).includes(q)
     );
   }, [data.recentBatches, search]);
+
+  useEffect(() => {
+    if (!filteredBatches.length) return;
+    const found = filteredBatches.some((b) => b.batch === selectedBatch);
+    if (!found) setSelectedBatch(filteredBatches[0].batch);
+  }, [filteredBatches, selectedBatch, setSelectedBatch]);
 
   const retrySegments = useMemo(() => {
     const total = retryDistributionData.reduce((sum, item) => sum + safeNum(item.value), 0) || 1;
     return retryDistributionData.map((item) => ({
-      label: item.name,
-      value: item.value,
+      label: safeStr(item.name),
+      value: safeNum(item.value),
       pct: (safeNum(item.value) / total) * 100,
-      color: item.color,
+      color: safeStr(item.color) || "#8b5cf6",
     }));
   }, [retryDistributionData]);
 
@@ -693,6 +764,9 @@ export default function Dashboard() {
       color: "#60a5fa",
     },
   ];
+
+  const overallLoading = cronLoading || summaryLoading;
+  const overallError = cronError || summaryError;
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
@@ -1480,10 +1554,11 @@ export default function Dashboard() {
           <h2 className="ttd-title">Dashboard Overview</h2>
           <p className="ttd-subtitle">
             Executive financial overview for collections, settlement, cron health, batches, and notifications
-            {cronLoading ? " • syncing..." : ""}
-            {cronError ? " • error" : ""}
+            {overallLoading ? " • syncing..." : ""}
+            {overallError ? " • error" : ""}
             {subView ? ` • ${String(subView)}` : ""}
             {metric ? ` • ${String(metric)}` : ""}
+            {summaryData?.asOfDate ? ` • as of ${summaryData.asOfDate}` : ""}
           </p>
         </div>
 
@@ -1515,9 +1590,15 @@ export default function Dashboard() {
         <MetricCard
           title="Total Debit Order Value"
           value={formatZAR(data.top.totalDebitOrderValue)}
-          subtext={`${safeNum(attemptsToday.attempted)} attempts in current live view`}
-          trend={cronError ? "API Error" : cronLoading ? "Syncing" : `${safeNum(data.top.successRate).toFixed(0)}% success rate`}
-          trendUp={!cronError}
+          subtext={`${safeNum(summaryCards.attemptedToday)} attempts in current live view`}
+          trend={
+            overallError
+              ? "API Error"
+              : overallLoading
+              ? "Syncing"
+              : `${safeNum(data.top.successRate).toFixed(0)}% success rate`
+          }
+          trendUp={!overallError}
           icon={IconFileInvoice}
           color="purple"
         />
@@ -1525,8 +1606,8 @@ export default function Dashboard() {
         <MetricCard
           title="Total Collected"
           value={formatZAR(data.top.totalCollected)}
-          subtext={`${safeNum(attemptsToday.success)} successful charges today`}
-          trend={safeNum(attemptsToday.success) > 0 ? "Collections active" : ""}
+          subtext={`${safeNum(summaryCards.successfulToday)} successful charges today`}
+          trend={safeNum(summaryCards.successfulToday) > 0 ? "Collections active" : ""}
           trendUp={true}
           icon={IconCheckCircle}
           color="green"
@@ -1545,8 +1626,8 @@ export default function Dashboard() {
         <MetricCard
           title="Paystack Fees"
           value={formatZAR2(data.top.estimatedPaystackFees)}
-          subtext={`Failed today ${safeNum(attemptsToday.failed)} • Retry ${safeNum(data.top.retryScheduled)}`}
-          trend={safeNum(attemptsToday.failed) > 0 ? "Watch fee leakage" : ""}
+          subtext={`Failed today ${safeNum(summaryCards.failedToday)} • Retry ${safeNum(data.top.retryScheduled)}`}
+          trend={safeNum(summaryCards.failedToday) > 0 ? "Watch fee leakage" : ""}
           trendUp={false}
           icon={IconRedo}
           color="orange"
@@ -1629,7 +1710,7 @@ export default function Dashboard() {
 
             <div className="ttd-donutLayout">
               <DonutChart
-                centerValue={safeNum(attemptsToday.attempted)}
+                centerValue={safeNum(summaryCards.attemptedToday)}
                 centerLabel="Attempts today"
                 segments={operationalSegments}
               />
@@ -1694,8 +1775,16 @@ export default function Dashboard() {
                   <span className="ttd-miniDot" style={{ background: "#60a5fa" }} />
                   Last cron result
                 </div>
-                <div className="ttd-opValue">{lastRun?.result ? String(lastRun.result) : "N/A"}</div>
-                <div className="ttd-opSub">{lastRun?.started_at ? fmtWhen(lastRun.started_at) : "No run yet"}</div>
+                <div className="ttd-opValue">
+                  {safeStr(lastRun?.runStatus || lastRun?.result || "N/A") || "N/A"}
+                </div>
+                <div className="ttd-opSub">
+                  {lastRun?.startedAt
+                    ? fmtWhen(lastRun.startedAt)
+                    : lastRun?.started_at
+                    ? fmtWhen(lastRun.started_at)
+                    : "No run yet"}
+                </div>
               </div>
             </div>
           </div>
@@ -1828,7 +1917,7 @@ export default function Dashboard() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "14px" }}>
               <div className="ttd-opStat" style={{ textAlign: "center" }}>
-                <div className="ttd-opValue">0</div>
+                <div className="ttd-opValue">{safeNum(data.notifications.confirmation.count)}</div>
                 <div className="ttd-opSub">Sent</div>
               </div>
               <div className="ttd-opStat" style={{ textAlign: "center" }}>
@@ -1860,7 +1949,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <div className="ttd-legendLabel">{data.notifications.confirmation.label}</div>
-                    <div className="ttd-legendSub">Not wired yet</div>
+                    <div className="ttd-legendSub">{safeNum(data.notifications.confirmation.count)} items</div>
                   </div>
                 </div>
                 <div className="ttd-legendPct">{data.notifications.confirmation.status}</div>
@@ -1981,11 +2070,15 @@ export default function Dashboard() {
                 onChange={(e) => setSelectedBatch(e.target.value)}
                 className="ttd-select"
               >
-                {data.recentBatches.map((b) => (
-                  <option key={b.batch} value={b.batch}>
-                    {b.batch}
-                  </option>
-                ))}
+                {filteredBatches.length ? (
+                  filteredBatches.map((b) => (
+                    <option key={b.batch} value={b.batch}>
+                      {b.batch}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No batches</option>
+                )}
               </select>
             </div>
 
@@ -2008,11 +2101,11 @@ export default function Dashboard() {
                     >
                       <td className="ttd-td" style={{ fontWeight: 700 }}>{b.batch}</td>
                       <td className="ttd-td">
-                        <StatusBadge status={b.status}>
-                          {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+                        <StatusBadge status={safeStr(b.status).toLowerCase()}>
+                          {safeStr(b.status).charAt(0).toUpperCase() + safeStr(b.status).slice(1)}
                         </StatusBadge>
                       </td>
-                      <td className="ttd-td" style={{ textAlign: "right" }}>{b.items}</td>
+                      <td className="ttd-td" style={{ textAlign: "right" }}>{safeNum(b.items)}</td>
                       <td className="ttd-td" style={{ textAlign: "right" }}>{formatZAR(b.value)}</td>
                     </tr>
                   ))}
@@ -2030,7 +2123,7 @@ export default function Dashboard() {
               }}
             >
               <div style={{ fontSize: "12px", fontWeight: 800, color: "white", marginBottom: "4px" }}>
-                Selected: {selectedBatch}
+                Selected: {selectedBatch || "None"}
               </div>
               <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "10px" }}>
                 UI-only actions for now. We can wire these to batch workflows later.
@@ -2076,6 +2169,23 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
+
+      {overallError ? (
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "14px",
+            borderRadius: "14px",
+            border: "1px solid rgba(239,68,68,0.22)",
+            background: "rgba(239,68,68,0.06)",
+            color: "#f87171",
+            fontSize: "12px",
+            fontWeight: 700,
+          }}
+        >
+          Dashboard API error: {overallError}
+        </div>
+      ) : null}
     </div>
   );
 }
