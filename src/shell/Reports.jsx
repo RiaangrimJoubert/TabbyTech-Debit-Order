@@ -429,6 +429,7 @@ function outcomeBadgeClass(outcome) {
 function exportReportsCsv(rows) {
   const header = [
     "Client ID",
+    "Client Name",
     "Charge Date",
     "Charge Day",
     "Status",
@@ -441,6 +442,7 @@ function exportReportsCsv(rows) {
 
   const body = rows.map((row) => [
     row.clientId || "",
+    row.clientName || "",
     row.chargeDate || "",
     row.chargeDay || "",
     row.status || "",
@@ -505,13 +507,6 @@ function DonutChart({
   return (
     <div className="ttr-donutSvgWrap">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="ttr-donutSvg">
-        <defs>
-          <linearGradient id="ttrDonutTrack" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.12)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0.04)" />
-          </linearGradient>
-        </defs>
-
         <circle
           cx={cx}
           cy={cy}
@@ -825,6 +820,13 @@ export default function Reports() {
     return attemptsRowsRaw.map((row, index) => ({
       id: row.rowId || `attempt-${index + 1}`,
       clientId: safeStr(row.clientId),
+      clientName: safeStr(
+        row.clientName ||
+          row.client_name ||
+          row.name ||
+          row.client?.name ||
+          row.crmName
+      ),
       chargeDate: safeStr(row.chargeDate),
       chargeDay: safeNum(row.chargeDay),
       status: safeStr(row.status),
@@ -846,6 +848,7 @@ export default function Reports() {
       const matchesQuery =
         !q ||
         String(row.clientId || "").toLowerCase().includes(q) ||
+        String(row.clientName || "").toLowerCase().includes(q) ||
         String(row.id || "").toLowerCase().includes(q) ||
         String(row.reference || "").toLowerCase().includes(q) ||
         String(row.failureReason || "").toLowerCase().includes(q) ||
@@ -902,14 +905,6 @@ export default function Reports() {
     safeNum(cards.totalCollected) ||
     successfulRows.reduce((sum, row) => sum + safeNum(row.amountZar), 0);
 
-  const totalFailedValue =
-    safeNum(cards.totalFailedValue) ||
-    failedRows.reduce((sum, row) => sum + safeNum(row.amountZar), 0);
-
-  const totalRetryScheduledValue =
-    safeNum(cards.totalRetryScheduledValue) ||
-    retryRows.reduce((sum, row) => sum + safeNum(row.amountZar), 0);
-
   const estimatedPaystackFees =
     safeNum(cards.estimatedPaystackFees) ||
     successfulRows.reduce((sum, row) => sum + estimatePaystackFeeLocal(row.amountZar), 0);
@@ -920,13 +915,6 @@ export default function Reports() {
 
   const collectionRate =
     totalDebitOrderValue > 0 ? (totalCollected / totalDebitOrderValue) * 100 : successRate;
-
-  const distributionTotal = filteredRowsAll.length || 1;
-  const successfulPct = (successfulRows.length / distributionTotal) * 100;
-  const retryPct = (retryRows.length / distributionTotal) * 100;
-  const failedPct = (failedRows.length / distributionTotal) * 100;
-  const suspendedPct = (suspendedRows.length / distributionTotal) * 100;
-  const pendingPct = (pendingRows.length / distributionTotal) * 100;
 
   const activityTrend = Array.isArray(charts.activityTrend) ? charts.activityTrend : [];
   const outcomeDistribution = Array.isArray(charts.outcomeDistribution) ? charts.outcomeDistribution : [];
@@ -2399,7 +2387,7 @@ export default function Reports() {
                       className="ttr-input"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search by client id, reference, failure reason, or status"
+                      placeholder="Search by client id, client name, reference, failure reason, or status"
                       aria-label="Search report rows"
                     />
                   </div>
@@ -2461,6 +2449,7 @@ export default function Reports() {
                     <thead>
                       <tr>
                         <th className="ttr-th">Client ID</th>
+                        <th className="ttr-th">Client Name</th>
                         <th className="ttr-th">Charge date</th>
                         <th className="ttr-th">Day</th>
                         <th className="ttr-th">Status</th>
@@ -2475,6 +2464,7 @@ export default function Reports() {
                       {pagedRows.map((row) => (
                         <tr key={`${row.id}-${row.reference}-${row.attemptedAt}`}>
                           <td className="ttr-td">{row.clientId || "N/A"}</td>
+                          <td className="ttr-td">{row.clientName || "N/A"}</td>
                           <td className="ttr-td">{fmtDate(row.chargeDate)}</td>
                           <td className="ttr-td">{row.chargeDay || "N/A"}</td>
                           <td className="ttr-td">{row.status || "N/A"}</td>
