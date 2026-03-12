@@ -490,7 +490,7 @@ function RecordsDropdown({ value, onChange, disabled }) {
   );
 }
 
-export default function Batches() {
+export default function Batches({ presetClientId = "", presetBatchId = "" }) {
   const [startDate, setStartDate] = useState(() => batchesScreenCache.startDate || startOfMonthYmdLocal());
   const [endDate, setEndDate] = useState(() => batchesScreenCache.endDate || todayYmdLocal());
   const [perPage, setPerPage] = useState(() => Number(batchesScreenCache.perPage || 10));
@@ -501,6 +501,8 @@ export default function Batches() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(() => String(batchesScreenCache.error || ""));
   const [data, setData] = useState(() => batchesScreenCache.data || null);
+
+  const appliedPresetRef = useRef("");
 
   async function fetchBatches({ force = false } = {}) {
     if (!force && hasFreshBatchesCache()) {
@@ -579,6 +581,30 @@ export default function Batches() {
   useEffect(() => {
     setPage(1);
   }, [query, outcomeFilter, perPage, startDate, endDate]);
+
+  useEffect(() => {
+    const nextPresetClientId = safeStr(presetClientId);
+    const nextPresetBatchId = safeStr(presetBatchId);
+    const nextPresetKey = `${nextPresetClientId}::${nextPresetBatchId}`;
+
+    if (!nextPresetClientId && !nextPresetBatchId) return;
+    if (appliedPresetRef.current === nextPresetKey) return;
+
+    if (nextPresetClientId) {
+      setQuery(nextPresetClientId);
+      setOutcomeFilter("All");
+      setPage(1);
+      appliedPresetRef.current = nextPresetKey;
+      return;
+    }
+
+    if (nextPresetBatchId) {
+      setQuery(nextPresetBatchId);
+      setOutcomeFilter("All");
+      setPage(1);
+      appliedPresetRef.current = nextPresetKey;
+    }
+  }, [presetClientId, presetBatchId]);
 
   const rawRows = useMemo(() => {
     if (Array.isArray(data?.rows)) return data.rows;
@@ -692,6 +718,8 @@ export default function Batches() {
   const latestRun = data?.latestRun || data?.data?.latestRun || null;
   const cards = data?.cards || data?.data?.cards || {};
   const lastCronResult = cards?.lastCronResult || "N/A";
+
+  const activeLinkedClient = safeStr(presetClientId) || "None";
 
   const css = `
   .ttb-root {
@@ -1972,7 +2000,7 @@ export default function Batches() {
                       <div className="ttb-runV">Live API</div>
 
                       <div className="ttb-runK">Linked client</div>
-                      <div className="ttb-runV">None</div>
+                      <div className="ttb-runV">{activeLinkedClient}</div>
                     </div>
                   </div>
                 </div>
