@@ -2,19 +2,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 const LS = {
+  search: "tabbytech.dashboard.search",
   range: "tabbytech.dashboard.range",
   subView: "tabbytech.dashboard.subView",
   metric: "tabbytech.dashboard.metric",
   batch: "tabbytech.dashboard.batch",
-};
-
-const DASHBOARD_CACHE_TTL_MS = 10 * 60 * 1000;
-
-let dashboardScreenCache = {
-  cronData: null,
-  cronError: "",
-  cronLoadedAt: 0,
-  summaryByRange: {},
 };
 
 function useLocalStorageState(key, initialValue) {
@@ -71,6 +63,16 @@ function fmtWhen(ts) {
   return String(ts).trim();
 }
 
+function fmtDateShort(value) {
+  if (!value) return "";
+  const d = new Date(String(value).length <= 10 ? `${value}T00:00:00` : value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-ZA", {
+    month: "short",
+    day: "2-digit",
+  });
+}
+
 function polarToCartesian(cx, cy, radius, angleDeg) {
   const angleRad = ((angleDeg - 90) * Math.PI) / 180;
   return {
@@ -124,103 +126,6 @@ async function fetchJson(path) {
     throw new Error(json?.error || `Request failed ${resp.status}`);
   }
   return json;
-}
-
-function isFresh(ts) {
-  return Date.now() - safeNum(ts) < DASHBOARD_CACHE_TTL_MS;
-}
-
-async function fetchCronMetrics({ force = false } = {}) {
-  if (!force && dashboardScreenCache.cronData && isFresh(dashboardScreenCache.cronLoadedAt)) {
-    return dashboardScreenCache.cronData;
-  }
-
-  const data = await fetchJson("/api/dashboard/cron-metrics");
-  dashboardScreenCache = {
-    ...dashboardScreenCache,
-    cronData: data,
-    cronError: "",
-    cronLoadedAt: Date.now(),
-  };
-  return data;
-}
-
-async function fetchDashboardSummary(range, { force = false } = {}) {
-  const key = safeStr(range || "24h").toLowerCase();
-  const cached = dashboardScreenCache.summaryByRange[key];
-
-  if (!force && cached?.data && isFresh(cached.loadedAt)) {
-    return cached.data;
-  }
-
-  const qs = new URLSearchParams({
-    range: key,
-  });
-
-  const data = await fetchJson(`/api/dashboard/summary?${qs.toString()}`);
-  dashboardScreenCache = {
-    ...dashboardScreenCache,
-    summaryByRange: {
-      ...dashboardScreenCache.summaryByRange,
-      [key]: {
-        data,
-        loadedAt: Date.now(),
-        error: "",
-      },
-    },
-  };
-  return data;
-}
-
-function exportBatchesCsv(rows) {
-  const header = ["Batch", "Status", "Items", "Value"];
-
-  const body = (Array.isArray(rows) ? rows : []).map((row) => [
-    safeStr(row.batch),
-    safeStr(row.status),
-    safeNum(row.items),
-    safeNum(row.value),
-  ]);
-
-  const csvEscape = (v) => {
-    const s = String(v == null ? "" : v);
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  };
-
-  const lines = [header, ...body].map((r) => r.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "tabbytech-recent-batches.csv";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  URL.revokeObjectURL(url);
-}
-
-function navigateToBatches(selectedBatch) {
-  const batch = safeStr(selectedBatch);
-  try {
-    localStorage.setItem("tabbytech.batches.selectedBatch", JSON.stringify(batch));
-  } catch {}
-
-  try {
-    window.dispatchEvent(
-      new CustomEvent("tabbytech:navigate", {
-        detail: { module: "batches", batch },
-      })
-    );
-  } catch {}
-
-  try {
-    window.location.hash = batch
-      ? `#/batches?batch=${encodeURIComponent(batch)}`
-      : "#/batches";
-  } catch {}
 }
 
 // Icons
@@ -609,25 +514,30 @@ function BarChart({ data }) {
   );
 }
 
+async function fetchCronMetrics() {
+  return fetchJson("/api/dashboard/cron-metrics");
+}
+
+async function fetchDashboardSummary(range) {
+  const qs = new URLSearchParams({
+    range: String(range || "24h").toLowerCase(),
+  });
+  return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
+}
+
 export default function Dashboard() {
+  const [search, setSearch] = useLocalStorageState(LS.search, "");
   const [range, setRange] = useLocalStorageState(LS.range, "24h");
   const [subView] = useLocalStorageState(LS.subView, "monthly");
   const [metric] = useLocalStorageState(LS.metric, "revenue");
-  const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "");
+  const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "FEB-03-PM");
 
-  const [cronMetrics, setCronMetrics] = useState(() => dashboardScreenCache.cronData || null);
-  const [cronLoading, setCronLoading] = useState(() => !dashboardScreenCache.cronData || !isFresh(dashboardScreenCache.cronLoadedAt));
-  const [cronError, setCronError] = useState(() => dashboardScreenCache.cronError || "");
+  const [cronMetrics, setCronMetrics] = useState(null);
+  const [cronLoading, setCronLoading] = useState(true);
+  const [cronError, setCronError] = useState("");
 
-  const [dashboardSummary, setDashboardSummary] = useState(() => {
-    const key = safeStr(range || "24h").toLowerCase();
-    return dashboardScreenCache.summaryByRange[key]?.data || null;
-  });
-  const [summaryLoading, setSummaryLoading] = useState(() => {
-    const key = safeStr(range || "24h").toLowerCase();
-    const cached = dashboardScreenCache.summaryByRange[key];
-    return !(cached?.data && isFresh(cached.loadedAt));
-  });
+  const [dashboardSummary, setDashboardSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState("");
 
   useEffect(() => {
@@ -637,26 +547,21 @@ export default function Dashboard() {
       try {
         setCronLoading(true);
         setCronError("");
-        const data = await fetchCronMetrics({ force: false });
-        if (!alive) return;
-        setCronMetrics(data);
+        const data = await fetchCronMetrics();
+        if (alive) setCronMetrics(data);
       } catch (e) {
-        const msg = String(e?.message || e);
-        dashboardScreenCache = {
-          ...dashboardScreenCache,
-          cronError: msg,
-        };
-        if (!alive) return;
-        setCronError(msg);
+        if (alive) setCronError(String(e?.message || e));
       } finally {
         if (alive) setCronLoading(false);
       }
     }
 
     loadCron();
+    const t = setInterval(loadCron, 30000);
 
     return () => {
       alive = false;
+      clearInterval(t);
     };
   }, []);
 
@@ -667,13 +572,10 @@ export default function Dashboard() {
       try {
         setSummaryLoading(true);
         setSummaryError("");
-        const data = await fetchDashboardSummary(range, { force: false });
-        if (!alive) return;
-        setDashboardSummary(data);
+        const data = await fetchDashboardSummary(range);
+        if (alive) setDashboardSummary(data);
       } catch (e) {
-        const msg = String(e?.message || e);
-        if (!alive) return;
-        setSummaryError(msg);
+        if (alive) setSummaryError(String(e?.message || e));
       } finally {
         if (alive) setSummaryLoading(false);
       }
@@ -700,8 +602,10 @@ export default function Dashboard() {
     suspended: safeNum(summaryCards.suspendedToday),
   };
 
+  const cronLatestRuns = Array.isArray(cronMetrics?.latestRuns) ? cronMetrics.latestRuns : [];
   const cronLastRun = cronMetrics?.lastRun || null;
   const summaryLastRun = summaryData?.cron?.lastRun || null;
+
   const lastRun = cronLastRun || summaryLastRun || null;
 
   const lastResult = String(
@@ -756,6 +660,10 @@ export default function Dashboard() {
         failureRate: safeNum(summaryCards.failureRate),
         retryRate: safeNum(summaryCards.retryRate),
       },
+      monthlyActive: 86,
+      annualActive: 19,
+      monthlyMRR: 129900,
+      annualARR: 228000,
       recentBatches: summaryBatches,
       notifications: {
         confirmation: {
@@ -795,15 +703,22 @@ export default function Dashboard() {
     { day: "Sun", sent: 110, opened: 70 },
   ];
 
-  const visibleBatches = useMemo(() => {
-    return data.recentBatches;
-  }, [data.recentBatches]);
+  const filteredBatches = useMemo(() => {
+    const q = (search || "").trim().toLowerCase();
+    if (!q) return data.recentBatches;
+    return data.recentBatches.filter(
+      (b) =>
+        safeStr(b.batch).toLowerCase().includes(q) ||
+        safeStr(b.status).toLowerCase().includes(q) ||
+        String(safeNum(b.items)).includes(q)
+    );
+  }, [data.recentBatches, search]);
 
   useEffect(() => {
-    if (!visibleBatches.length) return;
-    const found = visibleBatches.some((b) => b.batch === selectedBatch);
-    if (!found) setSelectedBatch(visibleBatches[0].batch);
-  }, [visibleBatches, selectedBatch, setSelectedBatch]);
+    if (!filteredBatches.length) return;
+    const found = filteredBatches.some((b) => b.batch === selectedBatch);
+    if (!found) setSelectedBatch(filteredBatches[0].batch);
+  }, [filteredBatches, selectedBatch, setSelectedBatch]);
 
   const retrySegments = useMemo(() => {
     const total = retryDistributionData.reduce((sum, item) => sum + safeNum(item.value), 0) || 1;
@@ -852,10 +767,6 @@ export default function Dashboard() {
 
   const overallLoading = cronLoading || summaryLoading;
   const overallError = cronError || summaryError;
-
-  const selectedBatchRow = useMemo(() => {
-    return visibleBatches.find((b) => b.batch === selectedBatch) || visibleBatches[0] || null;
-  }, [visibleBatches, selectedBatch]);
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
@@ -914,8 +825,36 @@ export default function Dashboard() {
       align-items: center;
       gap: 12px;
       flex-wrap: wrap;
-      justify-content: flex-end;
-      width: 100%;
+    }
+
+    .ttd-searchWrap {
+      position: relative;
+    }
+
+    .ttd-search {
+      background: rgba(18,18,31,0.62);
+      border: 1px solid rgba(139,92,246,0.20);
+      border-radius: 14px;
+      padding: 10px 14px 10px 38px;
+      font-size: 13px;
+      color: #d1d5db;
+      width: 260px;
+      outline: none;
+    }
+
+    .ttd-search:focus {
+      border-color: rgba(168,85,247,0.52);
+      box-shadow: 0 0 0 6px rgba(124,58,237,0.16);
+    }
+
+    .ttd-searchIcon {
+      position: absolute;
+      left: 12px;
+      top: 10px;
+      color: #6b7280;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .ttd-livePill {
@@ -929,7 +868,6 @@ export default function Dashboard() {
       color: #4ade80;
       font-size: 12px;
       font-weight: 700;
-      margin-left: auto;
     }
 
     .ttd-liveDot {
@@ -962,6 +900,13 @@ export default function Dashboard() {
     .ttd-grid2-equal {
       display: grid;
       grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ttd-gridBottom {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
       gap: 16px;
       margin-bottom: 16px;
     }
@@ -1279,6 +1224,14 @@ export default function Dashboard() {
       padding: 12px;
     }
 
+    .ttd-opLabel {
+      font-size: 12px;
+      color: rgba(255,255,255,0.62);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .ttd-opValue {
       margin-top: 8px;
       font-size: 16px;
@@ -1295,7 +1248,6 @@ export default function Dashboard() {
     .ttd-cronList {
       display: grid;
       gap: 12px;
-      min-height: 170px;
     }
 
     .ttd-cronItem {
@@ -1419,7 +1371,8 @@ export default function Dashboard() {
       color: white;
     }
 
-    .ttd-select {
+    .ttd-select,
+    .ttd-input {
       background: rgba(18,18,31,0.60);
       border: 1px solid rgba(139,92,246,0.20);
       border-radius: 12px;
@@ -1429,10 +1382,14 @@ export default function Dashboard() {
       outline: none;
     }
 
+    .ttd-inputFull {
+      width: 100%;
+    }
+
     .ttd-actionsRow {
       display: flex;
       gap: 8px;
-      margin-top: 12px;
+      margin-top: 10px;
     }
 
     .ttd-btn {
@@ -1458,12 +1415,106 @@ export default function Dashboard() {
       box-shadow: 0 12px 28px rgba(124,58,237,0.20);
     }
 
-    .ttd-selectedBox {
-      margin-top: 14px;
+    .ttd-workflowList {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .ttd-workflowItem {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
       padding: 14px;
       border-radius: 14px;
-      background: rgba(18,18,31,0.30);
+      background: rgba(18,18,31,0.40);
       border: 1px solid rgba(139,92,246,0.10);
+    }
+
+    .ttd-workflowTitle {
+      font-size: 13px;
+      font-weight: 800;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .ttd-workflowSub {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .ttd-bottomMetrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .ttd-bottomLabel {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-bottom: 8px;
+    }
+
+    .ttd-bottomValue {
+      font-size: 22px;
+      font-weight: 800;
+      color: white;
+      margin-bottom: 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .ttd-bottomSub {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .ttd-barsWrap {
+      min-height: 150px;
+      height: 150px;
+      display: flex;
+      align-items: end;
+      gap: 8px;
+    }
+
+    .ttd-barCol {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: end;
+      gap: 8px;
+      height: 100%;
+    }
+
+    .ttd-barPair {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .ttd-bar {
+      width: 14px;
+      min-height: 8px;
+      border-radius: 10px 10px 6px 6px;
+    }
+
+    .ttd-barPurple {
+      background: linear-gradient(180deg, rgba(168,85,247,0.95), rgba(124,58,237,0.72));
+    }
+
+    .ttd-barBlue {
+      background: linear-gradient(180deg, rgba(96,165,250,0.95), rgba(59,130,246,0.72));
+    }
+
+    .ttd-barLabel {
+      font-size: 10px;
+      color: rgba(255,255,255,0.46);
+      text-align: center;
     }
 
     @media (max-width: 1500px) {
@@ -1471,7 +1522,9 @@ export default function Dashboard() {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .ttd-grid2,
-      .ttd-grid2-equal {
+      .ttd-grid2-equal,
+      .ttd-gridBottom,
+      .ttd-bottomMetrics {
         grid-template-columns: 1fr;
       }
     }
@@ -1485,6 +1538,9 @@ export default function Dashboard() {
       }
       .ttd-grid4 {
         grid-template-columns: 1fr;
+      }
+      .ttd-search {
+        width: 100%;
       }
     }
   `;
@@ -1507,6 +1563,22 @@ export default function Dashboard() {
         </div>
 
         <div className="ttd-headerRight">
+          <div className="ttd-searchWrap">
+            <input
+              type="text"
+              placeholder="Search orders, batches..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="ttd-search"
+            />
+            <div className="ttd-searchIcon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </div>
+          </div>
+
           <div className="ttd-livePill">
             <span className="ttd-liveDot" />
             Live
@@ -1672,25 +1744,37 @@ export default function Dashboard() {
 
             <div className="ttd-opGrid">
               <div className="ttd-opStat">
-                <div className="ttd-legendLabel">Success rate</div>
+                <div className="ttd-opLabel">
+                  <span className="ttd-miniDot" style={{ background: "#22c55e" }} />
+                  Success rate
+                </div>
                 <div className="ttd-opValue">{safeNum(data.top.successRate).toFixed(0)}%</div>
                 <div className="ttd-opSub">Based on attempts processed today</div>
               </div>
 
               <div className="ttd-opStat">
-                <div className="ttd-legendLabel">Failure rate</div>
+                <div className="ttd-opLabel">
+                  <span className="ttd-miniDot" style={{ background: "#ef4444" }} />
+                  Failure rate
+                </div>
                 <div className="ttd-opValue">{safeNum(data.top.failureRate).toFixed(0)}%</div>
                 <div className="ttd-opSub">Live failed attempt pressure</div>
               </div>
 
               <div className="ttd-opStat">
-                <div className="ttd-legendLabel">Retry rate</div>
+                <div className="ttd-opLabel">
+                  <span className="ttd-miniDot" style={{ background: "#8b5cf6" }} />
+                  Retry rate
+                </div>
                 <div className="ttd-opValue">{safeNum(data.top.retryRate).toFixed(0)}%</div>
                 <div className="ttd-opSub">Estimated retry queue from failures</div>
               </div>
 
               <div className="ttd-opStat">
-                <div className="ttd-legendLabel">Last cron result</div>
+                <div className="ttd-opLabel">
+                  <span className="ttd-miniDot" style={{ background: "#60a5fa" }} />
+                  Last cron result
+                </div>
                 <div className="ttd-opValue">
                   {safeStr(lastRun?.runStatus || lastRun?.result || "N/A") || "N/A"}
                 </div>
@@ -1919,7 +2003,61 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="ttd-grid2-equal">
+      <div className="ttd-gridBottom">
+        <Card className="ttd-card">
+          <div className="ttd-panel">
+            <div className="ttd-panelHeader">
+              <div>
+                <h3 className="ttd-panelTitle">Today's workflow</h3>
+                <p className="ttd-panelSub">Quick actions for finance operations and daily control</p>
+              </div>
+              <select className="ttd-select" value={subView} readOnly>
+                <option>Subscription tracking</option>
+              </select>
+            </div>
+
+            <div className="ttd-workflowList">
+              <div className="ttd-workflowItem">
+                <div>
+                  <div className="ttd-workflowTitle">Review exceptions</div>
+                  <div className="ttd-workflowSub">Prioritise failed deductions and finance follow ups</div>
+                </div>
+                <button className="ttd-btn ttd-btnGhost">Open</button>
+              </div>
+
+              <div className="ttd-workflowItem">
+                <div>
+                  <div className="ttd-workflowTitle">Prepare next batch</div>
+                  <div className="ttd-workflowSub">Validate and queue debit orders for the next run</div>
+                </div>
+                <button className="ttd-btn ttd-btnPrimary">Start</button>
+              </div>
+
+              <div className="ttd-workflowItem">
+                <div>
+                  <div className="ttd-workflowTitle">Export bank files</div>
+                  <div className="ttd-workflowSub">Generate bank-ready exports from approved batches</div>
+                </div>
+                <button className="ttd-btn ttd-btnGhost">Export</button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderTop: "1px solid rgba(139,92,246,0.10)",
+                paddingTop: "14px",
+              }}
+            >
+              <div className="ttd-workflowTitle" style={{ marginBottom: "6px" }}>
+                Subscription tracking
+              </div>
+              <div className="ttd-workflowSub">
+                This remains UI-first for now. Later we can sync it from Zoho CRM or Zoho Subscriptions and lock down edits to reduce risk.
+              </div>
+            </div>
+          </div>
+        </Card>
+
         <Card className="ttd-card">
           <div className="ttd-panel">
             <div className="ttd-panelHeader">
@@ -1928,12 +2066,12 @@ export default function Dashboard() {
                 <p className="ttd-panelSub">Fast access to the most recent debit order batch states</p>
               </div>
               <select
-                value={selectedBatch || ""}
+                value={selectedBatch}
                 onChange={(e) => setSelectedBatch(e.target.value)}
                 className="ttd-select"
               >
-                {visibleBatches.length ? (
-                  visibleBatches.map((b) => (
+                {filteredBatches.length ? (
+                  filteredBatches.map((b) => (
                     <option key={b.batch} value={b.batch}>
                       {b.batch}
                     </option>
@@ -1955,7 +2093,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleBatches.map((b) => (
+                  {filteredBatches.map((b) => (
                     <tr
                       key={b.batch}
                       className={cx("ttd-tr", selectedBatch === b.batch && "ttd-trSelected")}
@@ -1975,30 +2113,58 @@ export default function Dashboard() {
               </table>
             </div>
 
-            <div className="ttd-selectedBox">
+            <div
+              style={{
+                marginTop: "14px",
+                padding: "14px",
+                borderRadius: "14px",
+                background: "rgba(18,18,31,0.30)",
+                border: "1px solid rgba(139,92,246,0.10)",
+              }}
+            >
               <div style={{ fontSize: "12px", fontWeight: 800, color: "white", marginBottom: "4px" }}>
-                Selected: {selectedBatchRow?.batch || "None"}
+                Selected: {selectedBatch || "None"}
               </div>
               <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "10px" }}>
-                Open the selected batch in the Batches module or export the visible table.
+                UI-only actions for now. We can wire these to batch workflows later.
               </div>
 
+              <input
+                type="text"
+                placeholder="Type to filter batches"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="ttd-input ttd-inputFull"
+              />
+
               <div className="ttd-actionsRow">
-                <button
-                  className="ttd-btn ttd-btnGhost"
-                  onClick={() => navigateToBatches(selectedBatchRow?.batch)}
-                  disabled={!selectedBatchRow}
-                >
-                  View
-                </button>
-                <button
-                  className="ttd-btn ttd-btnPrimary"
-                  onClick={() => exportBatchesCsv(visibleBatches)}
-                  disabled={!visibleBatches.length}
-                >
-                  Export
-                </button>
+                <button className="ttd-btn ttd-btnGhost">View</button>
+                <button className="ttd-btn ttd-btnPrimary">Export</button>
               </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="ttd-bottomMetrics">
+        <Card className="ttd-card">
+          <div className="ttd-panel">
+            <div className="ttd-bottomLabel">Monthly MRR</div>
+            <div className="ttd-bottomValue">{formatZAR(data.monthlyMRR)}</div>
+            <div className="ttd-bottomSub">
+              Active {data.monthlyActive} • Retry pressure {safeNum(data.top.retryScheduled)}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="ttd-card">
+          <div className="ttd-panel">
+            <div className="ttd-bottomLabel">Annual ARR</div>
+            <div className="ttd-bottomValue">
+              {formatZAR(data.annualARR * 12 + data.monthlyMRR * 12)}
+            </div>
+            <div className="ttd-bottomSub">
+              View monthly • Active annual {data.annualActive}
             </div>
           </div>
         </Card>
