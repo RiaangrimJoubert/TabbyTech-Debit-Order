@@ -220,6 +220,94 @@ function exportRowsToCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+function normalizeBatchStatus(raw) {
+  const s = safeStr(raw).toUpperCase();
+  if (!s) return "Pending";
+  if (["SUCCESS", "SUCCESSFUL", "PAID", "COMPLETED", "COMPLETE"].includes(s)) return "Successful";
+  if (["FAILED", "FAIL", "ERROR"].includes(s)) return "Failed";
+  if (["RETRY", "RETRY SCHEDULED", "RETRY_SCHEDULED"].includes(s)) return "Retry Scheduled";
+  if (["SUSPENDED", "SUSPEND"].includes(s)) return "Suspended";
+  if (["RUNNING", "PROCESSING", "IN PROGRESS"].includes(s)) return "Running";
+  if (["QUEUED", "PENDING", "INITIATED", "CREATED"].includes(s)) return "Pending";
+  if (["EXPORTED", "EXPORT"].includes(s)) return "Exported";
+  if (["SENT"].includes(s)) return "Sent";
+  return s.charAt(0) + s.slice(1).toLowerCase();
+}
+
+function normalizeDashboardBatchRow(raw, index) {
+  const row = raw || {};
+
+  const batchId =
+    safeStr(row.batchId) ||
+    safeStr(row.batch_id) ||
+    safeStr(row.runId) ||
+    safeStr(row.run_id) ||
+    safeStr(row.id) ||
+    safeStr(row.reference);
+
+  const batchLabel =
+    safeStr(row.batch) ||
+    safeStr(row.batchName) ||
+    safeStr(row.batch_name) ||
+    safeStr(row.runLabel) ||
+    safeStr(row.run_label) ||
+    batchId ||
+    safeStr(row.date) ||
+    safeStr(row.createdAt) ||
+    `Batch ${index + 1}`;
+
+  const dateValue =
+    safeStr(row.date) ||
+    safeStr(row.batchDate) ||
+    safeStr(row.batch_date) ||
+    safeStr(row.createdAt) ||
+    safeStr(row.created_at) ||
+    safeStr(row.updatedAt) ||
+    safeStr(row.updated_at);
+
+  const itemsValue =
+    safeNum(row.items) ||
+    safeNum(row.itemCount) ||
+    safeNum(row.item_count) ||
+    safeNum(row.totalItems) ||
+    safeNum(row.total_items) ||
+    safeNum(row.attemptCount) ||
+    safeNum(row.attempt_count) ||
+    safeNum(row.count);
+
+  const moneyValue =
+    safeNum(row.value) ||
+    safeNum(row.amount) ||
+    safeNum(row.totalValue) ||
+    safeNum(row.total_value) ||
+    safeNum(row.totalAmount) ||
+    safeNum(row.total_amount) ||
+    safeNum(row.collectedAmount) ||
+    safeNum(row.collected_amount);
+
+  const statusValue = normalizeBatchStatus(
+    row.runStatus ||
+      row.run_status ||
+      row.result ||
+      row.outcome ||
+      row.batchStatus ||
+      row.batch_status ||
+      row.status
+  );
+
+  return {
+    key: batchId || batchLabel || `batch-${index + 1}`,
+    batch: batchLabel,
+    batchId: batchId || batchLabel,
+    status: statusValue,
+    items: itemsValue,
+    value: moneyValue,
+    date: dateValue,
+    clientId: safeStr(row.clientId || row.client_id),
+    raw: row,
+  };
+}
+
 // Icons
 const IconFileInvoice = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -332,6 +420,8 @@ function Card({ children, style = {}, className = "" }) {
 }
 
 function StatusBadge({ status, children }) {
+  const normalized = safeStr(status).toLowerCase();
+
   const styles = {
     running: { background: "rgba(34, 197, 94, 0.12)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.24)" },
     queued: { background: "rgba(234, 179, 8, 0.10)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.22)" },
@@ -339,12 +429,17 @@ function StatusBadge({ status, children }) {
     failed: { background: "rgba(239, 68, 68, 0.10)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.22)" },
     partial: { background: "rgba(249, 115, 22, 0.10)", color: "#fb923c", border: "1px solid rgba(249, 115, 22, 0.22)" },
     ok: { background: "rgba(34, 197, 94, 0.12)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.24)" },
+    successful: { background: "rgba(34, 197, 94, 0.12)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.24)" },
+    pending: { background: "rgba(234, 179, 8, 0.10)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.22)" },
+    retry: { background: "rgba(139, 92, 246, 0.10)", color: "#a78bfa", border: "1px solid rgba(139, 92, 246, 0.22)" },
+    "retry scheduled": { background: "rgba(139, 92, 246, 0.10)", color: "#a78bfa", border: "1px solid rgba(139, 92, 246, 0.22)" },
+    suspended: { background: "rgba(59, 130, 246, 0.10)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.22)" },
     draft: { background: "rgba(139, 92, 246, 0.10)", color: "#a78bfa", border: "1px solid rgba(139, 92, 246, 0.22)" },
     exported: { background: "rgba(34, 197, 94, 0.12)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.24)" },
     sent: { background: "rgba(59, 130, 246, 0.10)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.22)" },
   };
 
-  const badgeStyle = styles[status] || styles.draft;
+  const badgeStyle = styles[normalized] || styles.draft;
 
   return (
     <span
@@ -634,7 +729,7 @@ export default function Dashboard({ onNavigate }) {
   const [range, setRange] = useLocalStorageState(LS.range, "24h");
   const [subView] = useLocalStorageState(LS.subView, "monthly");
   const [metric] = useLocalStorageState(LS.metric, "revenue");
-  const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "FEB-03-PM");
+  const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "");
 
   const [cronMetrics, setCronMetrics] = useState(() => getCronCache());
   const [cronLoading, setCronLoading] = useState(() => !getCronCache());
@@ -704,7 +799,11 @@ export default function Dashboard({ onNavigate }) {
   const summaryCards = summaryData?.cards || {};
   const summaryCharts = summaryData?.charts || {};
   const summaryNotifications = summaryData?.notifications || {};
-  const summaryBatches = Array.isArray(summaryData?.batches) ? summaryData.batches : [];
+  const rawSummaryBatches = Array.isArray(summaryData?.batches) ? summaryData.batches : [];
+
+  const summaryBatches = useMemo(() => {
+    return rawSummaryBatches.map((row, index) => normalizeDashboardBatchRow(row, index));
+  }, [rawSummaryBatches]);
 
   const attemptsToday = cronMetrics?.attemptsToday || {
     attempted: safeNum(summaryCards.attemptedToday),
@@ -714,7 +813,6 @@ export default function Dashboard({ onNavigate }) {
     suspended: safeNum(summaryCards.suspendedToday),
   };
 
-  const cronLatestRuns = Array.isArray(cronMetrics?.latestRuns) ? cronMetrics.latestRuns : [];
   const cronLastRun = cronMetrics?.lastRun || null;
   const summaryLastRun = summaryData?.cron?.lastRun || null;
 
@@ -845,6 +943,7 @@ export default function Dashboard({ onNavigate }) {
     return data.recentBatches.filter(
       (b) =>
         safeStr(b.batch).toLowerCase().includes(q) ||
+        safeStr(b.batchId).toLowerCase().includes(q) ||
         safeStr(b.status).toLowerCase().includes(q) ||
         String(safeNum(b.items)).includes(q) ||
         fmtDateShort(b.date).toLowerCase().includes(q)
@@ -853,12 +952,14 @@ export default function Dashboard({ onNavigate }) {
 
   useEffect(() => {
     if (!filteredBatches.length) return;
-    const found = filteredBatches.some((b) => b.batch === selectedBatch);
-    if (!found) setSelectedBatch(filteredBatches[0].batch);
+    const found = filteredBatches.some((b) => b.batch === selectedBatch || b.batchId === selectedBatch);
+    if (!found) setSelectedBatch(filteredBatches[0].batchId || filteredBatches[0].batch);
   }, [filteredBatches, selectedBatch, setSelectedBatch]);
 
   const selectedBatchRow = useMemo(() => {
-    return filteredBatches.find((b) => b.batch === selectedBatch) || null;
+    return (
+      filteredBatches.find((b) => b.batch === selectedBatch || b.batchId === selectedBatch) || null
+    );
   }, [filteredBatches, selectedBatch]);
 
   const retrySegments = useMemo(() => {
@@ -922,9 +1023,10 @@ export default function Dashboard({ onNavigate }) {
   }
 
   function handleViewBatch() {
-    if (typeof onNavigate === "function") {
+    if (typeof onNavigate === "function" && selectedBatchRow) {
       onNavigate("batches", {
-        batch: selectedBatch,
+        batchId: selectedBatchRow.batchId || selectedBatchRow.batch,
+        clientId: selectedBatchRow.clientId || "",
         source: "dashboard",
       });
     }
@@ -2360,7 +2462,7 @@ export default function Dashboard({ onNavigate }) {
               >
                 {filteredBatches.length ? (
                   filteredBatches.map((b) => (
-                    <option key={b.batch} value={b.batch}>
+                    <option key={b.key} value={b.batchId || b.batch}>
                       {b.batch}
                     </option>
                   ))
@@ -2383,14 +2485,17 @@ export default function Dashboard({ onNavigate }) {
                 <tbody>
                   {filteredBatches.map((b) => (
                     <tr
-                      key={b.batch}
-                      className={cx("ttd-tr", selectedBatch === b.batch && "ttd-trSelected")}
-                      onClick={() => setSelectedBatch(b.batch)}
+                      key={b.key}
+                      className={cx(
+                        "ttd-tr",
+                        (selectedBatch === b.batch || selectedBatch === b.batchId) && "ttd-trSelected"
+                      )}
+                      onClick={() => setSelectedBatch(b.batchId || b.batch)}
                     >
                       <td className="ttd-td" style={{ fontWeight: 700 }}>{b.batch}</td>
                       <td className="ttd-td">
                         <StatusBadge status={safeStr(b.status).toLowerCase()}>
-                          {safeStr(b.status).charAt(0).toUpperCase() + safeStr(b.status).slice(1)}
+                          {safeStr(b.status) || "Pending"}
                         </StatusBadge>
                       </td>
                       <td className="ttd-td" style={{ textAlign: "right" }}>{safeNum(b.items)}</td>
@@ -2403,10 +2508,12 @@ export default function Dashboard({ onNavigate }) {
 
             <div className="ttd-batchSummaryBox">
               <div style={{ fontSize: "12px", fontWeight: 800, color: "white", marginBottom: "4px" }}>
-                Selected: {selectedBatch || "None"}
+                Selected: {selectedBatchRow?.batch || selectedBatch || "None"}
               </div>
               <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "10px" }}>
-                Export uses the currently displayed rows. View is shell-ready and needs the parent navigation hook.
+                {canRouteToBatches
+                  ? "Export uses the currently displayed rows. View opens the Batches module for deeper inspection."
+                  : "Export uses the currently displayed rows. View needs the parent shell navigation hook."}
               </div>
 
               {selectedBatchRow ? (
@@ -2430,7 +2537,7 @@ export default function Dashboard({ onNavigate }) {
                 <button
                   className="ttd-btn ttd-btnGhost"
                   onClick={handleViewBatch}
-                  disabled={!selectedBatch || !canRouteToBatches}
+                  disabled={!selectedBatchRow || !canRouteToBatches}
                   title={canRouteToBatches ? "Open Batches module" : "Needs shell navigation hook"}
                 >
                   View
