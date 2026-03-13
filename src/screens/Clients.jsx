@@ -572,7 +572,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     background: rgba(255,255,255,0.05);
     color: rgba(255,255,255,0.76);
     display: inline-flex;
-    align-items: center;
+    alignItems: center;
     gap: 8px;
     cursor: pointer;
     font-size: 12px;
@@ -1223,9 +1223,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <button type="button" className="tt-btn tt-btnPrimary" onClick={onViewDebitOrders}>
                         View debit orders
-                      </button>
-                      <button type="button" className="tt-btn tt-btnPrimary" onClick={onViewBatches}>
-                        View batches
                       </button>
                       <button type="button" className="tt-btn tt-btnPrimary" onClick={onOpenZoho}>
                         Open in Zoho CRM
