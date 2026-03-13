@@ -367,40 +367,11 @@ const IconClock = () => (
   </svg>
 );
 
-const IconEnvelope = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-    <polyline points="22,6 12,13 2,6" />
-  </svg>
-);
-
 const IconExclamation = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" />
     <line x1="12" y1="8" x2="12" y2="12" />
     <line x1="12" y1="16" x2="12.01" y2="16" />
-  </svg>
-);
-
-const IconPaperPlane = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="22" y1="2" x2="11" y2="13" />
-    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-  </svg>
-);
-
-const IconAlert = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-    <line x1="12" y1="9" x2="12" y2="13" />
-    <line x1="12" y1="17" x2="12.01" y2="17" />
-  </svg>
-);
-
-const IconClose = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
 
@@ -680,53 +651,6 @@ function LineTrendChart({ data }) {
   );
 }
 
-function BarChart({ data }) {
-  const rows = Array.isArray(data) ? data : [];
-  const allValues = rows.flatMap((d) => [safeNum(d.sent), safeNum(d.opened)]);
-  const maxVal = Math.max(1, ...allValues);
-
-  return (
-    <div>
-      <div className="ttd-chartHeaderMeta">
-        <div>
-          <div className="ttd-chartValue">
-            {rows.reduce((sum, row) => sum + safeNum(row.sent), 0)}
-          </div>
-          <div className="ttd-chartSub">Weekly email activity demo</div>
-        </div>
-        <div className="ttd-chartPills">
-          <span className="ttd-chartPill">
-            <span className="ttd-miniDot" style={{ background: "#8b5cf6" }} />
-            Sent
-          </span>
-          <span className="ttd-chartPill">
-            <span className="ttd-miniDot" style={{ background: "#60a5fa" }} />
-            Opened
-          </span>
-        </div>
-      </div>
-
-      <div className="ttd-barsWrap">
-        {rows.map((row, idx) => (
-          <div key={`b-${idx}`} className="ttd-barCol">
-            <div className="ttd-barPair">
-              <div
-                className="ttd-bar ttd-barPurple"
-                style={{ height: `${Math.max(8, (safeNum(row.sent) / maxVal) * 100)}%` }}
-              />
-              <div
-                className="ttd-bar ttd-barBlue"
-                style={{ height: `${Math.max(8, (safeNum(row.opened) / maxVal) * 100)}%` }}
-              />
-            </div>
-            <div className="ttd-barLabel">{row.day}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 async function fetchCronMetrics() {
   return fetchJson("/api/dashboard/cron-metrics");
 }
@@ -817,7 +741,6 @@ export default function Dashboard({ onNavigate }) {
   const summaryData = dashboardSummary?.data || {};
   const summaryCards = summaryData?.cards || {};
   const summaryCharts = summaryData?.charts || {};
-  const summaryNotifications = summaryData?.notifications || {};
   const rawSummaryBatches = Array.isArray(summaryData?.batches) ? summaryData.batches : [];
 
   const summaryBatches = useMemo(() => {
@@ -921,25 +844,8 @@ export default function Dashboard({ onNavigate }) {
       monthlyMRR: realMonthlyMRR,
       annualARR: realAnnualARR,
       recentBatches: summaryBatches,
-      notifications: {
-        confirmation: {
-          label: safeStr(summaryNotifications?.confirmation?.label || "Debit Order Confirmations"),
-          status: safeStr(summaryNotifications?.confirmation?.status || "Pending"),
-          count: safeNum(summaryNotifications?.confirmation?.count),
-        },
-        failed: {
-          label: safeStr(summaryNotifications?.failed?.label || "Failed Payment Alerts"),
-          status: safeStr(summaryNotifications?.failed?.status || "Pending"),
-          count: safeNum(summaryNotifications?.failed?.count),
-        },
-        retry: {
-          label: safeStr(summaryNotifications?.retry?.label || "Retry Notifications"),
-          status: safeStr(summaryNotifications?.retry?.status || "Pending"),
-          count: safeNum(summaryNotifications?.retry?.count),
-        },
-      },
     };
-  }, [summaryBatches, summaryCards, summaryNotifications, monthlyActive, annualActive, realMonthlyMRR, realAnnualARR]);
+  }, [summaryBatches, summaryCards, monthlyActive, annualActive, realMonthlyMRR, realAnnualARR]);
 
   const debitPerformanceData = useMemo(() => {
     return Array.isArray(summaryCharts?.debitPerformance) ? summaryCharts.debitPerformance : [];
@@ -948,16 +854,6 @@ export default function Dashboard({ onNavigate }) {
   const retryDistributionData = useMemo(() => {
     return Array.isArray(summaryCharts?.retryDistribution) ? summaryCharts.retryDistribution : [];
   }, [summaryCharts]);
-
-  const emailData = [
-    { day: "Mon", sent: 120, opened: 80 },
-    { day: "Tue", sent: 190, opened: 120 },
-    { day: "Wed", sent: 150, opened: 100 },
-    { day: "Thu", sent: 220, opened: 140 },
-    { day: "Fri", sent: 180, opened: 110 },
-    { day: "Sat", sent: 90, opened: 50 },
-    { day: "Sun", sent: 110, opened: 70 },
-  ];
 
   const filteredBatches = useMemo(() => {
     const q = (search || "").trim().toLowerCase();
@@ -1166,36 +1062,6 @@ export default function Dashboard({ onNavigate }) {
       flex: 0 0 auto;
     }
 
-    .ttd-searchWrap {
-      position: relative;
-    }
-
-    .ttd-search {
-      background: rgba(18,18,31,0.62);
-      border: 1px solid rgba(139,92,246,0.20);
-      border-radius: 14px;
-      padding: 10px 14px 10px 38px;
-      font-size: 13px;
-      color: #d1d5db;
-      width: 260px;
-      outline: none;
-    }
-
-    .ttd-search:focus {
-      border-color: rgba(168,85,247,0.52);
-      box-shadow: 0 0 0 6px rgba(124,58,237,0.16);
-    }
-
-    .ttd-searchIcon {
-      position: absolute;
-      left: 12px;
-      top: 10px;
-      color: #6b7280;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
     .ttd-livePill {
       display: inline-flex;
       align-items: center;
@@ -1244,9 +1110,9 @@ export default function Dashboard({ onNavigate }) {
       margin-bottom: 16px;
     }
 
-    .ttd-gridBottom {
+    .ttd-gridBottomSingle {
       display: grid;
-      grid-template-columns: 1.35fr 1fr;
+      grid-template-columns: 1fr;
       gap: 16px;
       margin-bottom: 16px;
     }
@@ -1722,10 +1588,6 @@ export default function Dashboard({ onNavigate }) {
       outline: none;
     }
 
-    .ttd-inputFull {
-      width: 100%;
-    }
-
     .ttd-actionsRow {
       display: flex;
       gap: 8px;
@@ -1758,127 +1620,6 @@ export default function Dashboard({ onNavigate }) {
       color: white;
       background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
       box-shadow: 0 12px 28px rgba(124,58,237,0.20);
-    }
-
-    .ttd-workflowList {
-      display: grid;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-
-    .ttd-workflowItem {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 14px;
-      border-radius: 14px;
-      background: rgba(18,18,31,0.40);
-      border: 1px solid rgba(139,92,246,0.10);
-    }
-
-    .ttd-workflowTitle {
-      font-size: 13px;
-      font-weight: 800;
-      color: white;
-      margin-bottom: 4px;
-    }
-
-    .ttd-workflowSub {
-      font-size: 11px;
-      color: #6b7280;
-    }
-
-    .ttd-bottomMetrics {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .ttd-bottomLabel {
-      font-size: 12px;
-      color: #9ca3af;
-      margin-bottom: 8px;
-    }
-
-    .ttd-bottomValue {
-      font-size: 22px;
-      font-weight: 800;
-      color: white;
-      margin-bottom: 4px;
-      letter-spacing: -0.02em;
-    }
-
-    .ttd-bottomSub {
-      font-size: 11px;
-      color: #6b7280;
-    }
-
-    .ttd-bottomValueMuted {
-      color: #a1a1aa;
-      font-size: 20px;
-    }
-
-    .ttd-bottomStateNote {
-      margin-top: 10px;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 999px;
-      background: rgba(249, 115, 22, 0.08);
-      border: 1px solid rgba(249, 115, 22, 0.16);
-      color: #fb923c;
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .ttd-barsWrap {
-      min-height: 150px;
-      height: 150px;
-      display: flex;
-      align-items: end;
-      gap: 8px;
-    }
-
-    .ttd-barCol {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: end;
-      gap: 8px;
-      height: 100%;
-    }
-
-    .ttd-barPair {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: end;
-      justify-content: center;
-      gap: 5px;
-    }
-
-    .ttd-bar {
-      width: 14px;
-      min-height: 8px;
-      border-radius: 10px 10px 6px 6px;
-    }
-
-    .ttd-barPurple {
-      background: linear-gradient(180deg, rgba(168,85,247,0.95), rgba(124,58,237,0.72));
-    }
-
-    .ttd-barBlue {
-      background: linear-gradient(180deg, rgba(96,165,250,0.95), rgba(59,130,246,0.72));
-    }
-
-    .ttd-barLabel {
-      font-size: 10px;
-      color: rgba(255,255,255,0.46);
-      text-align: center;
     }
 
     .ttd-batchSummaryBox {
@@ -1915,14 +1656,55 @@ export default function Dashboard({ onNavigate }) {
       color: white;
     }
 
+    .ttd-arrMrrStack {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ttd-financeCard {
+      min-height: 0;
+    }
+
+    .ttd-financeValue {
+      font-size: 24px;
+      font-weight: 800;
+      color: white;
+      margin-bottom: 6px;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+    }
+
+    .ttd-financeValueMuted {
+      color: #a1a1aa;
+    }
+
+    .ttd-financeSub {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-bottom: 10px;
+    }
+
+    .ttd-bottomStateNote {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, 0.08);
+      border: 1px solid rgba(249, 115, 22, 0.16);
+      color: #fb923c;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
     @media (max-width: 1500px) {
       .ttd-grid4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .ttd-grid2,
-      .ttd-grid2-equal,
-      .ttd-gridBottom,
-      .ttd-bottomMetrics {
+      .ttd-grid2-equal {
         grid-template-columns: 1fr;
       }
     }
@@ -1936,9 +1718,6 @@ export default function Dashboard({ onNavigate }) {
       }
       .ttd-grid4 {
         grid-template-columns: 1fr;
-      }
-      .ttd-search {
-        width: 100%;
       }
       .ttd-headerTools {
         width: 100%;
@@ -2303,174 +2082,56 @@ export default function Dashboard({ onNavigate }) {
           </div>
         </Card>
 
-        <Card className="ttd-card">
-          <div className="ttd-panel">
-            <div className="ttd-panelHeader">
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "12px",
-                    background: "rgba(59, 130, 246, 0.12)",
-                    border: "1px solid rgba(59, 130, 246, 0.20)",
-                    color: "#60a5fa",
-                    display: "grid",
-                    placeItems: "center",
-                  }}
-                >
-                  <IconEnvelope />
-                </div>
+        <div className="ttd-arrMrrStack">
+          <Card className="ttd-card ttd-financeCard">
+            <div className="ttd-panel">
+              <div className="ttd-panelHeader">
                 <div>
-                  <h3 className="ttd-panelTitle">Notification tracker</h3>
-                  <p className="ttd-panelSub">UI-ready notification visibility for collection confirmations, failures, and retry follow-up</p>
+                  <h3 className="ttd-panelTitle">Monthly MRR</h3>
+                  <p className="ttd-panelSub">Recurring monthly revenue view tied to active monthly subscriptions</p>
                 </div>
               </div>
+
+              <div className={cx("ttd-financeValue", !data.monthlyMRR && "ttd-financeValueMuted")}>
+                {data.monthlyMRR ? formatZAR(data.monthlyMRR) : "Awaiting source"}
+              </div>
+
+              <div className="ttd-financeSub">
+                Active {safeNum(data.monthlyActive)} • Retry pressure {safeNum(data.top.retryScheduled)}
+              </div>
+
+              {!data.monthlyMRR ? (
+                <div className="ttd-bottomStateNote">No live MRR source exposed to dashboard yet</div>
+              ) : null}
             </div>
+          </Card>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "14px" }}>
-              <div className="ttd-opStat" style={{ textAlign: "center" }}>
-                <div className="ttd-opValue">{safeNum(data.notifications.confirmation.count)}</div>
-                <div className="ttd-opSub">Sent</div>
+          <Card className="ttd-card ttd-financeCard">
+            <div className="ttd-panel">
+              <div className="ttd-panelHeader">
+                <div>
+                  <h3 className="ttd-panelTitle">Annual ARR</h3>
+                  <p className="ttd-panelSub">Recurring annual revenue view tied to active annual subscriptions</p>
+                </div>
               </div>
-              <div className="ttd-opStat" style={{ textAlign: "center" }}>
-                <div className="ttd-opValue" style={{ color: "#4ade80" }}>0%</div>
-                <div className="ttd-opSub">Delivered</div>
+
+              <div className={cx("ttd-financeValue", !data.annualARR && "ttd-financeValueMuted")}>
+                {data.annualARR ? formatZAR(data.annualARR) : "Awaiting source"}
               </div>
-              <div className="ttd-opStat" style={{ textAlign: "center" }}>
-                <div className="ttd-opValue" style={{ color: "#60a5fa" }}>0%</div>
-                <div className="ttd-opSub">Opened</div>
+
+              <div className="ttd-financeSub">
+                View monthly • Active annual {safeNum(data.annualActive)}
               </div>
+
+              {!data.annualARR ? (
+                <div className="ttd-bottomStateNote">No live ARR source exposed to dashboard yet</div>
+              ) : null}
             </div>
-
-            <BarChart data={emailData} />
-
-            <div className="ttd-legendStack" style={{ marginTop: "14px" }}>
-              <div className="ttd-legendCard">
-                <div className="ttd-legendLeft">
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "10px",
-                      background: "rgba(139, 92, 246, 0.10)",
-                      display: "grid",
-                      placeItems: "center",
-                    }}
-                  >
-                    <IconPaperPlane />
-                  </div>
-                  <div>
-                    <div className="ttd-legendLabel">{data.notifications.confirmation.label}</div>
-                    <div className="ttd-legendSub">{safeNum(data.notifications.confirmation.count)} items</div>
-                  </div>
-                </div>
-                <div className="ttd-legendPct">{data.notifications.confirmation.status}</div>
-              </div>
-
-              <div className="ttd-legendCard">
-                <div className="ttd-legendLeft">
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "10px",
-                      background: "rgba(249,115,22,0.10)",
-                      display: "grid",
-                      placeItems: "center",
-                    }}
-                  >
-                    <IconAlert />
-                  </div>
-                  <div>
-                    <div className="ttd-legendLabel">{data.notifications.failed.label}</div>
-                    <div className="ttd-legendSub">{safeNum(data.notifications.failed.count)} items waiting</div>
-                  </div>
-                </div>
-                <div className="ttd-legendPct">{data.notifications.failed.status}</div>
-              </div>
-
-              <div className="ttd-legendCard">
-                <div className="ttd-legendLeft">
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "10px",
-                      background: "rgba(239,68,68,0.10)",
-                      display: "grid",
-                      placeItems: "center",
-                    }}
-                  >
-                    <IconClose />
-                  </div>
-                  <div>
-                    <div className="ttd-legendLabel">{data.notifications.retry.label}</div>
-                    <div className="ttd-legendSub">{safeNum(data.notifications.retry.count)} items waiting</div>
-                  </div>
-                </div>
-                <div className="ttd-legendPct">{data.notifications.retry.status}</div>
-              </div>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
       </div>
 
-      <div className="ttd-gridBottom">
-        <Card className="ttd-card">
-          <div className="ttd-panel">
-            <div className="ttd-panelHeader">
-              <div>
-                <h3 className="ttd-panelTitle">Collection workflow</h3>
-                <p className="ttd-panelSub">Daily finance control for sign-ups, validation, exceptions, and the next 25th or 1st run</p>
-              </div>
-              <select className="ttd-select" value={subView} readOnly>
-                <option>Cycle tracking</option>
-              </select>
-            </div>
-
-            <div className="ttd-workflowList">
-              <div className="ttd-workflowItem">
-                <div>
-                  <div className="ttd-workflowTitle">Review exceptions</div>
-                  <div className="ttd-workflowSub">Prioritise failed deductions, retry cases, and finance follow-up before the next collection window</div>
-                </div>
-                <button className="ttd-btn ttd-btnGhost">Open</button>
-              </div>
-
-              <div className="ttd-workflowItem">
-                <div>
-                  <div className="ttd-workflowTitle">Prepare next collection run</div>
-                  <div className="ttd-workflowSub">Validate sign-ups and queue debit orders for the next 25th or 1st cycle</div>
-                </div>
-                <button className="ttd-btn ttd-btnPrimary">Start</button>
-              </div>
-
-              <div className="ttd-workflowItem">
-                <div>
-                  <div className="ttd-workflowTitle">Export bank files</div>
-                  <div className="ttd-workflowSub">Generate bank-ready exports for approved cycle batches</div>
-                </div>
-                <button className="ttd-btn ttd-btnGhost">Export</button>
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderTop: "1px solid rgba(139,92,246,0.10)",
-                paddingTop: "14px",
-              }}
-            >
-              <div className="ttd-workflowTitle" style={{ marginBottom: "6px" }}>
-                Cycle tracking
-              </div>
-              <div className="ttd-workflowSub">
-                This dashboard is now framed around sign-ups through the month and debit collections on the 25th and 1st, while keeping future subscription sync options open.
-              </div>
-            </div>
-          </div>
-        </Card>
-
+      <div className="ttd-gridBottomSingle">
         <Card className="ttd-card">
           <div className="ttd-panel">
             <div className="ttd-panelHeader">
@@ -2574,38 +2235,6 @@ export default function Dashboard({ onNavigate }) {
                 </button>
               </div>
             </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="ttd-bottomMetrics">
-        <Card className="ttd-card">
-          <div className="ttd-panel">
-            <div className="ttd-bottomLabel">Monthly MRR</div>
-            <div className={cx("ttd-bottomValue", !data.monthlyMRR && "ttd-bottomValueMuted")}>
-              {data.monthlyMRR ? formatZAR(data.monthlyMRR) : "Awaiting source"}
-            </div>
-            <div className="ttd-bottomSub">
-              Active {safeNum(data.monthlyActive)} • Retry pressure {safeNum(data.top.retryScheduled)}
-            </div>
-            {!data.monthlyMRR ? (
-              <div className="ttd-bottomStateNote">No live MRR source exposed to dashboard yet</div>
-            ) : null}
-          </div>
-        </Card>
-
-        <Card className="ttd-card">
-          <div className="ttd-panel">
-            <div className="ttd-bottomLabel">Annual ARR</div>
-            <div className={cx("ttd-bottomValue", !data.annualARR && "ttd-bottomValueMuted")}>
-              {data.annualARR ? formatZAR(data.annualARR) : "Awaiting source"}
-            </div>
-            <div className="ttd-bottomSub">
-              View monthly • Active annual {safeNum(data.annualActive)}
-            </div>
-            {!data.annualARR ? (
-              <div className="ttd-bottomStateNote">No live ARR source exposed to dashboard yet</div>
-            ) : null}
           </div>
         </Card>
       </div>
