@@ -1,3 +1,16 @@
+Here is the cleaned **full file** with that bottom selected-summary block removed.
+
+**What changed**
+
+* removed the whole bottom `Selected / Status / Items / Value / View / Export` section
+* removed the unused `handleViewBatch`
+* removed the unused `canRouteToBatches`
+* removed the unused `selectedBatchRow`
+* removed the unused summary/action CSS tied to that block
+
+### `src/shell/Dashboard.jsx`
+
+```jsx
 // src/shell/Dashboard.jsx
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -327,7 +340,6 @@ function getCollectionScheduleText() {
   return "Collections run on the 25th and 1st of each month";
 }
 
-// Icons
 const IconFileInvoice = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -667,7 +679,7 @@ function resolveRealMetric(value) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard() {
   const [search, setSearch] = useLocalStorageState(LS.search, "");
   const [range, setRange] = useLocalStorageState(LS.range, "24h");
   const [subView] = useLocalStorageState(LS.subView, "monthly");
@@ -874,12 +886,6 @@ export default function Dashboard({ onNavigate }) {
     if (!found) setSelectedBatch(filteredBatches[0].batchId || filteredBatches[0].batch);
   }, [filteredBatches, selectedBatch, setSelectedBatch]);
 
-  const selectedBatchRow = useMemo(() => {
-    return (
-      filteredBatches.find((b) => b.batch === selectedBatch || b.batchId === selectedBatch) || null
-    );
-  }, [filteredBatches, selectedBatch]);
-
   const retrySegments = useMemo(() => {
     const total = retryDistributionData.reduce((sum, item) => sum + safeNum(item.value), 0) || 1;
     return retryDistributionData.map((item) => ({
@@ -939,18 +945,6 @@ export default function Dashboard({ onNavigate }) {
 
     exportRowsToCsv(`tabbytech-batches-${range}-${Date.now()}.csv`, rows);
   }
-
-  function handleViewBatch() {
-    if (typeof onNavigate === "function" && selectedBatchRow) {
-      onNavigate("batches", {
-        batchId: selectedBatchRow.batchId || selectedBatchRow.batch,
-        clientId: selectedBatchRow.clientId || "",
-        source: "dashboard",
-      });
-    }
-  }
-
-  const canRouteToBatches = typeof onNavigate === "function";
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
@@ -1577,8 +1571,7 @@ export default function Dashboard({ onNavigate }) {
       color: white;
     }
 
-    .ttd-select,
-    .ttd-input {
+    .ttd-select {
       background: rgba(18,18,31,0.60);
       border: 1px solid rgba(139,92,246,0.20);
       border-radius: 12px;
@@ -1586,81 +1579,6 @@ export default function Dashboard({ onNavigate }) {
       font-size: 12px;
       color: #d1d5db;
       outline: none;
-    }
-
-    .ttd-actionsRow {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .ttd-btn {
-      flex: 1;
-      padding: 10px 12px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 800;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .ttd-btn:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-
-    .ttd-btnGhost {
-      background: rgba(26,26,46,0.8);
-      border: 1px solid rgba(139,92,246,0.20);
-      color: white;
-    }
-
-    .ttd-btnPrimary {
-      border: none;
-      color: white;
-      background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
-      box-shadow: 0 12px 28px rgba(124,58,237,0.20);
-    }
-
-    .ttd-batchSummaryBox {
-      margin-top: 14px;
-      padding: 14px;
-      border-radius: 14px;
-      background: rgba(18,18,31,0.30);
-      border: 1px solid rgba(139,92,246,0.10);
-    }
-
-    .ttd-batchSummaryGrid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .ttd-batchSummaryItem {
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.04);
-      padding: 10px 12px;
-    }
-
-    .ttd-batchSummaryLabel {
-      font-size: 11px;
-      color: rgba(255,255,255,0.52);
-      margin-bottom: 6px;
-    }
-
-    .ttd-batchSummaryValue {
-      font-size: 13px;
-      font-weight: 800;
-      color: white;
-    }
-
-    .ttd-arrMrrStack {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
     }
 
     .ttd-financeCard {
@@ -1699,6 +1617,13 @@ export default function Dashboard({ onNavigate }) {
       font-weight: 700;
     }
 
+    .ttd-arrMrrStack {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
     @media (max-width: 1500px) {
       .ttd-grid4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1728,9 +1653,6 @@ export default function Dashboard({ onNavigate }) {
       }
       .ttd-headerFilterInput {
         width: 100%;
-      }
-      .ttd-batchSummaryGrid {
-        grid-template-columns: 1fr;
       }
     }
   `;
@@ -2190,50 +2112,15 @@ export default function Dashboard({ onNavigate }) {
               </table>
             </div>
 
-            <div className="ttd-batchSummaryBox">
-              <div style={{ fontSize: "12px", fontWeight: 800, color: "white", marginBottom: "4px" }}>
-                Selected: {selectedBatchRow?.batch || selectedBatch || "None"}
-              </div>
-              <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "10px" }}>
-                {canRouteToBatches
-                  ? "Export uses the currently displayed run rows. View opens the Batches module for deeper inspection."
-                  : "Export uses the currently displayed run rows. View needs the parent shell navigation hook."}
-              </div>
-
-              {selectedBatchRow ? (
-                <div className="ttd-batchSummaryGrid">
-                  <div className="ttd-batchSummaryItem">
-                    <div className="ttd-batchSummaryLabel">Status</div>
-                    <div className="ttd-batchSummaryValue">{safeStr(selectedBatchRow.status) || "N/A"}</div>
-                  </div>
-                  <div className="ttd-batchSummaryItem">
-                    <div className="ttd-batchSummaryLabel">Items</div>
-                    <div className="ttd-batchSummaryValue">{safeNum(selectedBatchRow.items)}</div>
-                  </div>
-                  <div className="ttd-batchSummaryItem">
-                    <div className="ttd-batchSummaryLabel">Value</div>
-                    <div className="ttd-batchSummaryValue">{formatZAR(selectedBatchRow.value)}</div>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="ttd-actionsRow">
-                <button
-                  className="ttd-btn ttd-btnGhost"
-                  onClick={handleViewBatch}
-                  disabled={!selectedBatchRow || !canRouteToBatches}
-                  title={canRouteToBatches ? "Open Batches module" : "Needs shell navigation hook"}
-                >
-                  View
-                </button>
-                <button
-                  className="ttd-btn ttd-btnPrimary"
-                  onClick={handleExportVisibleBatches}
-                  disabled={!filteredBatches.length}
-                >
-                  Export
-                </button>
-              </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "14px" }}>
+              <button
+                className="ttd-btn ttd-btnPrimary"
+                onClick={handleExportVisibleBatches}
+                disabled={!filteredBatches.length}
+                style={{ maxWidth: "220px" }}
+              >
+                Export
+              </button>
             </div>
           </div>
         </Card>
@@ -2258,3 +2145,4 @@ export default function Dashboard({ onNavigate }) {
     </div>
   );
 }
+```
