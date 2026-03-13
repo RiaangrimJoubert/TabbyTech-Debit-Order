@@ -1,16 +1,3 @@
-Here is the cleaned **full file** with that bottom selected-summary block removed.
-
-**What changed**
-
-* removed the whole bottom `Selected / Status / Items / Value / View / Export` section
-* removed the unused `handleViewBatch`
-* removed the unused `canRouteToBatches`
-* removed the unused `selectedBatchRow`
-* removed the unused summary/action CSS tied to that block
-
-### `src/shell/Dashboard.jsx`
-
-```jsx
 // src/shell/Dashboard.jsx
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -2145,4 +2132,3 @@ export default function Dashboard() {
     </div>
   );
 }
-```
