@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-const BATCHES_CACHE_TTL_MS = 5 * 60 * 1000;
+const BATCHES_CACHE_TTL_MS = 10 * 60 * 1000;
 
 let batchesScreenCache = {
   startDate: "",
