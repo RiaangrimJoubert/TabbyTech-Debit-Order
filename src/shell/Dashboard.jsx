@@ -1,5 +1,5 @@
 // src/shell/Dashboard.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const LS = {
   search: "tabbytech.dashboard.search",
@@ -327,6 +327,24 @@ function getCollectionScheduleText() {
   return "Collections run on the 25th and 1st of each month";
 }
 
+function useOnClickOutside(ref, handler) {
+  useEffect(() => {
+    function onDown(e) {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target)) return;
+      handler();
+    }
+
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("touchstart", onDown);
+
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("touchstart", onDown);
+    };
+  }, [ref, handler]);
+}
+
 const IconFileInvoice = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -392,6 +410,18 @@ const IconSearch = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8" />
     <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+const IconCaretDown = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+
+const IconTick = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
   </svg>
 );
 
@@ -467,6 +497,84 @@ function MetricCard({ title, value, subtext, trend, trendUp, icon: Icon, color =
         >
           {trendUp ? <IconArrowUp /> : <IconArrowDown />}
           <span>{trend}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PremiumBatchDropdown({ value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const activeOption =
+    options.find((o) => o.value === value) ||
+    options[0] ||
+    { value: "", label: "No batches" };
+
+  function handleSelect(nextValue) {
+    onChange(nextValue);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={wrapRef} className="ttd-ddWrap">
+      <button
+        type="button"
+        className={cx("ttd-ddBtn", open && "ttd-ddBtnOpen")}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="ttd-ddBtnText">{activeOption.label}</span>
+        <span className="ttd-ddCaret">
+          <IconCaretDown />
+        </span>
+      </button>
+
+      {open ? (
+        <div className="ttd-ddMenu" role="listbox" aria-label="Recent runs">
+          {options.length ? (
+            options.map((option, index) => {
+              const isActive = option.value === activeOption.value;
+              return (
+                <div
+                  key={option.value || `opt-${index}`}
+                  role="option"
+                  aria-selected={isActive}
+                  tabIndex={0}
+                  className={cx("ttd-ddItem", isActive && "ttd-ddItemActive")}
+                  style={{
+                    borderBottom:
+                      index === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                  }}
+                  onClick={() => handleSelect(option.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleSelect(option.value);
+                    }
+                  }}
+                >
+                  <span className="ttd-ddItemText">{option.label}</span>
+                  {isActive ? (
+                    <span className="ttd-ddTick">
+                      <IconTick />
+                    </span>
+                  ) : (
+                    <span className="ttd-ddTickSpacer" />
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="ttd-ddItem" style={{ borderBottom: "none", cursor: "default" }}>
+              <span className="ttd-ddItemText">No batches</span>
+              <span className="ttd-ddTickSpacer" />
+            </div>
+          )}
         </div>
       ) : null}
     </div>
@@ -932,6 +1040,13 @@ export default function Dashboard() {
 
     exportRowsToCsv(`tabbytech-batches-${range}-${Date.now()}.csv`, rows);
   }
+
+  const batchDropdownOptions = filteredBatches.length
+    ? filteredBatches.map((b) => ({
+        value: b.batchId || b.batch,
+        label: b.batch,
+      }))
+    : [{ value: "", label: "No batches" }];
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
@@ -1558,16 +1673,6 @@ export default function Dashboard() {
       color: white;
     }
 
-    .ttd-select {
-      background: rgba(18,18,31,0.60);
-      border: 1px solid rgba(139,92,246,0.20);
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 12px;
-      color: #d1d5db;
-      outline: none;
-    }
-
     .ttd-financeCard {
       min-height: 0;
     }
@@ -1611,6 +1716,175 @@ export default function Dashboard() {
       margin-bottom: 16px;
     }
 
+    .ttd-ddWrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      min-width: 180px;
+      max-width: 220px;
+    }
+
+    .ttd-ddBtn {
+      width: 100%;
+      height: 40px;
+      padding: 0 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(168,85,247,0.38);
+      background:
+        linear-gradient(180deg, rgba(22,18,45,0.96) 0%, rgba(12,10,28,0.96) 100%);
+      color: rgba(255,255,255,0.92);
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.15px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 0 0 1px rgba(168,85,247,0.05);
+      transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease, transform 180ms ease;
+    }
+
+    .ttd-ddBtn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(168,85,247,0.52);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        0 14px 28px rgba(124,58,237,0.18);
+    }
+
+    .ttd-ddBtnOpen {
+      border-color: rgba(168,85,247,0.60);
+      background:
+        linear-gradient(180deg, rgba(30,22,58,0.98) 0%, rgba(16,12,34,0.98) 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        0 16px 34px rgba(124,58,237,0.24);
+    }
+
+    .ttd-ddBtnText {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: left;
+      flex: 1 1 auto;
+    }
+
+    .ttd-ddCaret {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.80);
+      flex: 0 0 auto;
+    }
+
+    .ttd-ddMenu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      min-width: 100%;
+      border-radius: 16px;
+      border: 1px solid rgba(168,85,247,0.28);
+      background:
+        linear-gradient(180deg, rgba(12,10,28,0.98) 0%, rgba(8,8,20,0.98) 100%);
+      box-shadow:
+        0 22px 50px rgba(0,0,0,0.42),
+        0 0 0 1px rgba(168,85,247,0.06);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+      z-index: 70;
+    }
+
+    .ttd-ddItem {
+      padding: 11px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.15px;
+      color: rgba(255,255,255,0.88);
+      background: transparent;
+      transition: background 160ms ease;
+    }
+
+    .ttd-ddItem:hover {
+      background: rgba(168,85,247,0.14);
+    }
+
+    .ttd-ddItemActive {
+      background: linear-gradient(90deg, rgba(168,85,247,0.22), rgba(124,58,237,0.12));
+      color: #ffffff;
+    }
+
+    .ttd-ddItemText {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ttd-ddTick {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(168,85,247,0.25);
+      border: 1px solid rgba(168,85,247,0.38);
+      color: rgba(255,255,255,0.92);
+      flex: 0 0 auto;
+    }
+
+    .ttd-ddTickSpacer {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+    }
+
+    .ttd-exportBtn {
+      min-width: 160px;
+      height: 40px;
+      padding: 0 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(168,85,247,0.54);
+      background: linear-gradient(135deg, rgba(168,85,247,0.98), rgba(124,58,237,0.98));
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 16px 34px rgba(124,58,237,0.28),
+        inset 0 1px 0 rgba(255,255,255,0.14);
+      transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease, opacity 180ms ease;
+    }
+
+    .ttd-exportBtn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.03);
+      box-shadow:
+        0 20px 40px rgba(124,58,237,0.32),
+        inset 0 1px 0 rgba(255,255,255,0.18);
+    }
+
+    .ttd-exportBtn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+      box-shadow:
+        0 8px 18px rgba(124,58,237,0.18),
+        inset 0 1px 0 rgba(255,255,255,0.10);
+    }
+
     @media (max-width: 1500px) {
       .ttd-grid4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1640,6 +1914,10 @@ export default function Dashboard() {
       }
       .ttd-headerFilterInput {
         width: 100%;
+      }
+      .ttd-ddWrap {
+        min-width: 100%;
+        max-width: 100%;
       }
     }
   `;
@@ -2048,21 +2326,12 @@ export default function Dashboard() {
                 <h3 className="ttd-panelTitle">Recent run history</h3>
                 <p className="ttd-panelSub">Fast access to the latest debit order cycle runs and batch states</p>
               </div>
-              <select
+
+              <PremiumBatchDropdown
                 value={selectedBatch}
-                onChange={(e) => setSelectedBatch(e.target.value)}
-                className="ttd-select"
-              >
-                {filteredBatches.length ? (
-                  filteredBatches.map((b) => (
-                    <option key={b.key} value={b.batchId || b.batch}>
-                      {b.batch}
-                    </option>
-                  ))
-                ) : (
-                  <option value="">No batches</option>
-                )}
-              </select>
+                options={batchDropdownOptions}
+                onChange={setSelectedBatch}
+              />
             </div>
 
             <div className="ttd-batchTableWrap">
@@ -2101,10 +2370,9 @@ export default function Dashboard() {
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "14px" }}>
               <button
-                className="ttd-btn ttd-btnPrimary"
+                className="ttd-exportBtn"
                 onClick={handleExportVisibleBatches}
                 disabled={!filteredBatches.length}
-                style={{ maxWidth: "220px" }}
               >
                 Export
               </button>
