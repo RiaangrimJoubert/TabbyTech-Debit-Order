@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { request } from "../api";
 
+const SETTINGS_CACHE_TTL_MS = 10 * 60 * 1000;
+
 const SERVICE_META = {
   zohoCrm: {
     key: "zohoCrm",
