@@ -542,14 +542,30 @@ function normalizeStatus(value) {
 
   const lower = s.toLowerCase();
 
-  if (lower === "failed" || lower === "failure") return "Failed";
-  if (lower === "paid") return "Paid";
+  if (
+    lower === "failed" ||
+    lower === "failure" ||
+    lower === "failed debit" ||
+    lower === "failed payment" ||
+    lower === "payment failed" ||
+    lower === "retry failed" ||
+    lower === "unsuccessful" ||
+    lower === "error" ||
+    lower === "declined" ||
+    lower === "rejected"
+  ) {
+    return "Failed";
+  }
+
+  if (lower === "paid" || lower === "successful" || lower === "success") return "Paid";
   if (lower === "unpaid") return "Unpaid";
-  if (lower === "live") return "Live";
+  if (lower === "live" || lower === "active") return "Live";
   if (lower === "paused") return "Paused";
   if (lower === "cancelled" || lower === "canceled") return "Cancelled";
   if (lower === "draft") return "Draft";
-  if (lower === "scheduled") return "Scheduled";
+  if (lower === "scheduled" || lower === "retry" || lower === "retry pending" || lower === "pending retry") {
+    return "Scheduled";
+  }
 
   return s;
 }
@@ -563,6 +579,16 @@ function getFailureReason(row) {
     safeText(row?.notes) ||
     "Failed debit order"
   );
+}
+
+function isFailedRow(row) {
+  const normalized = normalizeStatus(row?.status);
+  if (normalized === "Failed") return true;
+
+  const failureReason = getFailureReason(row).trim();
+  if (failureReason && failureReason.toLowerCase() !== "failed debit order") return true;
+
+  return false;
 }
 
 function downloadCsv(filename, rows) {
@@ -732,7 +758,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     if (typeof window === "undefined") return;
 
     const failedItems = (Array.isArray(sourceRows) ? sourceRows : [])
-      .filter((r) => normalizeStatus(r?.status) === "Failed")
+      .filter((r) => isFailedRow(r))
       .map((r, index) => ({
         id: safeText(r?.id) || `failed-${index}`,
         clientName: safeText(r?.name) || safeText(r?.clientName) || safeText(r?.client?.name) || "Unknown client",
@@ -849,19 +875,20 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
   }, [query, statusFilter, pageSize]);
 
   const statusCounts = useMemo(() => {
-    const counts = { All: rows.length };
+    const counts = { All: rows.length, Failed: 0 };
     for (const r of rows) {
       const s = normalizeStatus(r?.status);
       counts[s] = (counts[s] || 0) + 1;
+      if (isFailedRow(r)) {
+        counts.Failed += 1;
+      }
     }
     return counts;
   }, [rows]);
 
   const statusKeys = useMemo(() => {
-    const preferred = ["All", "Scheduled", "Paid", "Failed", "Live", "Paused", "Cancelled", "Draft", "Unpaid"];
-    const present = new Set(Object.keys(statusCounts));
-    return preferred.filter((k) => present.has(k) || k === "All");
-  }, [statusCounts]);
+    return ["All", "Scheduled", "Paid", "Failed", "Live", "Paused", "Cancelled", "Draft", "Unpaid"];
+  }, []);
 
   const totalPages = useMemo(() => {
     const n = Math.ceil((filtered.length || 0) / Number(pageSize || 1));
@@ -952,7 +979,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       r.amount ?? "",
       r.billingCycle || "",
       r.nextChargeDate || "",
-      normalizeStatus(r.status) || "",
+      isFailedRow(r) ? "Failed" : normalizeStatus(r.status) || "",
       r.paystackAuthorizationCode || "",
       r.retryCount ?? 0,
       r.lastTransactionReference || "",
@@ -1109,7 +1136,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                 const isHover = hoverRow === d.id;
                 const isSelected = selectedIds.includes(d.id);
                 const isFocused = focusRowId === d.id;
-                const normalizedStatus = normalizeStatus(d.status);
+                const normalizedStatus = isFailedRow(d) ? "Failed" : normalizeStatus(d.status);
 
                 const rowStyle = {
                   ...styles.row(isSelected),
