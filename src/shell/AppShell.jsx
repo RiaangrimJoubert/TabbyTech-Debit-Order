@@ -95,7 +95,13 @@ function readFailedDebitsFromStorage() {
   }
 }
 
-function AlertDrawer({ isOpen, failedDebits, onClose, onOpenDebitOrders, onOpenNotificationMonitoring }) {
+function AlertDrawer({
+  isOpen,
+  failedDebits,
+  onClose,
+  onOpenDebitOrders,
+  onOpenNotificationMonitoring,
+}) {
   return (
     <>
       <div
@@ -337,7 +343,7 @@ function AlertDrawer({ isOpen, failedDebits, onClose, onOpenDebitOrders, onOpenN
                           color: "#ff9f9f",
                           background: "rgba(255, 94, 94, 0.08)",
                           border: "1px solid rgba(255, 94, 94, 0.14)",
-                          borderRadius: 999px,
+                          borderRadius: 999,
                           padding: "6px 10px",
                         }}
                       >
