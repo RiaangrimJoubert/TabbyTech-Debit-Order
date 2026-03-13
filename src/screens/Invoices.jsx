@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
 
-const INVOICES_CACHE_TTL_MS = 5 * 60 * 1000;
+const INVOICES_CACHE_TTL_MS = 15 * 60 * 1000;
 
 let invoicesScreenCache = {
   invoices: [],
