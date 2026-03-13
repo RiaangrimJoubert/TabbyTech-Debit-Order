@@ -707,11 +707,6 @@ function RecordsDropdown({ value, onChange, disabled }) {
   );
 }
 
-/**
- * presetSearch:
- * presetFocusClientId:
- * Passed by AppShell when opened from Clients.
- */
 export default function DebitOrders({ presetSearch = "", presetFocusClientId = "" }) {
   const [query, setQuery] = useState(() => safeText(debitOrdersScreenCache.query));
   const [statusFilter, setStatusFilter] = useState(() => safeText(debitOrdersScreenCache.statusFilter) || "All");
@@ -847,6 +842,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
     return rows
       .filter((d) => {
+        if (statusFilter === "Failed") return isFailedRow(d);
         const rowStatus = normalizeStatus(d?.status);
         return statusFilter === "All" ? true : rowStatus === statusFilter;
       })
@@ -878,7 +874,9 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     const counts = { All: rows.length, Failed: 0 };
     for (const r of rows) {
       const s = normalizeStatus(r?.status);
-      counts[s] = (counts[s] || 0) + 1;
+      if (s !== "Failed") {
+        counts[s] = (counts[s] || 0) + 1;
+      }
       if (isFailedRow(r)) {
         counts.Failed += 1;
       }
@@ -974,7 +972,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       r.id,
       r.name,
       r.clientId || "",
-      r.zohoClientId || "",
+      r.zohoClientId || r.crmClientId || r.client?.id || "",
       r.paystackCustomerCode || "",
       r.amount ?? "",
       r.billingCycle || "",
@@ -1121,7 +1119,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                   />
                 </th>
                 <th style={styles.th}>Debit order</th>
-                <th style={{ ...styles.th, ...styles.thCenter }}>Client ID</th>
+                <th style={styles.th}>Client ID</th>
                 <th style={{ ...styles.th, ...styles.thCenter }}>Paystack Customer Code</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Amount</th>
@@ -1144,8 +1142,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                   ...(isFocused ? styles.rowFocus : null),
                 };
 
-                const clientIdCell =
-                  d?.clientId || d?.zohoClientId || d?.crmClientId || d?.client?.id || "";
+                const primaryClientId = d?.clientId || d?.client?.id || "";
+                const crmClientId = d?.zohoClientId || d?.crmClientId || "";
 
                 return (
                   <tr
@@ -1174,7 +1172,20 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                       </div>
                     </td>
 
-                    <td style={{ ...styles.td, ...styles.tdCenter }}>{clientIdCell}</td>
+                    <td style={styles.td}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={{ fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
+                          {primaryClientId || crmClientId || ""}
+                        </span>
+
+                        {crmClientId && crmClientId !== primaryClientId ? (
+                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+                            {crmClientId}
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
+
                     <td style={{ ...styles.td, ...styles.tdCenter }}>{d?.paystackCustomerCode || ""}</td>
 
                     <td style={styles.td}>
