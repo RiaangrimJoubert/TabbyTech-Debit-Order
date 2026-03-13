@@ -1,7 +1,7 @@
 // src/shell/DebitOrderMonitor.jsx
 import React, { useEffect, useMemo, useState } from "react";
 
-const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 5 * 60 * 1000;
+const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 
 let debitOrderMonitorCache = {
   data: null,
