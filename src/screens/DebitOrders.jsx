@@ -16,6 +16,8 @@ let debitOrdersScreenCache = {
   lastLoadedAt: 0,
 };
 
+let hasLoggedDebitOrderSample = false;
+
 function hasFreshDebitOrdersCache() {
   return (
     Array.isArray(debitOrdersScreenCache.rows) &&
@@ -552,38 +554,36 @@ function getResolvedClientId(row) {
     row?.client?.id,
     row?.client?.crmId,
     row?.client?.crm_id,
+    row?.client?.clientId,
     row?.client?.zohoClientId,
     row?.client?.zoho_client_id,
-    row?.client?.clientId,
     row?.client_id,
     row?.crm_client_id,
     row?.zoho_client_id,
     row?.Client_ID,
     row?.CRM_Client_ID,
-    row?.Zoho_Client_ID
+    row?.Zoho_Client_ID,
+    row?.clientID,
+    row?.crmID,
+    row?.crm_id
   );
 }
 
 function getSecondaryClientId(row, primaryClientId) {
-  return firstNonEmpty(
+  const secondary = firstNonEmpty(
     row?.zohoClientId,
     row?.crmClientId,
     row?.client?.id,
     row?.client?.crmId,
     row?.client?.crm_id,
     row?.client?.zohoClientId,
-    row?.client?.zoho_client_id
-  ) !== primaryClientId
-    ? firstNonEmpty(
-        row?.zohoClientId,
-        row?.crmClientId,
-        row?.client?.id,
-        row?.client?.crmId,
-        row?.client?.crm_id,
-        row?.client?.zohoClientId,
-        row?.client?.zoho_client_id
-      )
-    : "";
+    row?.client?.zoho_client_id,
+    row?.client_id,
+    row?.crm_client_id,
+    row?.zoho_client_id
+  );
+
+  return secondary && secondary !== primaryClientId ? secondary : "";
 }
 
 function normalizeStatus(value) {
@@ -840,6 +840,11 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       if (!json || json.ok !== true || !Array.isArray(json.data)) {
         const preview = typeof json?.raw === "string" ? json.raw.slice(0, 140) : "";
         throw new Error(preview ? `Unexpected response: ${preview}` : "Unexpected response from API");
+      }
+
+      if (!hasLoggedDebitOrderSample && Array.isArray(json.data) && json.data.length > 0) {
+        hasLoggedDebitOrderSample = true;
+        console.log("TABBYTECH /api/debit-orders sample row", json.data[0]);
       }
 
       setRows(json.data);
