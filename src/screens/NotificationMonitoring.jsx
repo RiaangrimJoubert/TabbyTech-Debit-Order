@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-const NOTIFICATION_MONITOR_CACHE_TTL_MS = 5 * 60 * 1000;
+const NOTIFICATION_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 
 let notificationMonitorCache = {
   today: "LIVE",
