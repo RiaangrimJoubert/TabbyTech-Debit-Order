@@ -536,6 +536,56 @@ function safeText(v) {
   return String(v);
 }
 
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const text = safeText(value).trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function getResolvedClientId(row) {
+  return firstNonEmpty(
+    row?.clientId,
+    row?.crmClientId,
+    row?.zohoClientId,
+    row?.client?.id,
+    row?.client?.crmId,
+    row?.client?.crm_id,
+    row?.client?.zohoClientId,
+    row?.client?.zoho_client_id,
+    row?.client?.clientId,
+    row?.client_id,
+    row?.crm_client_id,
+    row?.zoho_client_id,
+    row?.Client_ID,
+    row?.CRM_Client_ID,
+    row?.Zoho_Client_ID
+  );
+}
+
+function getSecondaryClientId(row, primaryClientId) {
+  return firstNonEmpty(
+    row?.zohoClientId,
+    row?.crmClientId,
+    row?.client?.id,
+    row?.client?.crmId,
+    row?.client?.crm_id,
+    row?.client?.zohoClientId,
+    row?.client?.zoho_client_id
+  ) !== primaryClientId
+    ? firstNonEmpty(
+        row?.zohoClientId,
+        row?.crmClientId,
+        row?.client?.id,
+        row?.client?.crmId,
+        row?.client?.crm_id,
+        row?.client?.zohoClientId,
+        row?.client?.zoho_client_id
+      )
+    : "";
+}
+
 function normalizeStatus(value) {
   const s = safeText(value).trim();
   if (!s) return "Draft";
@@ -849,11 +899,19 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       .filter((d) => {
         if (!q) return true;
 
+        const resolvedClientId = getResolvedClientId(d);
+
         const candidates = [
+          resolvedClientId,
           d?.clientId,
           d?.zohoClientId,
           d?.crmClientId,
           d?.client?.id,
+          d?.client?.crmId,
+          d?.client?.crm_id,
+          d?.client_id,
+          d?.crm_client_id,
+          d?.zoho_client_id,
           d?.id,
           d?.name,
           d?.paystackCustomerCode,
@@ -910,6 +968,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     if (!clientId) return;
 
     const match =
+      pagedRows.find((r) => getResolvedClientId(r) === clientId) ||
       pagedRows.find((r) => safeText(r?.clientId).trim() === clientId) ||
       pagedRows.find((r) => safeText(r?.zohoClientId).trim() === clientId) ||
       pagedRows.find((r) => safeText(r?.crmClientId).trim() === clientId) ||
@@ -971,8 +1030,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     const body = exportRows.map((r) => [
       r.id,
       r.name,
-      r.clientId || "",
-      r.zohoClientId || r.crmClientId || r.client?.id || "",
+      getResolvedClientId(r) || "",
+      firstNonEmpty(r.zohoClientId, r.crmClientId, r.client?.id) || "",
       r.paystackCustomerCode || "",
       r.amount ?? "",
       r.billingCycle || "",
@@ -1135,15 +1194,14 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                 const isSelected = selectedIds.includes(d.id);
                 const isFocused = focusRowId === d.id;
                 const normalizedStatus = isFailedRow(d) ? "Failed" : normalizeStatus(d.status);
+                const resolvedClientId = getResolvedClientId(d);
+                const secondaryClientId = getSecondaryClientId(d, resolvedClientId);
 
                 const rowStyle = {
                   ...styles.row(isSelected),
                   ...(isHover ? styles.rowHover : null),
                   ...(isFocused ? styles.rowFocus : null),
                 };
-
-                const primaryClientId = d?.clientId || d?.client?.id || "";
-                const crmClientId = d?.zohoClientId || d?.crmClientId || "";
 
                 return (
                   <tr
@@ -1175,12 +1233,12 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                     <td style={styles.td}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         <span style={{ fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
-                          {primaryClientId || crmClientId || ""}
+                          {resolvedClientId || ""}
                         </span>
 
-                        {crmClientId && crmClientId !== primaryClientId ? (
+                        {secondaryClientId ? (
                           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-                            {crmClientId}
+                            {secondaryClientId}
                           </span>
                         ) : null}
                       </div>
