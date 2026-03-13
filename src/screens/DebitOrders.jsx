@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request } from "../api";
 
-const DEBIT_ORDERS_CACHE_TTL_MS = 60 * 1000;
+const DEBIT_ORDERS_CACHE_TTL_MS = 10 * 60 * 1000;
 const FAILED_DEBITS_STORAGE_KEY = "tabbypay_failed_debit_orders";
 
 let debitOrdersScreenCache = {
