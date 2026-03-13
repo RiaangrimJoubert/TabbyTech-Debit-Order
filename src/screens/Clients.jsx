@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { fetchZohoClients } from "../api/crm";
 
-const CLIENTS_CACHE_TTL_MS = 5 * 60 * 1000;
+const CLIENTS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 let clientsScreenCache = {
   clients: [],
@@ -345,24 +345,24 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     showToast("Batches navigation not wired in AppShell yet.");
   }
 
- function onOpenZoho() {
-  if (!selected) {
-    showToast("Select a client first.");
-    return;
+  function onOpenZoho() {
+    if (!selected) {
+      showToast("Select a client first.");
+      return;
+    }
+
+    const recordId =
+      String(selected?.zohoClientId || "").trim() ||
+      String(selected?.id || "").trim();
+
+    if (!recordId) {
+      showToast("Zoho CRM record id is not available for this client.");
+      return;
+    }
+
+    const url = `https://one.zoho.com/zohoone/emarketingconcepts/home/cxapp/crm/org851960402/tab/CustomModule5/${encodeURIComponent(recordId)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   }
-
-  const recordId =
-    String(selected?.zohoClientId || "").trim() ||
-    String(selected?.id || "").trim();
-
-  if (!recordId) {
-    showToast("Zoho CRM record id is not available for this client.");
-    return;
-  }
-
-  const url = `https://one.zoho.com/zohoone/emarketingconcepts/home/cxapp/crm/org851960402/tab/CustomModule5/${encodeURIComponent(recordId)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
 
   function onOpenEdit() {
     if (!selected) {
@@ -505,88 +505,234 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     --tt-purple3: rgba(99,36,206,0.98);
   }
 
-  .tt-clientsWrap { height: 100%; display: flex; flex-direction: column; gap: 16px; }
+  .tt-clientsWrap {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+  }
 
-  .tt-clientsHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-  .tt-clientsTitleWrap { display: flex; flex-direction: column; gap: 6px; }
-  .tt-clientsH1 { margin: 0; font-size: 26px; letter-spacing: 0.2px; color: rgba(255,255,255,0.92); }
-  .tt-clientsSub { margin: 0; font-size: 13px; color: rgba(255,255,255,0.62); line-height: 1.4; max-width: 980px; }
+  .tt-clientsHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
 
-  .tt-actionsRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  .tt-clientsTitleWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
 
-  .tt-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; min-height: 0; flex: 1; }
+  .tt-clientsH1 {
+    margin: 0;
+    font-size: 26px;
+    letter-spacing: 0.2px;
+    color: rgba(255,255,255,0.96);
+    font-weight: 900;
+  }
+
+  .tt-clientsSub {
+    margin: 0;
+    font-size: 13px;
+    color: rgba(255,255,255,0.62);
+    line-height: 1.4;
+    max-width: 980px;
+  }
+
+  .tt-actionsRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .tt-grid {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 16px;
+    min-height: 0;
+    flex: 1;
+  }
+
   .tt-glass {
     border-radius: 18px;
     border: 1px solid rgba(255,255,255,0.10);
-    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
-    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+    box-shadow:
+      0 18px 50px rgba(0,0,0,0.35),
+      inset 0 1px 0 rgba(255,255,255,0.04);
     backdrop-filter: blur(14px);
     overflow: hidden;
     min-height: 0;
   }
 
   .tt-panelHeader {
-    padding: 14px 14px 12px 14px;
+    padding: 16px 16px 12px 16px;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
+    gap: 16px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
     background: rgba(0,0,0,0.10);
   }
 
-  .tt-phLeft { display: flex; flex-direction: column; gap: 2px; }
-  .tt-phTitle { margin: 0; font-size: 14px; font-weight: 800; color: rgba(255,255,255,0.86); }
-  .tt-phMeta { margin: 0; font-size: 12px; color: rgba(255,255,255,0.55); }
-
-  .tt-controls {
-    padding: 14px;
+  .tt-phLeft {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .tt-phTitle {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.90);
+  }
+
+  .tt-phMeta {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(255,255,255,0.56);
+    line-height: 1.45;
+  }
+
+  .tt-panelHeaderActions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
     gap: 10px;
     flex-wrap: wrap;
+    flex: 0 0 auto;
+  }
+
+  .tt-toolbar {
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) auto;
+    gap: 14px 16px;
     align-items: center;
     border-bottom: 1px solid rgba(255,255,255,0.08);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(0,0,0,0.06) 100%);
   }
 
-  .tt-inputWrap { position: relative; flex: 1 1 320px; max-width: 560px; }
-  .tt-inputIcon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.75; }
+  .tt-toolbarSearch {
+    min-width: 0;
+  }
+
+  .tt-toolbarChips {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .tt-inputWrap {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .tt-inputIcon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.75;
+  }
+
   .tt-input {
     width: 100%;
-    height: 38px;
-    border-radius: 12px;
+    height: 40px;
+    border-radius: 14px;
     border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(0,0,0,0.18);
-    color: rgba(255,255,255,0.88);
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.20) 0%, rgba(255,255,255,0.03) 100%);
+    color: rgba(255,255,255,0.90);
     outline: none;
-    padding: 0 12px 0 38px;
+    padding: 0 14px 0 40px;
     font-size: 13px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
   }
-  .tt-input:focus { border-color: rgba(124,58,237,0.45); box-shadow: 0 0 0 6px rgba(124,58,237,0.18); }
 
-  .tt-chipRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tt-input:focus {
+    border-color: rgba(124,58,237,0.45);
+    box-shadow: 0 0 0 6px rgba(124,58,237,0.16);
+  }
+
+  .tt-chipRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
   .tt-chip {
     height: 34px;
-    padding: 0 10px;
+    padding: 0 12px;
     border-radius: 999px;
     border: 1px solid rgba(255,255,255,0.12);
     background: rgba(255,255,255,0.05);
     color: rgba(255,255,255,0.76);
     display: inline-flex;
-    alignItems: center;
+    align-items: center;
     gap: 8px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.2px;
     user-select: none;
-    transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      background 160ms ease,
+      border-color 160ms ease;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
   }
-  .tt-chip:hover { transform: translateY(-1px); background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
-  .tt-chipActive { border-color: rgba(124,58,237,0.55); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.92); }
 
-  .tt-tableWrap { height: 100%; display: flex; flex-direction: column; min-height: 0; }
-  .tt-tableScroll { overflow: auto; height: 100%; }
-  .tt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+  .tt-chip:hover {
+    transform: translateY(-1px);
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.16);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+  }
+
+  .tt-chipActive {
+    border-color: rgba(124,58,237,0.55);
+    background:
+      linear-gradient(135deg, rgba(168,85,247,0.22), rgba(124,58,237,0.12));
+    color: rgba(255,255,255,0.94);
+    box-shadow:
+      0 10px 26px rgba(124,58,237,0.16),
+      inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .tt-tableWrap {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .tt-tableScroll {
+    overflow: auto;
+    height: 100%;
+  }
+
+  .tt-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+
   .tt-th {
     position: sticky;
     top: 0;
@@ -597,23 +743,48 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     font-weight: 800;
     letter-spacing: 0.2px;
     color: rgba(255,255,255,0.62);
-    background: rgba(10,10,14,0.75);
+    background: rgba(10,10,14,0.80);
     border-bottom: 1px solid rgba(255,255,255,0.08);
     backdrop-filter: blur(10px);
   }
+
   .tt-td {
     padding: 12px 14px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     color: rgba(255,255,255,0.78);
     white-space: nowrap;
   }
-  .tt-tr { cursor: pointer; transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease; }
-  .tt-trHover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); background: rgba(255,255,255,0.04); }
-  .tt-trActive { background: rgba(124,58,237,0.14); }
 
-  .tt-nameRow { display: flex; align-items: center; gap: 10px; }
-  .tt-name { font-weight: 900; color: rgba(255,255,255,0.90); }
-  .tt-subId { font-size: 12px; color: rgba(255,255,255,0.55); }
+  .tt-tr {
+    cursor: pointer;
+    transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  }
+
+  .tt-trHover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+    background: rgba(255,255,255,0.04);
+  }
+
+  .tt-trActive {
+    background: rgba(124,58,237,0.14);
+  }
+
+  .tt-nameRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .tt-name {
+    font-weight: 900;
+    color: rgba(255,255,255,0.92);
+  }
+
+  .tt-subId {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+  }
 
   .tt-pill {
     height: 22px;
@@ -629,16 +800,63 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     letter-spacing: 0.2px;
     gap: 6px;
   }
-  .tt-pillZoho { border-color: rgba(124,58,237,0.38); background: rgba(124,58,237,0.16); }
 
-  .tt-badge { height: 22px; padding: 0 10px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 11px; font-weight: 900; letter-spacing: 0.2px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); }
-  .tt-bActive { border-color: rgba(34,197,94,0.30); background: rgba(34,197,94,0.14); color: rgba(255,255,255,0.86); }
-  .tt-bPaused { border-color: rgba(245,158,11,0.32); background: rgba(245,158,11,0.16); color: rgba(255,255,255,0.86); }
-  .tt-bRisk { border-color: rgba(239,68,68,0.32); background: rgba(239,68,68,0.16); color: rgba(255,255,255,0.86); }
-  .tt-bNew { border-color: rgba(124,58,237,0.32); background: rgba(124,58,237,0.16); color: rgba(255,255,255,0.90); }
+  .tt-pillZoho {
+    border-color: rgba(124,58,237,0.38);
+    background: rgba(124,58,237,0.16);
+  }
 
-  .tt-right { padding: 14px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-  .tt-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tt-badge {
+    height: 22px;
+    padding: 0 10px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+  }
+
+  .tt-bActive {
+    border-color: rgba(34,197,94,0.30);
+    background: rgba(34,197,94,0.14);
+    color: rgba(255,255,255,0.86);
+  }
+
+  .tt-bPaused {
+    border-color: rgba(245,158,11,0.32);
+    background: rgba(245,158,11,0.16);
+    color: rgba(255,255,255,0.86);
+  }
+
+  .tt-bRisk {
+    border-color: rgba(239,68,68,0.32);
+    background: rgba(239,68,68,0.16);
+    color: rgba(255,255,255,0.86);
+  }
+
+  .tt-bNew {
+    border-color: rgba(124,58,237,0.32);
+    background: rgba(124,58,237,0.16);
+    color: rgba(255,255,255,0.90);
+  }
+
+  .tt-right {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .tt-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
 
   .tt-stat {
     border-radius: 16px;
@@ -646,8 +864,20 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
     padding: 12px;
   }
-  .tt-statLabel { margin: 0; font-size: 12px; color: rgba(255,255,255,0.55); }
-  .tt-statValue { margin: 6px 0 0 0; font-size: 18px; font-weight: 900; color: rgba(255,255,255,0.90); letter-spacing: 0.2px; }
+
+  .tt-statLabel {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+  }
+
+  .tt-statValue {
+    margin: 6px 0 0 0;
+    font-size: 18px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.92);
+    letter-spacing: 0.2px;
+  }
 
   .tt-section {
     border-radius: 18px;
@@ -658,6 +888,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     padding: 14px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
   }
+
   .tt-sectionTitle {
     margin: 0;
     font-size: 12px;
@@ -666,16 +897,36 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     letter-spacing: 0.2px;
     text-transform: uppercase;
   }
-  .tt-kv { display: grid; grid-template-columns: 170px 1fr; gap: 10px; margin-top: 10px; }
-  .tt-k { font-size: 12px; color: rgba(255,255,255,0.55); }
-  .tt-v { font-size: 13px; color: rgba(255,255,255,0.84); overflow: hidden; text-overflow: ellipsis; }
 
-  .tt-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 10px 0; }
+  .tt-kv {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .tt-k {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+  }
+
+  .tt-v {
+    font-size: 13px;
+    color: rgba(255,255,255,0.84);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tt-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.08);
+    margin: 10px 0;
+  }
 
   .tt-btn {
-    height: 32px;
+    height: 34px;
     padding: 0 14px;
-    border-radius: 10px;
+    border-radius: 11px;
     border: 1px solid rgba(255,255,255,0.12);
     background: rgba(255,255,255,0.06);
     color: rgba(255,255,255,0.88);
@@ -692,19 +943,33 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     white-space: nowrap;
     box-sizing: border-box;
   }
-  .tt-btn:hover { transform: translateY(-1px); }
-  .tt-btn:active { transform: translateY(0px); }
-  .tt-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
+
+  .tt-btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .tt-btn:active {
+    transform: translateY(0px);
+  }
+
+  .tt-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    filter: none;
+  }
 
   .tt-btnPrimary {
     background: linear-gradient(135deg, var(--tt-purple2), var(--tt-purple));
     border-color: rgba(168,85,247,0.55);
     color: #fff;
-    box-shadow: 0 0 18px rgba(168,85,247,0.20), 0 10px 24px rgba(124,58,237,0.24);
+    box-shadow: 0 0 18px rgba(168,85,247,0.18), 0 10px 24px rgba(124,58,237,0.22);
   }
+
   .tt-btnPrimary:hover {
     filter: brightness(1.05);
-    box-shadow: 0 0 22px rgba(168,85,247,0.24), 0 12px 28px rgba(124,58,237,0.28);
+    box-shadow: 0 0 22px rgba(168,85,247,0.22), 0 12px 28px rgba(124,58,237,0.26);
   }
 
   .tt-btnSecondary {
@@ -713,13 +978,20 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     color: rgba(255,255,255,0.88);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
   }
+
   .tt-btnSecondary:hover {
     background: rgba(255,255,255,0.10);
     border-color: rgba(255,255,255,0.18);
     box-shadow: 0 10px 24px rgba(0,0,0,0.24);
   }
 
-  .tt-toastWrap { position: fixed; bottom: 24px; right: 24px; z-index: 90; }
+  .tt-toastWrap {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 90;
+  }
+
   .tt-toast {
     border-radius: 18px;
     border: 1px solid rgba(255,255,255,0.10);
@@ -732,13 +1004,27 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     max-width: 420px;
   }
 
-  .tt-ddWrap { display: inline-flex; align-items: center; gap: 10px; }
-  .tt-ddLabel { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 800; }
-  .tt-ddRel { position: relative; display: inline-block; }
+  .tt-ddWrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .tt-ddLabel {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    font-weight: 800;
+  }
+
+  .tt-ddRel {
+    position: relative;
+    display: inline-block;
+  }
+
   .tt-ddBtn {
-    height: 32px;
+    height: 34px;
     padding: 0 12px;
-    border-radius: 10px;
+    border-radius: 11px;
     border: 1px solid rgba(168,85,247,0.40);
     background: rgba(0,0,0,0.42);
     color: rgba(255,255,255,0.92);
@@ -753,11 +1039,18 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     min-width: 130px;
     box-sizing: border-box;
   }
-  .tt-ddBtnOpen { background: rgba(168,85,247,0.16); }
-  .tt-ddCaret { opacity: 0.95; }
+
+  .tt-ddBtnOpen {
+    background: rgba(168,85,247,0.16);
+  }
+
+  .tt-ddCaret {
+    opacity: 0.95;
+  }
+
   .tt-ddMenu {
     position: absolute;
-    top: 38px;
+    top: 40px;
     left: 0;
     min-width: 190px;
     border-radius: 14px;
@@ -768,6 +1061,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     overflow: hidden;
     z-index: 50;
   }
+
   .tt-ddItem {
     padding: 10px 12px;
     display: flex;
@@ -781,7 +1075,11 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     color: rgba(255,255,255,0.88);
     background: transparent;
   }
-  .tt-ddItemActive { background: rgba(168,85,247,0.22); }
+
+  .tt-ddItemActive {
+    background: rgba(168,85,247,0.22);
+  }
+
   .tt-ddTick {
     width: 18px;
     height: 18px;
@@ -819,6 +1117,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     display: flex;
     flex-direction: column;
     animation: ttSlideIn 220ms ease-out;
+    overflow: hidden;
   }
 
   .tt-editHead {
@@ -828,6 +1127,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     justify-content: space-between;
     align-items: flex-start;
     gap: 14px;
+    flex: 0 0 auto;
   }
 
   .tt-editTitle {
@@ -851,6 +1151,8 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .tt-editSection {
@@ -905,6 +1207,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     color: rgba(255,255,255,0.94);
     outline: none;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    box-sizing: border-box;
   }
 
   .tt-inputDark,
@@ -936,7 +1239,10 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
-    background: rgba(0,0,0,0.12);
+    background: rgba(0,0,0,0.18);
+    flex: 0 0 auto;
+    position: sticky;
+    bottom: 0;
   }
 
   @keyframes ttSlideIn {
@@ -949,15 +1255,34 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     to { opacity: 1; }
   }
 
+  @media (max-width: 1380px) {
+    .tt-toolbar {
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+
+    .tt-toolbarChips {
+      justify-content: flex-start;
+    }
+  }
+
   @media (max-width: 1100px) {
     .tt-grid { grid-template-columns: 1fr; }
     .tt-kv { grid-template-columns: 1fr; }
     .tt-split { grid-template-columns: 1fr; }
+    .tt-panelHeader {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .tt-panelHeaderActions {
+      justify-content: flex-start;
+    }
   }
 
   @media (max-width: 760px) {
     .tt-formGrid2 { grid-template-columns: 1fr; }
     .tt-editDrawer { width: 100vw; }
+    .tt-actionsRow { width: 100%; justify-content: flex-start; }
   }
   `;
 
@@ -990,7 +1315,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                 </p>
               </div>
 
-              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div className="tt-panelHeaderActions">
                 <RecordsDropdown
                   value={perPage}
                   disabled={false}
@@ -1004,6 +1329,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                 <button type="button" className="tt-btn tt-btnPrimary" onClick={goPrev} disabled={page <= 1}>
                   Back
                 </button>
+
                 <button type="button" className="tt-btn tt-btnPrimary" onClick={goNext} disabled={page >= pageCount}>
                   Next
                 </button>
@@ -1019,49 +1345,53 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
               </div>
             </div>
 
-            <div className="tt-controls">
-              <div className="tt-inputWrap">
-                <span className="tt-inputIcon">
-                  <IconSearch />
-                </span>
-                <input
-                  className="tt-input"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setPage(1);
-                  }}
-                  placeholder="Search by name, id, email, Zoho id, or customer code"
-                  aria-label="Search clients"
-                />
+            <div className="tt-toolbar">
+              <div className="tt-toolbarSearch">
+                <div className="tt-inputWrap">
+                  <span className="tt-inputIcon">
+                    <IconSearch />
+                  </span>
+                  <input
+                    className="tt-input"
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Search by name, id, email, Zoho id, or customer code"
+                    aria-label="Search clients"
+                  />
+                </div>
               </div>
 
-              <div className="tt-chipRow">
-                {["All", "Active", "Paused", "Risk", "New"].map((k) => {
-                  const active = statusFilter === k;
-                  return (
-                    <div
-                      key={k}
-                      className={active ? "tt-chip tt-chipActive" : "tt-chip"}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        setStatusFilter(k);
-                        setPage(1);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+              <div className="tt-toolbarChips">
+                <div className="tt-chipRow">
+                  {["All", "Active", "Paused", "Risk", "New"].map((k) => {
+                    const active = statusFilter === k;
+                    return (
+                      <div
+                        key={k}
+                        className={active ? "tt-chip tt-chipActive" : "tt-chip"}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
                           setStatusFilter(k);
                           setPage(1);
-                        }
-                      }}
-                      title={`Filter: ${k}`}
-                    >
-                      <span>{k}</span>
-                      <span style={{ opacity: 0.85 }}>{counts[k] ?? 0}</span>
-                    </div>
-                  );
-                })}
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            setStatusFilter(k);
+                            setPage(1);
+                          }
+                        }}
+                        title={`Filter: ${k}`}
+                      >
+                        <span>{k}</span>
+                        <span style={{ opacity: 0.85 }}>{counts[k] ?? 0}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -1148,7 +1478,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
             </div>
           </div>
 
-          <div className="tt-glass" style={{ display: "flex", flexDirection: "column" }}>
+          <div className="tt-glass" style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div className="tt-panelHeader">
               <div className="tt-phLeft">
                 <p className="tt-phTitle">Client details</p>
@@ -1585,7 +1915,13 @@ function fmtDateTimeShort(iso) {
 function fmtDateTimeLong(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function statusBadgeClass(status) {
