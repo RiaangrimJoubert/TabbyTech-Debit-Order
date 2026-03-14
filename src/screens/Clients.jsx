@@ -28,6 +28,16 @@ function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function getPrimaryCrmId(client) {
+  return String(
+    client?.zohoClientId ||
+    client?.clientId ||
+    client?.crmClientId ||
+    client?.id ||
+    ""
+  ).trim();
+}
+
 export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   useMemo(
     () => [
@@ -114,12 +124,13 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
       .filter((c) => (statusFilter === "All" ? true : c.status === statusFilter))
       .filter((c) => {
         if (!q) return true;
+        const crmId = getPrimaryCrmId(c).toLowerCase();
         return (
           (c.name || "").toLowerCase().includes(q) ||
           (c.id || "").toLowerCase().includes(q) ||
+          crmId.includes(q) ||
           (c.primaryEmail || "").toLowerCase().includes(q) ||
           (c.secondaryEmail || "").toLowerCase().includes(q) ||
-          (c.zohoClientId || "").toLowerCase().includes(q) ||
           (c.debit?.paystackCustomerCode || "").toLowerCase().includes(q)
         );
       })
@@ -158,9 +169,12 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
   useEffect(() => {
     if (!editOpen) return;
+    const htmlPrev = document.documentElement.style.overflow;
     const bodyPrev = document.body.style.overflow;
+    document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     return () => {
+      document.documentElement.style.overflow = htmlPrev;
       document.body.style.overflow = bodyPrev;
     };
   }, [editOpen]);
@@ -263,12 +277,12 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
     const header = [
       "Client ID",
+      "CRM Client ID",
       "Client Name",
       "Primary Email",
       "Secondary Email",
       "Phone",
       "Status",
-      "Zoho Client ID",
       "Zoho Debit Order ID",
       "Billing Cycle",
       "Next Charge Date",
@@ -281,12 +295,12 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
     const body = exportRows.map((c) => [
       c.id || "",
+      getPrimaryCrmId(c),
       c.name || "",
       c.primaryEmail || "",
       c.secondaryEmail || "",
       c.phone || "",
       c.status || "",
-      c.zohoClientId || "",
       c.zohoDebitOrderId || "",
       c.debit?.billingCycle || "",
       c.debit?.nextChargeDate || "",
@@ -312,15 +326,10 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   function onViewDebitOrders() {
     if (!selected) return;
 
-    const clientId = String(
-      selected?.zohoClientId ||
-      selected?.clientId ||
-      selected?.id ||
-      ""
-    ).trim();
+    const clientId = getPrimaryCrmId(selected);
 
     if (!clientId) {
-      showToast("Client id not available.");
+      showToast("CRM client id not available.");
       return;
     }
 
@@ -335,17 +344,11 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   function onViewBatches() {
     if (!selected) return;
 
-    const clientId = String(
-      selected?.zohoClientId ||
-      selected?.clientId ||
-      selected?.id ||
-      ""
-    ).trim();
-
+    const clientId = getPrimaryCrmId(selected);
     const batchId = String(selected?.debit?.debitRunBatchId || "").trim();
 
     if (!clientId) {
-      showToast("Client id not available.");
+      showToast("CRM client id not available.");
       return;
     }
 
@@ -363,9 +366,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
       return;
     }
 
-    const recordId =
-      String(selected?.zohoClientId || "").trim() ||
-      String(selected?.id || "").trim();
+    const recordId = getPrimaryCrmId(selected);
 
     if (!recordId) {
       showToast("Zoho CRM record id is not available for this client.");
@@ -564,7 +565,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
   .tt-grid {
     display: grid;
-    grid-template-columns: 1.55fr 1fr;
+    grid-template-columns: minmax(0, 1.55fr) minmax(420px, 1fr);
     gap: 16px;
     min-height: 0;
     flex: 1;
@@ -743,6 +744,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     border-collapse: separate;
     border-spacing: 0;
     font-size: 13px;
+    table-layout: fixed;
   }
 
   .tt-th {
@@ -765,6 +767,8 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     border-bottom: 1px solid rgba(255,255,255,0.06);
     color: rgba(255,255,255,0.78);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .tt-tr {
@@ -782,20 +786,34 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     background: rgba(124,58,237,0.14);
   }
 
+  .tt-nameCell {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+  }
+
   .tt-nameRow {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
   }
 
   .tt-name {
     font-weight: 900;
     color: rgba(255,255,255,0.92);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .tt-subId {
     font-size: 12px;
     color: rgba(255,255,255,0.55);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .tt-pill {
@@ -829,6 +847,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     letter-spacing: 0.2px;
     border: 1px solid rgba(255,255,255,0.12);
     background: rgba(255,255,255,0.06);
+    flex: 0 0 auto;
   }
 
   .tt-bActive {
@@ -1110,7 +1129,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     background: rgba(3, 6, 18, 0.55);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    opacity: 1;
     z-index: 110;
     animation: ttFadeIn 180ms ease;
   }
@@ -1120,12 +1138,10 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     top: 16px;
     right: 16px;
     bottom: 16px;
-    width: min(620px, calc(100vw - 24px));
+    width: min(620px, calc(100vw - 32px));
     border-radius: 24px;
     border: 1px solid rgba(161, 110, 255, 0.22);
     background:
-      radial-gradient(circle at top right, rgba(140,90,255,0.16), transparent 38%),
-      radial-gradient(circle at bottom left, rgba(124,58,237,0.12), transparent 28%),
       linear-gradient(180deg, rgba(12,16,40,0.96) 0%, rgba(14,10,34,0.97) 100%);
     box-shadow:
       0 20px 80px rgba(0,0,0,0.45),
@@ -1176,6 +1192,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     gap: 16px;
     flex: 1 1 auto;
     min-height: 0;
+    scrollbar-gutter: stable;
   }
 
   .tt-editSection {
@@ -1206,6 +1223,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    min-width: 0;
   }
 
   .tt-formFieldFull {
@@ -1385,7 +1403,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                       setQuery(e.target.value);
                       setPage(1);
                     }}
-                    placeholder="Search by name, id, email, Zoho id, or customer code"
+                    placeholder="Search by name, CRM id, email, local id, or customer code"
                     aria-label="Search clients"
                   />
                 </div>
@@ -1426,12 +1444,12 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
               <table className="tt-table">
                 <thead>
                   <tr>
-                    <th className="tt-th">Client</th>
-                    <th className="tt-th">Source</th>
-                    <th className="tt-th">Debit status</th>
-                    <th className="tt-th">Next charge</th>
-                    <th className="tt-th">Amount</th>
-                    <th className="tt-th">Updated</th>
+                    <th className="tt-th" style={{ width: "36%" }}>Client</th>
+                    <th className="tt-th" style={{ width: "14%" }}>Source</th>
+                    <th className="tt-th" style={{ width: "14%" }}>Debit status</th>
+                    <th className="tt-th" style={{ width: "14%" }}>Next charge</th>
+                    <th className="tt-th" style={{ width: "10%" }}>Amount</th>
+                    <th className="tt-th" style={{ width: "12%" }}>Updated</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1452,6 +1470,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                     filtered.map((c) => {
                       const isActive = c.id === selectedId;
                       const isHover = hoverId === c.id;
+                      const crmId = getPrimaryCrmId(c);
                       const trClass = ["tt-tr", isActive ? "tt-trActive" : "", isHover ? "tt-trHover" : ""].join(" ").trim();
 
                       return (
@@ -1462,14 +1481,15 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                           onMouseLeave={() => setHoverId("")}
                           onClick={() => setSelectedId(c.id)}
                         >
-                          <td className="tt-td" style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis" }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <td className="tt-td">
+                            <div className="tt-nameCell">
                               <div className="tt-nameRow">
                                 <span className="tt-name">{c.name}</span>
-                                <span className="tt-subId">{c.id}</span>
                                 <span className={statusBadgeClass(c.status)}>{c.status}</span>
                               </div>
-                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{c.primaryEmail}</span>
+                              <span className="tt-subId" title={crmId || c.id}>
+                                CRM ID: {crmId || "Not set"}
+                              </span>
                             </div>
                           </td>
 
@@ -1544,8 +1564,11 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                       <div className="tt-k">Client</div>
                       <div className="tt-v">{selected.name}</div>
 
-                      <div className="tt-k">Client id</div>
-                      <div className="tt-v">{selected.id}</div>
+                      <div className="tt-k">CRM client id</div>
+                      <div className="tt-v">{getPrimaryCrmId(selected) || "Not set"}</div>
+
+                      <div className="tt-k">Local client id</div>
+                      <div className="tt-v">{selected.id || "Not set"}</div>
 
                       <div className="tt-k">Source</div>
                       <div className="tt-v">Zoho CRM sync</div>
@@ -1905,7 +1928,7 @@ function safeText(v) {
 function downloadCsv(filename, rows) {
   const csvEscape = (v) => {
     const s = safeText(v);
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    if (/[",\n]/.test(s)) return \`"\${s.replace(/"/g, '""')}"\`;
     return s;
   };
 
