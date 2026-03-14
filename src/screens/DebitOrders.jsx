@@ -1743,7 +1743,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                             <td className="tt-do-selectorTd" style={{ fontWeight: 800 }}>
                               {group.clientName || "Unknown client"}
                             </td>
-                            <td className="tt-do-selectorTd">{group.ClientId || "Not Available"}</td>
+                            <td className="tt-do-selectorTd">{group.client_id || group.clientId || "Not available"}</td>
                             <td className="tt-do-selectorTd">{group.totalRecords}</td>
                             <td className="tt-do-selectorTd">
                               <span className={`tt-do-miniBadge tt-do-miniBadge-${group.health.tone}`}>
