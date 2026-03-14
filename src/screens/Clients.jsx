@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchZohoClients } from "../api/crm";
 
 const CLIENTS_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -31,11 +32,406 @@ function deepClone(value) {
 function getPrimaryCrmId(client) {
   return String(
     client?.zohoClientId ||
-    client?.clientId ||
-    client?.crmClientId ||
-    client?.id ||
-    ""
+      client?.clientId ||
+      client?.crmClientId ||
+      client?.id ||
+      ""
   ).trim();
+}
+
+function useOnClickOutside(ref, handler) {
+  useEffect(() => {
+    function onDown(e) {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target)) return;
+      handler();
+    }
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("touchstart", onDown);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("touchstart", onDown);
+    };
+  }, [ref, handler]);
+}
+
+function Dot() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: 999,
+        background: "rgba(255,255,255,0.85)",
+        boxShadow: "0 0 0 6px rgba(124,58,237,0.12)",
+        opacity: 0.9,
+      }}
+    />
+  );
+}
+
+function IconSearch({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
+      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function safeText(v) {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+function downloadCsv(filename, rows) {
+  const csvEscape = (v) => {
+    const s = safeText(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+function currencyZar(n) {
+  const val = Number(n || 0);
+  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
+}
+
+function fmtDateShort(yyyyMmDd) {
+  const d = new Date(`${yyyyMmDd}T00:00:00.000Z`);
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function fmtDateTimeShort(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function fmtDateTimeLong(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function statusBadgeClass(status) {
+  if (status === "Active") return "tt-badge tt-bActive";
+  if (status === "Paused") return "tt-badge tt-bPaused";
+  if (status === "Risk") return "tt-badge tt-bRisk";
+  return "tt-badge tt-bNew";
+}
+
+function RecordsDropdown({ value, onChange, disabled }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const options = [
+    { value: 10, label: "10 records" },
+    { value: 20, label: "20 records" },
+    { value: 50, label: "50 records" },
+    { value: 100, label: "100 records" },
+  ];
+
+  const active = options.find((o) => o.value === value) || options[0];
+
+  function select(v) {
+    onChange(v);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={wrapRef} className="tt-ddWrap">
+      <span className="tt-ddLabel">Records</span>
+
+      <div className="tt-ddRel">
+        <button
+          type="button"
+          className={open ? "tt-ddBtn tt-ddBtnOpen" : "tt-ddBtn"}
+          onClick={() => {
+            if (disabled) return;
+            setOpen((x) => !x);
+          }}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span>{active.label}</span>
+          <span className="tt-ddCaret">▾</span>
+        </button>
+
+        {open && (
+          <div className="tt-ddMenu" role="listbox" aria-label="Records per page">
+            {options.map((o, idx) => {
+              const isActive = o.value === value;
+              return (
+                <div
+                  key={o.value}
+                  role="option"
+                  aria-selected={isActive}
+                  className={isActive ? "tt-ddItem tt-ddItemActive" : "tt-ddItem"}
+                  style={{
+                    borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                  }}
+                  onClick={() => select(o.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") select(o.value);
+                  }}
+                  tabIndex={0}
+                >
+                  <span>{o.label}</span>
+                  {isActive ? <span className="tt-ddTick">✓</span> : <span style={{ width: 18 }} />}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EditDrawer({ editDraft, onCloseEdit, updateDraft, onSaveEdit }) {
+  if (!editDraft || typeof document === "undefined") return null;
+
+  return createPortal(
+    <>
+      <div className="tt-editOverlay" onClick={onCloseEdit} />
+      <div className="tt-editDrawer" role="dialog" aria-modal="true" aria-label="Edit client">
+        <div className="tt-editHead">
+          <div>
+            <h2 className="tt-editTitle">Edit client</h2>
+            <p className="tt-editSub">
+              Premium edit view for filling in missing client data before go-live. This currently updates the UI state only.
+            </p>
+          </div>
+
+          <button type="button" className="tt-btn tt-btnSecondary" onClick={onCloseEdit}>
+            Close
+          </button>
+        </div>
+
+        <div className="tt-editBody">
+          <div className="tt-editSection">
+            <p className="tt-editSectionTitle">Profile details</p>
+            <div className="tt-formGrid2">
+              <div className="tt-formField">
+                <label className="tt-label">Client name</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.name || ""}
+                  onChange={(e) => updateDraft("name", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Owner</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.owner || ""}
+                  onChange={(e) => updateDraft("owner", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Primary email</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.primaryEmail || ""}
+                  onChange={(e) => updateDraft("primaryEmail", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Secondary email</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.secondaryEmail || ""}
+                  onChange={(e) => updateDraft("secondaryEmail", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Phone</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.phone || ""}
+                  onChange={(e) => updateDraft("phone", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Industry</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.industry || ""}
+                  onChange={(e) => updateDraft("industry", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Risk</label>
+                <select
+                  className="tt-selectDark"
+                  value={editDraft.risk || ""}
+                  onChange={(e) => updateDraft("risk", e.target.value)}
+                >
+                  <option value="">Select risk</option>
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Client status</label>
+                <select
+                  className="tt-selectDark"
+                  value={editDraft.status || ""}
+                  onChange={(e) => updateDraft("status", e.target.value)}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Paused">Paused</option>
+                  <option value="Risk">Risk</option>
+                  <option value="New">New</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="tt-editSection">
+            <p className="tt-editSectionTitle">Debit details</p>
+            <div className="tt-formGrid2">
+              <div className="tt-formField">
+                <label className="tt-label">Billing cycle</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.debit?.billingCycle || ""}
+                  onChange={(e) => updateDraft("debit.billingCycle", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Debit status</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.debit?.debitStatus || ""}
+                  onChange={(e) => updateDraft("debit.debitStatus", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Next charge date</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.debit?.nextChargeDate || ""}
+                  onChange={(e) => updateDraft("debit.nextChargeDate", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Amount (ZAR)</label>
+                <input
+                  className="tt-inputDark"
+                  type="number"
+                  value={editDraft.debit?.amountZar ?? ""}
+                  onChange={(e) => updateDraft("debit.amountZar", Number(e.target.value || 0))}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Books invoice id</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.debit?.booksInvoiceId || ""}
+                  onChange={(e) => updateDraft("debit.booksInvoiceId", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Retry count</label>
+                <input
+                  className="tt-inputDark"
+                  type="number"
+                  value={editDraft.debit?.retryCount ?? 0}
+                  onChange={(e) => updateDraft("debit.retryCount", Number(e.target.value || 0))}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Paystack customer code</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.debit?.paystackCustomerCode || ""}
+                  onChange={(e) => updateDraft("debit.paystackCustomerCode", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField">
+                <label className="tt-label">Paystack authorization code</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.debit?.paystackAuthorizationCode || ""}
+                  onChange={(e) => updateDraft("debit.paystackAuthorizationCode", e.target.value)}
+                />
+              </div>
+
+              <div className="tt-formField tt-formFieldFull">
+                <label className="tt-label">Failure reason</label>
+                <input
+                  className="tt-inputDark"
+                  value={editDraft.debit?.failureReason || ""}
+                  onChange={(e) => updateDraft("debit.failureReason", e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="tt-editSection">
+            <p className="tt-editSectionTitle">Notes</p>
+            <div className="tt-formField">
+              <label className="tt-label">Internal notes</label>
+              <textarea
+                className="tt-textareaDark"
+                value={editDraft.notes || ""}
+                onChange={(e) => updateDraft("notes", e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="tt-editFoot">
+          <button type="button" className="tt-btn tt-btnSecondary" onClick={onCloseEdit}>
+            Cancel
+          </button>
+          <button type="button" className="tt-btn tt-btnPrimary" onClick={onSaveEdit}>
+            Save client
+          </button>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
 }
 
 export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
@@ -283,6 +679,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
       "Secondary Email",
       "Phone",
       "Status",
+      "Zoho Client ID",
       "Zoho Debit Order ID",
       "Billing Cycle",
       "Next Charge Date",
@@ -301,6 +698,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
       c.secondaryEmail || "",
       c.phone || "",
       c.status || "",
+      c.zohoClientId || "",
       c.zohoDebitOrderId || "",
       c.debit?.billingCycle || "",
       c.debit?.nextChargeDate || "",
@@ -420,92 +818,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     setSelectedId(nextUpdated.id);
     onCloseEdit();
     showToast("Client details updated in UI.");
-  }
-
-  function useOnClickOutside(ref, handler) {
-    useEffect(() => {
-      function onDown(e) {
-        if (!ref.current) return;
-        if (ref.current.contains(e.target)) return;
-        handler();
-      }
-      window.addEventListener("mousedown", onDown);
-      window.addEventListener("touchstart", onDown);
-      return () => {
-        window.removeEventListener("mousedown", onDown);
-        window.removeEventListener("touchstart", onDown);
-      };
-    }, [ref, handler]);
-  }
-
-  function RecordsDropdown({ value, onChange, disabled }) {
-    const [open, setOpen] = useState(false);
-    const wrapRef = useRef(null);
-    useOnClickOutside(wrapRef, () => setOpen(false));
-
-    const options = [
-      { value: 10, label: "10 records" },
-      { value: 20, label: "20 records" },
-      { value: 50, label: "50 records" },
-      { value: 100, label: "100 records" },
-    ];
-
-    const active = options.find((o) => o.value === value) || options[0];
-
-    function select(v) {
-      onChange(v);
-      setOpen(false);
-    }
-
-    return (
-      <div ref={wrapRef} className="tt-ddWrap">
-        <span className="tt-ddLabel">Records</span>
-
-        <div className="tt-ddRel">
-          <button
-            type="button"
-            className={open ? "tt-ddBtn tt-ddBtnOpen" : "tt-ddBtn"}
-            onClick={() => {
-              if (disabled) return;
-              setOpen((x) => !x);
-            }}
-            disabled={disabled}
-            aria-haspopup="listbox"
-            aria-expanded={open}
-          >
-            <span>{active.label}</span>
-            <span className="tt-ddCaret">▾</span>
-          </button>
-
-          {open && (
-            <div className="tt-ddMenu" role="listbox" aria-label="Records per page">
-              {options.map((o, idx) => {
-                const isActive = o.value === value;
-                return (
-                  <div
-                    key={o.value}
-                    role="option"
-                    aria-selected={isActive}
-                    className={isActive ? "tt-ddItem tt-ddItemActive" : "tt-ddItem"}
-                    style={{
-                      borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
-                    }}
-                    onClick={() => select(o.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") select(o.value);
-                    }}
-                    tabIndex={0}
-                  >
-                    <span>{o.label}</span>
-                    {isActive ? <span className="tt-ddTick">✓</span> : <span style={{ width: 18 }} />}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    );
   }
 
   const css = `
@@ -1129,7 +1441,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     background: rgba(3, 6, 18, 0.55);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    z-index: 110;
+    z-index: 1100;
     animation: ttFadeIn 180ms ease;
   }
 
@@ -1138,7 +1450,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     top: 16px;
     right: 16px;
     bottom: 16px;
-    width: min(620px, calc(100vw - 32px));
+    width: min(560px, calc(100vw - 32px));
     border-radius: 24px;
     border: 1px solid rgba(161, 110, 255, 0.22);
     background:
@@ -1152,17 +1464,17 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    z-index: 111;
+    z-index: 1101;
     animation: ttSlideIn 220ms ease-out;
   }
 
   .tt-editHead {
-    padding: 18px 18px 16px 18px;
+    padding: 16px 16px 14px 16px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 14px;
+    gap: 12px;
     flex: 0 0 auto;
     background:
       radial-gradient(circle at top right, rgba(140,90,255,0.12), transparent 45%);
@@ -1170,7 +1482,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
   .tt-editTitle {
     margin: 0;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 900;
     color: rgba(255,255,255,0.96);
     letter-spacing: 0.2px;
@@ -1180,18 +1492,19 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     margin: 6px 0 0 0;
     font-size: 12px;
     color: rgba(255,255,255,0.62);
-    line-height: 1.45;
+    line-height: 1.4;
   }
 
   .tt-editBody {
-    padding: 18px;
+    padding: 14px;
     overflow-y: auto;
     overflow-x: hidden;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
     flex: 1 1 auto;
     min-height: 0;
+    overscroll-behavior: contain;
     scrollbar-gutter: stable;
   }
 
@@ -1201,11 +1514,11 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     background:
       linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-    padding: 14px;
+    padding: 12px;
   }
 
   .tt-editSectionTitle {
-    margin: 0 0 12px 0;
+    margin: 0 0 10px 0;
     font-size: 12px;
     font-weight: 900;
     letter-spacing: 0.2px;
@@ -1216,7 +1529,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   .tt-formGrid2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
   }
 
   .tt-formField {
@@ -1253,13 +1566,13 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
   .tt-inputDark,
   .tt-selectDark {
-    height: 42px;
+    height: 40px;
     padding: 0 12px;
     font-size: 13px;
   }
 
   .tt-textareaDark {
-    min-height: 98px;
+    min-height: 88px;
     padding: 12px;
     font-size: 13px;
     resize: vertical;
@@ -1275,7 +1588,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   }
 
   .tt-editFoot {
-    padding: 16px 18px;
+    padding: 14px 16px;
     border-top: 1px solid rgba(255,255,255,0.08);
     display: flex;
     justify-content: flex-end;
@@ -1615,368 +1928,4 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
                     <div className="tt-kv">
                       <div className="tt-k">Billing cycle</div>
-                      <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div>
-
-                      <div className="tt-k">Next charge date</div>
-                      <div className="tt-v">{selected.debit?.nextChargeDate ? fmtDateShort(selected.debit.nextChargeDate) : "Not set"}</div>
-
-                      <div className="tt-k">Last attempt date</div>
-                      <div className="tt-v">{selected.debit?.lastAttemptDate ? fmtDateTimeLong(selected.debit.lastAttemptDate) : "Not set"}</div>
-
-                      <div className="tt-k">Last transaction reference</div>
-                      <div className="tt-v">{selected.debit?.lastTransactionReference || "Not set"}</div>
-
-                      <div className="tt-k">Failure reason</div>
-                      <div className="tt-v">{selected.debit?.failureReason || "None"}</div>
-
-                      <div className="tt-k">Status</div>
-                      <div className="tt-v">{selected.debit?.debitStatus || "None"}</div>
-
-                      <div className="tt-k">Books invoice id</div>
-                      <div className="tt-v">{selected.debit?.booksInvoiceId || "Not set"}</div>
-
-                      <div className="tt-k">Retry count</div>
-                      <div className="tt-v">{String(selected.debit?.retryCount ?? 0)}</div>
-
-                      <div className="tt-k">Debit run batch id</div>
-                      <div className="tt-v">{selected.debit?.debitRunBatchId || "Not set"}</div>
-
-                      <div className="tt-k">Paystack customer code</div>
-                      <div className="tt-v">{selected.debit?.paystackCustomerCode || "Not set"}</div>
-
-                      <div className="tt-k">Paystack authorization code</div>
-                      <div className="tt-v">{selected.debit?.paystackAuthorizationCode || "Not set"}</div>
-                    </div>
-
-                    <div className="tt-divider" />
-
-                    <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
-                      Actions like onboarding will be added later once backend workflows are ready.
-                    </div>
-                  </div>
-
-                  <div className="tt-section">
-                    <p className="tt-sectionTitle">Notes</p>
-                    <p style={{ margin: "10px 0 0 0", color: "rgba(255,255,255,0.70)", fontSize: 13, lineHeight: 1.5 }}>
-                      {selected.notes || "No notes yet."}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {editOpen && editDraft ? (
-          <>
-            <div className="tt-editOverlay" onClick={onCloseEdit} />
-            <div className="tt-editDrawer" role="dialog" aria-modal="true" aria-label="Edit client">
-              <div className="tt-editHead">
-                <div>
-                  <h2 className="tt-editTitle">Edit client</h2>
-                  <p className="tt-editSub">
-                    Premium edit view for filling in missing client data before go-live. This currently updates the UI state only.
-                  </p>
-                </div>
-
-                <button type="button" className="tt-btn tt-btnSecondary" onClick={onCloseEdit}>
-                  Close
-                </button>
-              </div>
-
-              <div className="tt-editBody">
-                <div className="tt-editSection">
-                  <p className="tt-editSectionTitle">Profile details</p>
-                  <div className="tt-formGrid2">
-                    <div className="tt-formField">
-                      <label className="tt-label">Client name</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.name || ""}
-                        onChange={(e) => updateDraft("name", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Owner</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.owner || ""}
-                        onChange={(e) => updateDraft("owner", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Primary email</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.primaryEmail || ""}
-                        onChange={(e) => updateDraft("primaryEmail", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Secondary email</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.secondaryEmail || ""}
-                        onChange={(e) => updateDraft("secondaryEmail", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Phone</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.phone || ""}
-                        onChange={(e) => updateDraft("phone", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Industry</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.industry || ""}
-                        onChange={(e) => updateDraft("industry", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Risk</label>
-                      <select
-                        className="tt-selectDark"
-                        value={editDraft.risk || ""}
-                        onChange={(e) => updateDraft("risk", e.target.value)}
-                      >
-                        <option value="">Select risk</option>
-                        <option value="Low">Low</option>
-                        <option value="Medium">Medium</option>
-                        <option value="High">High</option>
-                      </select>
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Client status</label>
-                      <select
-                        className="tt-selectDark"
-                        value={editDraft.status || ""}
-                        onChange={(e) => updateDraft("status", e.target.value)}
-                      >
-                        <option value="Active">Active</option>
-                        <option value="Paused">Paused</option>
-                        <option value="Risk">Risk</option>
-                        <option value="New">New</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="tt-editSection">
-                  <p className="tt-editSectionTitle">Debit details</p>
-                  <div className="tt-formGrid2">
-                    <div className="tt-formField">
-                      <label className="tt-label">Billing cycle</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.debit?.billingCycle || ""}
-                        onChange={(e) => updateDraft("debit.billingCycle", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Debit status</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.debit?.debitStatus || ""}
-                        onChange={(e) => updateDraft("debit.debitStatus", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Next charge date</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.debit?.nextChargeDate || ""}
-                        onChange={(e) => updateDraft("debit.nextChargeDate", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Amount (ZAR)</label>
-                      <input
-                        className="tt-inputDark"
-                        type="number"
-                        value={editDraft.debit?.amountZar ?? ""}
-                        onChange={(e) => updateDraft("debit.amountZar", Number(e.target.value || 0))}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Books invoice id</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.debit?.booksInvoiceId || ""}
-                        onChange={(e) => updateDraft("debit.booksInvoiceId", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Retry count</label>
-                      <input
-                        className="tt-inputDark"
-                        type="number"
-                        value={editDraft.debit?.retryCount ?? 0}
-                        onChange={(e) => updateDraft("debit.retryCount", Number(e.target.value || 0))}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Paystack customer code</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.debit?.paystackCustomerCode || ""}
-                        onChange={(e) => updateDraft("debit.paystackCustomerCode", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField">
-                      <label className="tt-label">Paystack authorization code</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.debit?.paystackAuthorizationCode || ""}
-                        onChange={(e) => updateDraft("debit.paystackAuthorizationCode", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="tt-formField tt-formFieldFull">
-                      <label className="tt-label">Failure reason</label>
-                      <input
-                        className="tt-inputDark"
-                        value={editDraft.debit?.failureReason || ""}
-                        onChange={(e) => updateDraft("debit.failureReason", e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="tt-editSection">
-                  <p className="tt-editSectionTitle">Notes</p>
-                  <div className="tt-formField">
-                    <label className="tt-label">Internal notes</label>
-                    <textarea
-                      className="tt-textareaDark"
-                      value={editDraft.notes || ""}
-                      onChange={(e) => updateDraft("notes", e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="tt-editFoot">
-                <button type="button" className="tt-btn tt-btnSecondary" onClick={onCloseEdit}>
-                  Cancel
-                </button>
-                <button type="button" className="tt-btn tt-btnPrimary" onClick={onSaveEdit}>
-                  Save client
-                </button>
-              </div>
-            </div>
-          </>
-        ) : null}
-
-        {toast ? (
-          <div className="tt-toastWrap">
-            <div className="tt-toast">{toast}</div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function Dot() {
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: 999,
-        background: "rgba(255,255,255,0.85)",
-        boxShadow: "0 0 0 6px rgba(124,58,237,0.12)",
-        opacity: 0.9,
-      }}
-    />
-  );
-}
-
-function IconSearch({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
-      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function safeText(v) {
-  if (v === null || v === undefined) return "";
-  return String(v);
-}
-
-function downloadCsv(filename, rows) {
-  const csvEscape = (v) => {
-    const s = safeText(v);
-    if (/[",\n]/.test(s)) return \`"\${s.replace(/"/g, '""')}"\`;
-    return s;
-  };
-
-  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  URL.revokeObjectURL(url);
-}
-
-function currencyZar(n) {
-  const val = Number(n || 0);
-  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
-}
-
-function fmtDateShort(yyyyMmDd) {
-  const d = new Date(yyyyMmDd + "T00:00:00.000Z");
-  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-}
-
-function fmtDateTimeShort(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-}
-
-function fmtDateTimeLong(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString("en-ZA", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function statusBadgeClass(status) {
-  if (status === "Active") return "tt-badge tt-bActive";
-  if (status === "Paused") return "tt-badge tt-bPaused";
-  if (status === "Risk") return "tt-badge tt-bRisk";
-  return "tt-badge tt-bNew";
-}
+                      <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div
