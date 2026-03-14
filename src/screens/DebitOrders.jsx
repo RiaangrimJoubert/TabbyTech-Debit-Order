@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request } from "../api";
 
 const DEBIT_ORDERS_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -8,8 +8,10 @@ let debitOrdersProfileCache = {
   query: "",
   selectedClientKey: "",
   historyFilter: "All",
-  page: 1,
-  perPage: 10,
+  clientListPage: 1,
+  clientListPerPage: 10,
+  historyPage: 1,
+  historyPerPage: 10,
   errorText: "",
   lastLoadedAt: 0,
 };
@@ -285,6 +287,109 @@ function getScoreColor(score) {
   return "#ef4444";
 }
 
+function SearchIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.74)" strokeWidth="2" />
+      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.74)" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CaretDownIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 10l5 5 5-5" stroke="rgba(255,255,255,0.86)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TickIcon({ size = 12 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" stroke="rgba(255,255,255,0.95)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function useOnClickOutside(ref, handler) {
+  useEffect(() => {
+    function onDown(e) {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target)) return;
+      handler();
+    }
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("touchstart", onDown);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("touchstart", onDown);
+    };
+  }, [ref, handler]);
+}
+
+function RecordsDropdown({ value, onChange, options }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const active = options.find((item) => Number(item.value) === Number(value)) || options[0];
+
+  return (
+    <div ref={wrapRef} className="tt-do-ddWrap">
+      <span className="tt-do-ddLabel">Records</span>
+
+      <div className="tt-do-ddRel">
+        <button
+          type="button"
+          className={open ? "tt-do-ddBtn tt-do-ddBtnOpen" : "tt-do-ddBtn"}
+          onClick={() => setOpen((prev) => !prev)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span>{active?.label || ""}</span>
+          <span className="tt-do-ddCaret">
+            <CaretDownIcon />
+          </span>
+        </button>
+
+        {open ? (
+          <div className="tt-do-ddMenu" role="listbox" aria-label="Records per page">
+            {options.map((item, index) => {
+              const isActive = Number(item.value) === Number(value);
+
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  className={isActive ? "tt-do-ddItem tt-do-ddItemActive" : "tt-do-ddItem"}
+                  style={{
+                    borderBottom: index === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                  }}
+                  onClick={() => {
+                    onChange(item.value);
+                    setOpen(false);
+                  }}
+                >
+                  <span>{item.label}</span>
+                  {isActive ? (
+                    <span className="tt-do-ddTick">
+                      <TickIcon />
+                    </span>
+                  ) : (
+                    <span style={{ width: 18, height: 18 }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function DonutChart({ missed25th, retryRecovered, failed, paidOnTime, score }) {
   const total = Math.max(1, missed25th + retryRecovered + failed + paidOnTime);
   const radius = 58;
@@ -336,7 +441,9 @@ function DonutChart({ missed25th, retryRecovered, failed, paidOnTime, score }) {
       </svg>
 
       <div className="tt-do-center">
-        <div className="tt-do-score" style={{ color: scoreColor }}>{score}</div>
+        <div className="tt-do-score" style={{ color: scoreColor }}>
+          {score}
+        </div>
         <div className="tt-do-scoreLabel">Health score</div>
       </div>
     </div>
@@ -373,15 +480,6 @@ function MetricCard({ label, value, sub }) {
   );
 }
 
-function SearchIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.74)" strokeWidth="2" />
-      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.74)" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export default function DebitOrders({ presetSearch = "", presetFocusClientId = "" }) {
   const [rows, setRows] = useState(() => (Array.isArray(debitOrdersProfileCache.rows) ? debitOrdersProfileCache.rows : []));
   const [query, setQuery] = useState(() => safeText(presetSearch || debitOrdersProfileCache.query));
@@ -389,12 +487,20 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     safeText(presetFocusClientId || debitOrdersProfileCache.selectedClientKey)
   );
   const [historyFilter, setHistoryFilter] = useState(() => safeText(debitOrdersProfileCache.historyFilter) || "All");
-  const [page, setPage] = useState(() => {
-    const n = Number(debitOrdersProfileCache.page || 1);
+  const [clientListPage, setClientListPage] = useState(() => {
+    const n = Number(debitOrdersProfileCache.clientListPage || 1);
     return Number.isFinite(n) && n > 0 ? n : 1;
   });
-  const [perPage] = useState(() => {
-    const n = Number(debitOrdersProfileCache.perPage || 10);
+  const [clientListPerPage, setClientListPerPage] = useState(() => {
+    const n = Number(debitOrdersProfileCache.clientListPerPage || 10);
+    return Number.isFinite(n) && n > 0 ? n : 10;
+  });
+  const [historyPage, setHistoryPage] = useState(() => {
+    const n = Number(debitOrdersProfileCache.historyPage || 1);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  });
+  const [historyPerPage] = useState(() => {
+    const n = Number(debitOrdersProfileCache.historyPerPage || 10);
     return Number.isFinite(n) && n > 0 ? n : 10;
   });
   const [loading, setLoading] = useState(() => !hasFreshCache());
@@ -407,12 +513,24 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       query,
       selectedClientKey,
       historyFilter,
-      page,
-      perPage,
+      clientListPage,
+      clientListPerPage,
+      historyPage,
+      historyPerPage,
       errorText,
       lastLoadedAt: debitOrdersProfileCache.lastLoadedAt,
     };
-  }, [rows, query, selectedClientKey, historyFilter, page, perPage, errorText]);
+  }, [
+    rows,
+    query,
+    selectedClientKey,
+    historyFilter,
+    clientListPage,
+    clientListPerPage,
+    historyPage,
+    historyPerPage,
+    errorText,
+  ]);
 
   async function load({ force = false } = {}) {
     if (!force && hasFreshCache()) {
@@ -440,8 +558,10 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
         query,
         selectedClientKey,
         historyFilter,
-        page,
-        perPage,
+        clientListPage,
+        clientListPerPage,
+        historyPage,
+        historyPerPage,
         errorText: "",
         lastLoadedAt: Date.now(),
       };
@@ -471,7 +591,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     if (!nextPreset) return;
     setQuery(nextPreset);
     setSelectedClientKey(nextPreset);
-    setPage(1);
+    setClientListPage(1);
+    setHistoryPage(1);
   }, [presetFocusClientId, presetSearch]);
 
   const clientGroups = useMemo(() => buildClientGroups(rows), [rows]);
@@ -497,6 +618,23 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
   }, [clientGroups, query]);
 
   useEffect(() => {
+    setClientListPage(1);
+  }, [query, clientListPerPage]);
+
+  const clientListPageCount = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredGroups.length / clientListPerPage));
+  }, [filteredGroups.length, clientListPerPage]);
+
+  useEffect(() => {
+    if (clientListPage > clientListPageCount) setClientListPage(clientListPageCount);
+  }, [clientListPage, clientListPageCount]);
+
+  const pagedClientGroups = useMemo(() => {
+    const start = (clientListPage - 1) * clientListPerPage;
+    return filteredGroups.slice(start, start + clientListPerPage);
+  }, [filteredGroups, clientListPage, clientListPerPage]);
+
+  useEffect(() => {
     if (!filteredGroups.length) {
       setSelectedClientKey("");
       return;
@@ -513,13 +651,21 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       if (selectedClientKey !== match.key) {
         setSelectedClientKey(match.key);
       }
+
+      const matchIndex = filteredGroups.findIndex((group) => group.key === match.key);
+      if (matchIndex >= 0) {
+        const targetPage = Math.floor(matchIndex / clientListPerPage) + 1;
+        if (targetPage !== clientListPage) {
+          setClientListPage(targetPage);
+        }
+      }
       return;
     }
 
     if (!filteredGroups.some((group) => group.key === selectedClientKey)) {
       setSelectedClientKey(filteredGroups[0].key);
     }
-  }, [filteredGroups, presetFocusClientId, selectedClientKey, query]);
+  }, [filteredGroups, presetFocusClientId, selectedClientKey, query, clientListPerPage, clientListPage]);
 
   const selectedGroup = useMemo(() => {
     return (
@@ -549,21 +695,21 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
   }, [selectedGroup]);
 
   useEffect(() => {
-    setPage(1);
+    setHistoryPage(1);
   }, [historyFilter, selectedGroup?.key]);
 
   const historyPageCount = useMemo(() => {
-    return Math.max(1, Math.ceil(historyRows.length / perPage));
-  }, [historyRows.length, perPage]);
+    return Math.max(1, Math.ceil(historyRows.length / historyPerPage));
+  }, [historyRows.length, historyPerPage]);
 
   useEffect(() => {
-    if (page > historyPageCount) setPage(historyPageCount);
-  }, [page, historyPageCount]);
+    if (historyPage > historyPageCount) setHistoryPage(historyPageCount);
+  }, [historyPage, historyPageCount]);
 
   const pagedHistoryRows = useMemo(() => {
-    const start = (page - 1) * perPage;
-    return historyRows.slice(start, start + perPage);
-  }, [historyRows, page, perPage]);
+    const start = (historyPage - 1) * historyPerPage;
+    return historyRows.slice(start, start + historyPerPage);
+  }, [historyRows, historyPage, historyPerPage]);
 
   function onExportHistory() {
     if (!selectedGroup) return;
@@ -614,6 +760,13 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     missed25th: 0,
     paidOnTime: 0,
   };
+
+  const clientListOptions = [
+    { value: 10, label: "10 records" },
+    { value: 20, label: "20 records" },
+    { value: 50, label: "50 records" },
+    { value: 100, label: "100 records" },
+  ];
 
   const css = `
     .tt-do-page {
@@ -721,7 +874,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     .tt-do-hero {
       padding: 18px;
       display: grid;
-      grid-template-columns: minmax(320px, 1.1fr) minmax(300px, 0.9fr);
+      grid-template-columns: minmax(420px, 1.15fr) minmax(300px, 0.85fr);
       gap: 16px;
       align-items: stretch;
     }
@@ -730,12 +883,13 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       display: flex;
       flex-direction: column;
       gap: 14px;
+      min-width: 0;
     }
 
     .tt-do-searchWrap {
       position: relative;
       width: 100%;
-      max-width: 560px;
+      max-width: 620px;
     }
 
     .tt-do-searchIcon {
@@ -764,13 +918,134 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       box-shadow: 0 0 0 5px rgba(124,58,237,0.18);
     }
 
+    .tt-do-selectorCard {
+      border-radius: 20px;
+      border: 1px solid rgba(168,85,247,0.18);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      overflow: hidden;
+    }
+
+    .tt-do-selectorHead {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(168,85,247,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: rgba(15,12,30,0.6);
+    }
+
+    .tt-do-selectorTitle {
+      font-size: 13px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.94);
+      margin: 0;
+    }
+
+    .tt-do-selectorSub {
+      margin: 4px 0 0 0;
+      font-size: 12px;
+      color: rgba(255,255,255,0.58);
+    }
+
+    .tt-do-selectorScroll {
+      max-height: 235px;
+      overflow: auto;
+    }
+
+    .tt-do-selectorTable {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+    }
+
+    .tt-do-selectorTh {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      text-align: left;
+      padding: 11px 14px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      color: rgba(255,255,255,0.62);
+      background: rgba(7,8,18,0.92);
+      border-bottom: 1px solid rgba(168,85,247,0.12);
+    }
+
+    .tt-do-selectorTd {
+      padding: 11px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.84);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .tt-do-selectorRow {
+      cursor: pointer;
+      transition: background 160ms ease;
+    }
+
+    .tt-do-selectorRow:hover {
+      background: rgba(255,255,255,0.04);
+    }
+
+    .tt-do-selectorRowActive {
+      background: linear-gradient(90deg, rgba(168,85,247,0.20), rgba(124,58,237,0.08));
+    }
+
+    .tt-do-miniBadge {
+      height: 22px;
+      padding: 0 9px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.86);
+    }
+
+    .tt-do-miniBadge-good {
+      background: rgba(34,197,94,0.16);
+      border-color: rgba(34,197,94,0.34);
+    }
+
+    .tt-do-miniBadge-watch {
+      background: rgba(132,204,22,0.16);
+      border-color: rgba(132,204,22,0.34);
+    }
+
+    .tt-do-miniBadge-risk {
+      background: rgba(234,179,8,0.16);
+      border-color: rgba(234,179,8,0.34);
+    }
+
+    .tt-do-miniBadge-critical {
+      background: rgba(239,68,68,0.18);
+      border-color: rgba(239,68,68,0.42);
+    }
+
+    .tt-do-selectorFoot {
+      padding: 12px 16px;
+      border-top: 1px solid rgba(168,85,247,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: rgba(15,12,30,0.55);
+    }
+
     .tt-do-clientCard {
       border-radius: 20px;
       border: 1px solid rgba(168,85,247,0.18);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
       padding: 18px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
       display: flex;
       flex-direction: column;
       gap: 14px;
@@ -867,8 +1142,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     .tt-metricCard {
       border-radius: 18px;
       border: 1px solid rgba(168,85,247,0.16);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
       padding: 14px;
       min-height: 104px;
       display: flex;
@@ -1249,49 +1523,6 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       font-weight: 900;
     }
 
-    .tt-do-clientList {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 2px;
-    }
-
-    .tt-do-clientChip {
-      height: 34px;
-      padding: 0 12px;
-      border-radius: 999px;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.05);
-      color: rgba(255,255,255,0.80);
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 0.2px;
-      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
-      max-width: 100%;
-    }
-
-    .tt-do-clientChip:hover {
-      transform: translateY(-1px);
-      background: rgba(255,255,255,0.08);
-    }
-
-    .tt-do-clientChipActive {
-      border-color: rgba(168,85,247,0.52);
-      background: linear-gradient(135deg, rgba(168,85,247,0.24), rgba(124,58,237,0.14));
-      box-shadow: 0 12px 28px rgba(124,58,237,0.20);
-      color: rgba(255,255,255,0.96);
-    }
-
-    .tt-do-miniCount {
-      font-size: 11px;
-      color: rgba(255,255,255,0.60);
-      font-weight: 800;
-    }
-
     .tt-do-error {
       padding: 12px 16px;
       border-bottom: 1px solid rgba(168,85,247,0.14);
@@ -1299,6 +1530,102 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       color: rgba(255,255,255,0.90);
       font-size: 12px;
       font-weight: 700;
+    }
+
+    .tt-do-ddWrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tt-do-ddLabel {
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+      font-weight: 800;
+    }
+
+    .tt-do-ddRel {
+      position: relative;
+      display: inline-block;
+    }
+
+    .tt-do-ddBtn {
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 11px;
+      border: 1px solid rgba(168,85,247,0.40);
+      background: rgba(0,0,0,0.42);
+      color: rgba(255,255,255,0.92);
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.15px;
+      min-width: 130px;
+      box-sizing: border-box;
+    }
+
+    .tt-do-ddBtnOpen {
+      background: rgba(168,85,247,0.16);
+    }
+
+    .tt-do-ddCaret {
+      opacity: 0.95;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tt-do-ddMenu {
+      position: absolute;
+      top: 40px;
+      left: 0;
+      min-width: 190px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(10,10,14,0.92);
+      box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+      z-index: 60;
+    }
+
+    .tt-do-ddItem {
+      width: 100%;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      color: rgba(255,255,255,0.88);
+      background: transparent;
+      border-left: none;
+      border-right: none;
+      border-top: none;
+      outline: none;
+    }
+
+    .tt-do-ddItemActive {
+      background: rgba(168,85,247,0.22);
+    }
+
+    .tt-do-ddTick {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(168,85,247,0.25);
+      border: 1px solid rgba(168,85,247,0.35);
+      font-weight: 900;
     }
 
     @media (max-width: 1320px) {
@@ -1312,12 +1639,15 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       }
     }
 
-    @media (max-width: 860px) {
+    @media (max-width: 980px) {
       .tt-do-rightHero,
       .tt-do-insights {
         grid-template-columns: 1fr;
       }
 
+      .tt-do-selectorHead,
+      .tt-do-selectorFoot,
+      .tt-do-historyToolbar,
       .tt-do-navRow {
         justify-content: flex-start;
       }
@@ -1341,12 +1671,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
             {loading ? "Syncing..." : "Sync now"}
           </button>
 
-          <button
-            type="button"
-            className="tt-do-btn"
-            onClick={onExportHistory}
-            disabled={!selectedGroup}
-          >
+          <button type="button" className="tt-do-btn" onClick={onExportHistory} disabled={!selectedGroup}>
             Export history
           </button>
         </div>
@@ -1367,35 +1692,108 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
-                    setPage(1);
+                    setClientListPage(1);
+                    setHistoryPage(1);
                   }}
                   placeholder="Search client name, CRM record ID, Books invoice ID, or Paystack code"
                   aria-label="Search debit order client"
                 />
               </div>
 
-              {filteredGroups.length ? (
-                <div className="tt-do-clientList">
-                  {filteredGroups.slice(0, 8).map((group) => {
-                    const active = selectedGroup?.key === group.key;
-                    return (
-                      <button
-                        key={group.key}
-                        type="button"
-                        className={`tt-do-clientChip ${active ? "tt-do-clientChipActive" : ""}`}
-                        onClick={() => {
-                          setSelectedClientKey(group.key);
-                          setPage(1);
-                        }}
-                        title={group.clientName || group.clientId || group.key}
-                      >
-                        <span>{group.clientName || group.clientId || group.key}</span>
-                        <span className="tt-do-miniCount">{group.totalRecords}</span>
-                      </button>
-                    );
-                  })}
+              <div className="tt-do-selectorCard">
+                <div className="tt-do-selectorHead">
+                  <div>
+                    <p className="tt-do-selectorTitle">Client selection</p>
+                    <p className="tt-do-selectorSub">Choose the client debit profile you want to inspect.</p>
+                  </div>
+
+                  <RecordsDropdown
+                    value={clientListPerPage}
+                    onChange={(nextValue) => {
+                      setClientListPerPage(Number(nextValue));
+                      setClientListPage(1);
+                    }}
+                    options={clientListOptions}
+                  />
                 </div>
-              ) : null}
+
+                <div className="tt-do-selectorScroll">
+                  <table className="tt-do-selectorTable">
+                    <thead>
+                      <tr>
+                        <th className="tt-do-selectorTh">Client</th>
+                        <th className="tt-do-selectorTh">CRM ID</th>
+                        <th className="tt-do-selectorTh">Records</th>
+                        <th className="tt-do-selectorTh">Health</th>
+                        <th className="tt-do-selectorTh">Latest Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedClientGroups.map((group) => {
+                        const active = selectedGroup?.key === group.key;
+                        return (
+                          <tr
+                            key={group.key}
+                            className={active ? "tt-do-selectorRow tt-do-selectorRowActive" : "tt-do-selectorRow"}
+                            onClick={() => {
+                              setSelectedClientKey(group.key);
+                              setHistoryPage(1);
+                            }}
+                          >
+                            <td className="tt-do-selectorTd" style={{ fontWeight: 800 }}>
+                              {group.clientName || "Unknown client"}
+                            </td>
+                            <td className="tt-do-selectorTd">{group.clientId || "Not available"}</td>
+                            <td className="tt-do-selectorTd">{group.totalRecords}</td>
+                            <td className="tt-do-selectorTd">
+                              <span className={`tt-do-miniBadge tt-do-miniBadge-${group.health.tone}`}>
+                                {group.health.label}
+                              </span>
+                            </td>
+                            <td className="tt-do-selectorTd">
+                              <StatusBadge status={group.latest?.status} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {!loading && pagedClientGroups.length === 0 ? (
+                        <tr>
+                          <td className="tt-do-selectorTd" colSpan={5} style={{ whiteSpace: "normal", padding: 18 }}>
+                            No clients found for the current search.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="tt-do-selectorFoot">
+                  <span className="tt-do-pagePill">
+                    Page {clientListPage} of {clientListPageCount}
+                  </span>
+
+                  <div className="tt-do-actions">
+                    <button
+                      type="button"
+                      className="tt-do-btn"
+                      onClick={() => setClientListPage((prev) => Math.max(1, prev - 1))}
+                      disabled={clientListPage <= 1}
+                    >
+                      Back
+                    </button>
+
+                    <button
+                      type="button"
+                      className="tt-do-btn"
+                      onClick={() => setClientListPage((prev) => Math.min(clientListPageCount, prev + 1))}
+                      disabled={clientListPage >= clientListPageCount}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               <div className="tt-do-clientCard">
                 <div className="tt-do-kicker">Client debit profile</div>
@@ -1684,14 +2082,14 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
               <div className="tt-do-navRow">
                 <span className="tt-do-pagePill">
-                  Page {page} of {historyPageCount}
+                  Page {historyPage} of {historyPageCount}
                 </span>
 
                 <button
                   type="button"
                   className="tt-do-btn"
-                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  disabled={page <= 1}
+                  onClick={() => setHistoryPage((prev) => Math.max(1, prev - 1))}
+                  disabled={historyPage <= 1}
                 >
                   Back
                 </button>
@@ -1699,8 +2097,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                 <button
                   type="button"
                   className="tt-do-btn"
-                  onClick={() => setPage((prev) => Math.min(historyPageCount, prev + 1))}
-                  disabled={page >= historyPageCount}
+                  onClick={() => setHistoryPage((prev) => Math.min(historyPageCount, prev + 1))}
+                  disabled={historyPage >= historyPageCount}
                 >
                   Next
                 </button>
