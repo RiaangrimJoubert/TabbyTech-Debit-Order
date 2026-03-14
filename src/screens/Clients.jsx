@@ -1927,5 +1927,89 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                     <p className="tt-sectionTitle">Debit profile</p>
 
                     <div className="tt-kv">
-                      <div className="tt-k">Billing cycle</div>
-                     <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div>
+                                            <div className="tt-k">Billing cycle</div>
+                      <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div>
+
+                      <div className="tt-k">Next charge date</div>
+                      <div className="tt-v">
+                        {selected.debit?.nextChargeDate
+                          ? fmtDateShort(selected.debit.nextChargeDate)
+                          : "Not set"}
+                      </div>
+
+                      <div className="tt-k">Last attempt date</div>
+                      <div className="tt-v">
+                        {selected.debit?.lastAttemptDate
+                          ? fmtDateTimeLong(selected.debit.lastAttemptDate)
+                          : "Not set"}
+                      </div>
+
+                      <div className="tt-k">Last transaction reference</div>
+                      <div className="tt-v">{selected.debit?.lastTransactionReference || "Not set"}</div>
+
+                      <div className="tt-k">Failure reason</div>
+                      <div className="tt-v">{selected.debit?.failureReason || "None"}</div>
+
+                      <div className="tt-k">Status</div>
+                      <div className="tt-v">{selected.debit?.debitStatus || "None"}</div>
+
+                      <div className="tt-k">Books invoice id</div>
+                      <div className="tt-v">{selected.debit?.booksInvoiceId || "Not set"}</div>
+
+                      <div className="tt-k">Retry count</div>
+                      <div className="tt-v">{String(selected.debit?.retryCount ?? 0)}</div>
+
+                      <div className="tt-k">Debit run batch id</div>
+                      <div className="tt-v">{selected.debit?.debitRunBatchId || "Not set"}</div>
+
+                      <div className="tt-k">Paystack customer code</div>
+                      <div className="tt-v">{selected.debit?.paystackCustomerCode || "Not set"}</div>
+
+                      <div className="tt-k">Paystack authorization code</div>
+                      <div className="tt-v">{selected.debit?.paystackAuthorizationCode || "Not set"}</div>
+                    </div>
+
+                    <div className="tt-divider" />
+
+                    <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>
+                      Actions like onboarding will be added later once backend workflows are ready.
+                    </div>
+                  </div>
+
+                  <div className="tt-section">
+                    <p className="tt-sectionTitle">Notes</p>
+                    <p
+                      style={{
+                        margin: "10px 0 0 0",
+                        color: "rgba(255,255,255,0.70)",
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {selected.notes || "No notes yet."}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {editOpen && editDraft ? (
+          <EditDrawer
+            editDraft={editDraft}
+            onCloseEdit={onCloseEdit}
+            updateDraft={updateDraft}
+            onSaveEdit={onSaveEdit}
+          />
+        ) : null}
+
+        {toast ? (
+          <div className="tt-toastWrap">
+            <div className="tt-toast">{toast}</div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
