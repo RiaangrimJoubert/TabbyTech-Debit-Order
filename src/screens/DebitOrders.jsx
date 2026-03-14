@@ -1,595 +1,78 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { request } from "../api";
 
 const DEBIT_ORDERS_CACHE_TTL_MS = 10 * 60 * 1000;
-const FAILED_DEBITS_STORAGE_KEY = "tabbypay_failed_debit_orders";
 
-let debitOrdersScreenCache = {
+let debitOrdersProfileCache = {
   rows: [],
   query: "",
-  statusFilter: "All",
-  selectedIds: [],
-  pageSize: 20,
+  selectedClientKey: "",
   page: 1,
+  perPage: 10,
   errorText: "",
-  focusRowId: "",
   lastLoadedAt: 0,
 };
 
-let hasLoggedDebitOrderSample = false;
-
-function hasFreshDebitOrdersCache() {
+function hasFreshCache() {
   return (
-    Array.isArray(debitOrdersScreenCache.rows) &&
-    debitOrdersScreenCache.rows.length > 0 &&
-    Date.now() - Number(debitOrdersScreenCache.lastLoadedAt || 0) < DEBIT_ORDERS_CACHE_TTL_MS
+    Array.isArray(debitOrdersProfileCache.rows) &&
+    debitOrdersProfileCache.rows.length > 0 &&
+    Date.now() - Number(debitOrdersProfileCache.lastLoadedAt || 0) < DEBIT_ORDERS_CACHE_TTL_MS
   );
 }
 
-const styles = {
-  page: {
-    height: "100%",
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
-  },
-
-  headerRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 16,
-  },
-
-  titleWrap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-
-  title: {
-    margin: 0,
-    fontSize: 26,
-    letterSpacing: 0.2,
-    color: "rgba(255,255,255,0.96)",
-    fontWeight: 900,
-    textShadow: "0 10px 30px rgba(0,0,0,0.28)",
-  },
-
-  subtitle: {
-    margin: 0,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.62)",
-    lineHeight: 1.4,
-  },
-
-  glass: {
-    borderRadius: 22,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.035) 100%)",
-    boxShadow:
-      "0 24px 60px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(168,85,247,0.05)",
-    backdropFilter: "blur(16px)",
-    overflow: "hidden",
-    position: "relative",
-  },
-
-  panelGlow: {
-    position: "absolute",
-    inset: 0,
-    pointerEvents: "none",
-    background:
-      "radial-gradient(circle at top right, rgba(168,85,247,0.12), transparent 24%), radial-gradient(circle at top left, rgba(59,130,246,0.08), transparent 26%)",
-  },
-
-  panelHeader: {
-    padding: "15px 16px 13px 16px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(0,0,0,0.12) 100%)",
-    position: "relative",
-    zIndex: 1,
-  },
-
-  panelTitle: {
-    margin: 0,
-    fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
-    fontWeight: 800,
-  },
-
-  panelMeta: {
-    margin: 0,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.55)",
-  },
-
-  toolbar: {
-    padding: 14,
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(0,0,0,0.05) 100%)",
-    position: "relative",
-    zIndex: 1,
-  },
-
-  leftTools: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    flex: "1 1 520px",
-    minWidth: 340,
-  },
-
-  rightTools: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-
-  inputWrap: {
-    position: "relative",
-    width: "100%",
-    maxWidth: 560,
-  },
-
-  input: {
-    height: 38,
-    width: "100%",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background:
-      "linear-gradient(180deg, rgba(0,0,0,0.24) 0%, rgba(255,255,255,0.03) 100%)",
-    color: "rgba(255,255,255,0.9)",
-    outline: "none",
-    padding: "0 12px 0 38px",
-    fontSize: 13,
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
-  },
-
-  inputIcon: {
-    position: "absolute",
-    left: 12,
-    top: "50%",
-    transform: "translateY(-50%)",
-    opacity: 0.7,
-  },
-
-  chipsRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-
-  chip: (active, tone = "default") => {
-    const tones = {
-      default: {
-        border: active ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.12)",
-        bg: active
-          ? "linear-gradient(135deg, rgba(168,85,247,0.24), rgba(124,58,237,0.12))"
-          : "rgba(255,255,255,0.05)",
-        shadow: active ? "0 12px 28px rgba(124,58,237,0.18)" : "none",
-      },
-      success: {
-        border: active ? "rgba(34,197,94,0.45)" : "rgba(255,255,255,0.12)",
-        bg: active
-          ? "linear-gradient(135deg, rgba(34,197,94,0.20), rgba(21,128,61,0.12))"
-          : "rgba(255,255,255,0.05)",
-        shadow: active ? "0 12px 28px rgba(34,197,94,0.14)" : "none",
-      },
-      failed: {
-        border: active ? "rgba(239,68,68,0.48)" : "rgba(255,255,255,0.12)",
-        bg: active
-          ? "linear-gradient(135deg, rgba(239,68,68,0.22), rgba(153,27,27,0.12))"
-          : "rgba(255,255,255,0.05)",
-        shadow: active ? "0 12px 28px rgba(239,68,68,0.16)" : "none",
-      },
-      scheduled: {
-        border: active ? "rgba(99,102,241,0.48)" : "rgba(255,255,255,0.12)",
-        bg: active
-          ? "linear-gradient(135deg, rgba(99,102,241,0.22), rgba(67,56,202,0.12))"
-          : "rgba(255,255,255,0.05)",
-        shadow: active ? "0 12px 28px rgba(99,102,241,0.14)" : "none",
-      },
-      paid: {
-        border: active ? "rgba(16,185,129,0.48)" : "rgba(255,255,255,0.12)",
-        bg: active
-          ? "linear-gradient(135deg, rgba(16,185,129,0.22), rgba(5,150,105,0.12))"
-          : "rgba(255,255,255,0.05)",
-        shadow: active ? "0 12px 28px rgba(16,185,129,0.14)" : "none",
-      },
-    };
-
-    const t = tones[tone] || tones.default;
-
-    return {
-      height: 34,
-      padding: "0 10px",
-      borderRadius: 999,
-      border: `1px solid ${t.border}`,
-      background: t.bg,
-      boxShadow: t.shadow,
-      color: active ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.76)",
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 8,
-      cursor: "pointer",
-      fontSize: 12,
-      fontWeight: 700,
-      letterSpacing: 0.2,
-      userSelect: "none",
-      transition: "transform 160ms ease, box-shadow 160ms ease, background 160ms ease",
-    };
-  },
-
-  btn: (variant = "secondary", disabled = false) => {
-    const base = {
-      height: 38,
-      padding: "0 14px",
-      borderRadius: 12,
-      border: "1px solid rgba(255,255,255,0.12)",
-      background: "rgba(255,255,255,0.06)",
-      color: "rgba(255,255,255,0.88)",
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 10,
-      cursor: disabled ? "not-allowed" : "pointer",
-      userSelect: "none",
-      transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease",
-      fontSize: 13,
-      fontWeight: 800,
-      letterSpacing: 0.2,
-      opacity: disabled ? 0.55 : 1,
-      whiteSpace: "nowrap",
-      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
-    };
-
-    if (variant === "primary") {
-      return {
-        ...base,
-        background: "linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95))",
-        border: "1px solid rgba(168,85,247,0.60)",
-        boxShadow: "0 14px 34px rgba(124,58,237,0.30)",
-      };
-    }
-
-    if (variant === "danger") {
-      return {
-        ...base,
-        background: "linear-gradient(135deg, rgba(239,68,68,0.22), rgba(185,28,28,0.14))",
-        border: "1px solid rgba(239,68,68,0.35)",
-        boxShadow: "0 12px 24px rgba(239,68,68,0.12)",
-      };
-    }
-
-    return base;
-  },
-
-  dropdownWrap: {
-    position: "relative",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  dropdownLabel: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.55)",
-    fontWeight: 800,
-  },
-
-  dropdownBtn: (open = false) => ({
-    height: 38,
-    padding: "0 12px",
-    borderRadius: 12,
-    border: `1px solid ${open ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.12)"}`,
-    background: open
-      ? "linear-gradient(135deg, rgba(168,85,247,0.16), rgba(124,58,237,0.08))"
-      : "linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(255,255,255,0.02) 100%)",
-    color: "rgba(255,255,255,0.90)",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    cursor: "pointer",
-    userSelect: "none",
-    transition: "transform 160ms ease, box-shadow 160ms ease, border 160ms ease, background 160ms ease",
-    fontSize: 13,
-    fontWeight: 900,
-    letterSpacing: 0.2,
-    minWidth: 140,
-    boxShadow: open ? "0 12px 28px rgba(124,58,237,0.16)" : "inset 0 1px 0 rgba(255,255,255,0.03)",
-  }),
-
-  dropdownMenu: {
-    position: "absolute",
-    top: 44,
-    left: 0,
-    minWidth: 190,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(10,10,14,0.96)",
-    boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
-    backdropFilter: "blur(14px)",
-    overflow: "hidden",
-    zIndex: 50,
-  },
-
-  dropdownItem: (active = false) => ({
-    padding: "10px 12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 800,
-    letterSpacing: 0.2,
-    color: "rgba(255,255,255,0.88)",
-    background: active ? "rgba(168,85,247,0.22)" : "transparent",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-  }),
-
-  dropdownTick: {
-    width: 18,
-    height: 18,
-    borderRadius: 6,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(168,85,247,0.25)",
-    border: "1px solid rgba(168,85,247,0.35)",
-  },
-
-  caret: {
-    width: 18,
-    height: 18,
-    opacity: 0.9,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  tableScroll: {
-    overflow: "auto",
-    height: "100%",
-    position: "relative",
-    zIndex: 1,
-  },
-
-  table: {
-    width: "100%",
-    borderCollapse: "separate",
-    borderSpacing: 0,
-    fontSize: 13,
-  },
-
-  th: {
-    position: "sticky",
-    top: 0,
-    zIndex: 2,
-    textAlign: "left",
-    padding: "12px 14px",
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: 0.2,
-    color: "rgba(255,255,255,0.62)",
-    background: "rgba(10,10,14,0.82)",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    backdropFilter: "blur(10px)",
-  },
-
-  td: {
-    padding: "12px 14px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.78)",
-    whiteSpace: "nowrap",
-  },
-
-  thCenter: { textAlign: "center" },
-  tdCenter: { textAlign: "center" },
-
-  row: (active) => ({
-    cursor: "pointer",
-    background: active
-      ? "linear-gradient(90deg, rgba(168,85,247,0.16), rgba(168,85,247,0.08))"
-      : "transparent",
-    transition: "transform 160ms ease, background 160ms ease, box-shadow 160ms ease",
-  }),
-
-  rowHover: {
-    transform: "translateY(-1px)",
-    boxShadow: "0 10px 24px rgba(0,0,0,0.28)",
-    background: "rgba(255,255,255,0.04)",
-  },
-
-  rowFocus: {
-    background: "linear-gradient(90deg, rgba(168,85,247,0.18), rgba(168,85,247,0.10))",
-    boxShadow: "0 18px 55px rgba(168,85,247,0.18)",
-    outline: "2px solid rgba(168,85,247,0.35)",
-    outlineOffset: "-2px",
-  },
-
-  badge: (tone) => {
-    const map = {
-      Live: { bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.30)", dot: "#22c55e" },
-      Paused: { bg: "rgba(245,158,11,0.16)", bd: "rgba(245,158,11,0.32)", dot: "#f59e0b" },
-      Cancelled: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)", dot: "#ef4444" },
-      Draft: { bg: "rgba(168,85,247,0.16)", bd: "rgba(168,85,247,0.32)", dot: "#a855f7" },
-      Scheduled: { bg: "rgba(99,102,241,0.16)", bd: "rgba(99,102,241,0.32)", dot: "#6366f1" },
-      Paid: { bg: "rgba(16,185,129,0.14)", bd: "rgba(16,185,129,0.32)", dot: "#10b981" },
-      Unpaid: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.32)", dot: "#ef4444" },
-      Failed: { bg: "rgba(239,68,68,0.16)", bd: "rgba(239,68,68,0.34)", dot: "#ff6b6b" },
-    };
-
-    const t = map[tone] || { bg: "rgba(255,255,255,0.06)", bd: "rgba(255,255,255,0.14)", dot: "#cbd5e1" };
-
-    return {
-      height: 24,
-      padding: "0 10px",
-      borderRadius: 999,
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 7,
-      border: `1px solid ${t.bd}`,
-      background: t.bg,
-      color: "rgba(255,255,255,0.88)",
-      fontSize: 11,
-      fontWeight: 800,
-      letterSpacing: 0.2,
-      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
-      position: "relative",
-    };
-  },
-
-  badgeDot: (tone) => {
-    const map = {
-      Live: "#22c55e",
-      Paused: "#f59e0b",
-      Cancelled: "#ef4444",
-      Draft: "#a855f7",
-      Scheduled: "#6366f1",
-      Paid: "#10b981",
-      Unpaid: "#ef4444",
-      Failed: "#ff6b6b",
-    };
-
-    return {
-      width: 7,
-      height: 7,
-      borderRadius: "50%",
-      background: map[tone] || "#cbd5e1",
-      boxShadow: `0 0 10px ${map[tone] || "#cbd5e1"}`,
-      display: "inline-block",
-      flex: "0 0 auto",
-    };
-  },
-
-  checkbox: {
-    width: 16,
-    height: 16,
-    accentColor: "#A855F7",
-    cursor: "pointer",
-  },
-
-  errorBar: {
-    padding: "10px 14px",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(239,68,68,0.10)",
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 12,
-    position: "relative",
-    zIndex: 1,
-  },
-};
-
-function IconSearch({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.75)" strokeWidth="2" />
-      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconCaretDown({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 10l5 5 5-5" stroke="rgba(255,255,255,0.82)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconTick({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M20 6 9 17l-5-5" stroke="rgba(255,255,255,0.92)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function currencyZar(n) {
-  const val = Number(n || 0);
-  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
-}
-
-function formatDate(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-}
-
-function safeText(v) {
-  if (v === null || v === undefined) return "";
-  return String(v);
+function safeText(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
 }
 
 function firstNonEmpty(...values) {
   for (const value of values) {
-    const text = safeText(value).trim();
+    const text = safeText(value);
     if (text) return text;
   }
   return "";
 }
 
-function getResolvedClientId(row) {
-  return firstNonEmpty(
-    row?.clientId,
-    row?.crmClientId,
-    row?.zohoClientId,
-    row?.client?.id,
-    row?.client?.crmId,
-    row?.client?.crm_id,
-    row?.client?.clientId,
-    row?.client?.zohoClientId,
-    row?.client?.zoho_client_id,
-    row?.client_id,
-    row?.crm_client_id,
-    row?.zoho_client_id,
-    row?.Client_ID,
-    row?.CRM_Client_ID,
-    row?.Zoho_Client_ID,
-    row?.clientID,
-    row?.crmID,
-    row?.crm_id
-  );
+function currencyZar(value) {
+  const num = Number(value || 0);
+  return num.toLocaleString("en-ZA", {
+    style: "currency",
+    currency: "ZAR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 }
 
-function getSecondaryClientId(row, primaryClientId) {
-  const secondary = firstNonEmpty(
-    row?.zohoClientId,
-    row?.crmClientId,
-    row?.client?.id,
-    row?.client?.crmId,
-    row?.client?.crm_id,
-    row?.client?.zohoClientId,
-    row?.client?.zoho_client_id,
-    row?.client_id,
-    row?.crm_client_id,
-    row?.zoho_client_id
-  );
+function formatDate(value) {
+  const s = safeText(value);
+  if (!s) return "Not set";
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
 
-  return secondary && secondary !== primaryClientId ? secondary : "";
+function formatDateTime(value) {
+  const s = safeText(value);
+  if (!s) return "Not set";
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function normalizeStatus(value) {
-  const s = safeText(value).trim();
+  const s = safeText(value);
   if (!s) return "Draft";
-
   const lower = s.toLowerCase();
 
   if (
@@ -608,37 +91,172 @@ function normalizeStatus(value) {
   }
 
   if (lower === "paid" || lower === "successful" || lower === "success") return "Paid";
-  if (lower === "unpaid") return "Unpaid";
   if (lower === "live" || lower === "active") return "Live";
   if (lower === "paused") return "Paused";
   if (lower === "cancelled" || lower === "canceled") return "Cancelled";
-  if (lower === "draft") return "Draft";
   if (lower === "scheduled" || lower === "retry" || lower === "retry pending" || lower === "pending retry") {
     return "Scheduled";
   }
+  if (lower === "unpaid") return "Unpaid";
+  if (lower === "draft") return "Draft";
 
   return s;
 }
 
 function getFailureReason(row) {
-  return (
-    safeText(row?.failureReason) ||
-    safeText(row?.failure_reason) ||
-    safeText(row?.statusReason) ||
-    safeText(row?.reason) ||
-    safeText(row?.notes) ||
-    "Failed debit order"
+  return firstNonEmpty(
+    row?.failureReason,
+    row?.failure_reason,
+    row?.statusReason,
+    row?.reason,
+    row?.notes
   );
 }
 
 function isFailedRow(row) {
-  const normalized = normalizeStatus(row?.status);
-  if (normalized === "Failed") return true;
+  if (normalizeStatus(row?.status) === "Failed") return true;
+  const reason = safeText(getFailureReason(row));
+  return !!reason;
+}
 
-  const failureReason = getFailureReason(row).trim();
-  if (failureReason && failureReason.toLowerCase() !== "failed debit order") return true;
+function getResolvedClientId(row) {
+  return firstNonEmpty(
+    row?.clientId,
+    row?.crmClientId,
+    row?.zohoClientId,
+    row?.client?.id,
+    row?.client?.crmId,
+    row?.client?.crm_id,
+    row?.client?.clientId,
+    row?.client?.zohoClientId,
+    row?.client?.zoho_client_id,
+    row?.client_id,
+    row?.crm_client_id,
+    row?.zoho_client_id,
+    row?.Client_ID,
+    row?.CRM_Client_ID,
+    row?.Zoho_Client_ID
+  );
+}
 
-  return false;
+function getResolvedClientName(row) {
+  return firstNonEmpty(
+    row?.clientName,
+    row?.client?.name,
+    row?.client?.Name,
+    row?.name
+  );
+}
+
+function getRetryCount(row) {
+  const n = Number(row?.retryCount ?? row?.retry_count ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isRetryRecoveredRow(row) {
+  const status = normalizeStatus(row?.status);
+  return !isFailedRow(row) && getRetryCount(row) > 0 && (status === "Paid" || status === "Live");
+}
+
+function isMissed25thRow(row) {
+  const status = normalizeStatus(row?.status);
+  return !isFailedRow(row) && !isRetryRecoveredRow(row) && (getRetryCount(row) > 0 || status === "Scheduled");
+}
+
+function isPaidOnTimeRow(row) {
+  const status = normalizeStatus(row?.status);
+  return !isFailedRow(row) && !isRetryRecoveredRow(row) && !isMissed25thRow(row) && (status === "Paid" || status === "Live");
+}
+
+function getHealthSummary(rows) {
+  const failed = rows.filter(isFailedRow).length;
+  const retryRecovered = rows.filter(isRetryRecoveredRow).length;
+  const missed25th = rows.filter(isMissed25thRow).length;
+  const paidOnTime = rows.filter(isPaidOnTimeRow).length;
+
+  const scoreRaw = 100 - failed * 30 - missed25th * 18 - retryRecovered * 8;
+  const score = Math.max(0, Math.min(100, scoreRaw));
+
+  let label = "Healthy";
+  let tone = "good";
+  let note = "Client is paying consistently with low recovery pressure.";
+
+  if (failed >= 2 || score < 40) {
+    label = "Critical";
+    tone = "critical";
+    note = "Repeated failures detected. Immediate follow-up recommended.";
+  } else if (failed >= 1 || missed25th >= 2 || score < 65) {
+    label = "At Risk";
+    tone = "risk";
+    note = "Client is showing debit stress and should be monitored closely.";
+  } else if (retryRecovered >= 1 || missed25th >= 1 || score < 85) {
+    label = "Watchlist";
+    tone = "watch";
+    note = "Client is still recoverable but needs closer attention.";
+  }
+
+  return {
+    score,
+    label,
+    tone,
+    note,
+    failed,
+    retryRecovered,
+    missed25th,
+    paidOnTime,
+  };
+}
+
+function buildClientGroups(rows) {
+  const map = new Map();
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const clientId = getResolvedClientId(row);
+    const clientName = getResolvedClientName(row);
+    const key = firstNonEmpty(clientId, clientName, row?.id);
+
+    if (!key) continue;
+
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        clientId,
+        clientName,
+        rows: [],
+      });
+    }
+
+    const entry = map.get(key);
+    entry.rows.push(row);
+
+    if (!entry.clientId && clientId) entry.clientId = clientId;
+    if (!entry.clientName && clientName) entry.clientName = clientName;
+  }
+
+  const groups = Array.from(map.values()).map((group) => {
+    const orderedRows = [...group.rows].sort((a, b) => {
+      return new Date(b?.updatedAt || 0).getTime() - new Date(a?.updatedAt || 0).getTime();
+    });
+
+    const latest = orderedRows[0] || null;
+    const health = getHealthSummary(orderedRows);
+    const totalValue = orderedRows.reduce((sum, row) => sum + Number(row?.amount || 0), 0);
+
+    return {
+      ...group,
+      rows: orderedRows,
+      latest,
+      health,
+      totalRecords: orderedRows.length,
+      totalValue,
+    };
+  });
+
+  return groups.sort((a, b) => {
+    const aTime = new Date(a.latest?.updatedAt || 0).getTime();
+    const bTime = new Date(b.latest?.updatedAt || 0).getTime();
+    return bTime - aTime;
+  });
 }
 
 function downloadCsv(filename, rows) {
@@ -662,172 +280,141 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
-function useOnClickOutside(ref, handler) {
-  useEffect(() => {
-    function onDown(e) {
-      if (!ref.current) return;
-      if (ref.current.contains(e.target)) return;
-      handler();
-    }
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("touchstart", onDown);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("touchstart", onDown);
-    };
-  }, [ref, handler]);
-}
+function DonutChart({ missed25th, retryRecovered, failed, score }) {
+  const total = Math.max(1, missed25th + retryRecovered + failed);
+  const radius = 58;
+  const stroke = 14;
+  const size = 160;
+  const circumference = 2 * Math.PI * radius;
 
-function RecordsDropdown({ value, onChange, disabled }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useOnClickOutside(wrapRef, () => setOpen(false));
-
-  const options = [
-    { value: 10, label: "10 records" },
-    { value: 20, label: "20 records" },
-    { value: 50, label: "50 records" },
-    { value: 100, label: "100 records" },
+  const segments = [
+    { value: missed25th, color: "#f59e0b" },
+    { value: retryRecovered, color: "#8b5cf6" },
+    { value: failed, color: "#ef4444" },
   ];
 
-  const active = options.find((o) => o.value === value) || options[1];
-
-  function select(v) {
-    onChange(v);
-    setOpen(false);
-  }
+  let offset = 0;
 
   return (
-    <div ref={wrapRef} style={styles.dropdownWrap}>
-      <span style={styles.dropdownLabel}>Records</span>
+    <div className="tt-do-wrap">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="tt-do-svg" aria-hidden="true">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.08)"
+          strokeWidth={stroke}
+        />
+        {segments.map((segment, index) => {
+          const length = (segment.value / total) * circumference;
+          const circle = (
+            <circle
+              key={`${segment.color}-${index}`}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={segment.color}
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={`${length} ${circumference}`}
+              strokeDashoffset={-offset}
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          );
+          offset += length;
+          return circle;
+        })}
+      </svg>
 
-      <div style={{ position: "relative" }}>
-        <button
-          type="button"
-          style={styles.dropdownBtn(open)}
-          onClick={() => {
-            if (disabled) return;
-            setOpen((x) => !x);
-          }}
-          disabled={disabled}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-        >
-          <span>{active.label}</span>
-          <span style={styles.caret}>
-            <IconCaretDown />
-          </span>
-        </button>
-
-        {open && (
-          <div style={styles.dropdownMenu} role="listbox" aria-label="Records per page">
-            {options.map((o, idx) => {
-              const isActive = o.value === value;
-              return (
-                <div
-                  key={o.value}
-                  role="option"
-                  aria-selected={isActive}
-                  style={{
-                    ...styles.dropdownItem(isActive),
-                    borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
-                  }}
-                  onClick={() => select(o.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") select(o.value);
-                  }}
-                  tabIndex={0}
-                >
-                  <span>{o.label}</span>
-                  {isActive ? (
-                    <span style={styles.dropdownTick}>
-                      <IconTick />
-                    </span>
-                  ) : (
-                    <span style={{ width: 18, height: 18 }} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <div className="tt-do-center">
+        <div className="tt-do-score">{score}</div>
+        <div className="tt-do-scoreLabel">Health score</div>
       </div>
     </div>
   );
 }
 
+function StatusBadge({ status }) {
+  const normalized = normalizeStatus(status);
+  const toneMap = {
+    Paid: "good",
+    Live: "good",
+    Scheduled: "watch",
+    Failed: "critical",
+    Cancelled: "critical",
+    Paused: "watch",
+    Draft: "neutral",
+    Unpaid: "critical",
+  };
+
+  return (
+    <span className={`tt-statusBadge tt-statusBadge-${toneMap[normalized] || "neutral"}`}>
+      <span className="tt-statusDot" />
+      {normalized}
+    </span>
+  );
+}
+
+function HealthBadge({ tone, label }) {
+  return <span className={`tt-healthBadge tt-healthBadge-${tone}`}>{label}</span>;
+}
+
+function MetricCard({ label, value, sub }) {
+  return (
+    <div className="tt-metricCard">
+      <div className="tt-metricLabel">{label}</div>
+      <div className="tt-metricValue">{value}</div>
+      {sub ? <div className="tt-metricSub">{sub}</div> : null}
+    </div>
+  );
+}
+
+function SearchIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="rgba(255,255,255,0.74)" strokeWidth="2" />
+      <path d="M16.2 16.2 21 21" stroke="rgba(255,255,255,0.74)" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function DebitOrders({ presetSearch = "", presetFocusClientId = "" }) {
-  const [query, setQuery] = useState(() => safeText(debitOrdersScreenCache.query));
-  const [statusFilter, setStatusFilter] = useState(() => safeText(debitOrdersScreenCache.statusFilter) || "All");
-  const [hoverRow, setHoverRow] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(() =>
-    Array.isArray(debitOrdersScreenCache.selectedIds) ? debitOrdersScreenCache.selectedIds : []
+  const [rows, setRows] = useState(() => (Array.isArray(debitOrdersProfileCache.rows) ? debitOrdersProfileCache.rows : []));
+  const [query, setQuery] = useState(() => safeText(presetSearch || debitOrdersProfileCache.query));
+  const [selectedClientKey, setSelectedClientKey] = useState(() =>
+    safeText(presetFocusClientId || debitOrdersProfileCache.selectedClientKey)
   );
-
-  const [rows, setRows] = useState(() =>
-    Array.isArray(debitOrdersScreenCache.rows) ? debitOrdersScreenCache.rows : []
-  );
-  const [loading, setLoading] = useState(() => !hasFreshDebitOrdersCache());
-  const [errorText, setErrorText] = useState(() => safeText(debitOrdersScreenCache.errorText));
-
-  const [pageSize, setPageSize] = useState(() => {
-    const n = Number(debitOrdersScreenCache.pageSize || 20);
-    return Number.isFinite(n) && n > 0 ? n : 20;
-  });
-
   const [page, setPage] = useState(() => {
-    const n = Number(debitOrdersScreenCache.page || 1);
+    const n = Number(debitOrdersProfileCache.page || 1);
     return Number.isFinite(n) && n > 0 ? n : 1;
   });
-
-  const [focusRowId, setFocusRowId] = useState(() => safeText(debitOrdersScreenCache.focusRowId));
-  const rowRefs = useRef({});
+  const [perPage] = useState(() => {
+    const n = Number(debitOrdersProfileCache.perPage || 10);
+    return Number.isFinite(n) && n > 0 ? n : 10;
+  });
+  const [loading, setLoading] = useState(() => !hasFreshCache());
+  const [errorText, setErrorText] = useState(() => safeText(debitOrdersProfileCache.errorText));
 
   useEffect(() => {
-    debitOrdersScreenCache = {
-      ...debitOrdersScreenCache,
+    debitOrdersProfileCache = {
+      ...debitOrdersProfileCache,
       rows,
       query,
-      statusFilter,
-      selectedIds,
-      pageSize,
+      selectedClientKey,
       page,
+      perPage,
       errorText,
-      focusRowId,
-      lastLoadedAt: debitOrdersScreenCache.lastLoadedAt,
+      lastLoadedAt: debitOrdersProfileCache.lastLoadedAt,
     };
-  }, [rows, query, statusFilter, selectedIds, pageSize, page, errorText, focusRowId]);
-
-  function publishFailedDebits(sourceRows) {
-    if (typeof window === "undefined") return;
-
-    const failedItems = (Array.isArray(sourceRows) ? sourceRows : [])
-      .filter((r) => isFailedRow(r))
-      .map((r, index) => ({
-        id: safeText(r?.id) || `failed-${index}`,
-        clientName: safeText(r?.name) || safeText(r?.clientName) || safeText(r?.client?.name) || "Unknown client",
-        amount: r?.amount ?? 0,
-        reason: getFailureReason(r),
-        timestamp: safeText(r?.updatedAt) || safeText(r?.failedAt) || safeText(r?.createdAt) || "",
-      }));
-
-    try {
-      window.localStorage.setItem(FAILED_DEBITS_STORAGE_KEY, JSON.stringify(failedItems));
-      window.__TABBY_FAILED_DEBIT_ORDERS__ = failedItems;
-      window.dispatchEvent(new Event("tabbypay:failed-debits-updated"));
-    } catch {
-      // fail safe
-    }
-  }
+  }, [rows, query, selectedClientKey, page, perPage, errorText]);
 
   async function load({ force = false } = {}) {
-    if (!force && hasFreshDebitOrdersCache()) {
-      const cachedRows = Array.isArray(debitOrdersScreenCache.rows) ? debitOrdersScreenCache.rows : [];
-      setRows(cachedRows);
-      setErrorText(safeText(debitOrdersScreenCache.errorText));
+    if (!force && hasFreshCache()) {
+      setRows(Array.isArray(debitOrdersProfileCache.rows) ? debitOrdersProfileCache.rows : []);
+      setErrorText(safeText(debitOrdersProfileCache.errorText));
       setLoading(false);
-      publishFailedDebits(cachedRows);
       return;
     }
 
@@ -838,38 +425,28 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       const json = await request("/api/debit-orders", { method: "GET" });
 
       if (!json || json.ok !== true || !Array.isArray(json.data)) {
-        const preview = typeof json?.raw === "string" ? json.raw.slice(0, 140) : "";
-        throw new Error(preview ? `Unexpected response: ${preview}` : "Unexpected response from API");
-      }
-
-      if (!hasLoggedDebitOrderSample && Array.isArray(json.data) && json.data.length > 0) {
-        hasLoggedDebitOrderSample = true;
-        console.log("TABBYTECH /api/debit-orders sample row", json.data[0]);
+        throw new Error("Unexpected response from /api/debit-orders");
       }
 
       setRows(json.data);
-      publishFailedDebits(json.data);
 
-      debitOrdersScreenCache = {
-        ...debitOrdersScreenCache,
+      debitOrdersProfileCache = {
+        ...debitOrdersProfileCache,
         rows: json.data,
         query,
-        statusFilter,
-        selectedIds,
-        pageSize,
+        selectedClientKey,
         page,
+        perPage,
         errorText: "",
-        focusRowId,
         lastLoadedAt: Date.now(),
       };
     } catch (e) {
-      setRows([]);
-      publishFailedDebits([]);
       const nextError = safeText(e?.message || e);
+      setRows([]);
       setErrorText(nextError);
 
-      debitOrdersScreenCache = {
-        ...debitOrdersScreenCache,
+      debitOrdersProfileCache = {
+        ...debitOrdersProfileCache,
         rows: [],
         errorText: nextError,
         lastLoadedAt: 0,
@@ -885,410 +462,1186 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
   }, []);
 
   useEffect(() => {
-    const s = safeText(presetSearch).trim();
-    if (!s) return;
-    setQuery(s);
-    setStatusFilter("All");
+    const nextPreset = safeText(presetFocusClientId || presetSearch);
+    if (!nextPreset) return;
+    setQuery(nextPreset);
+    setSelectedClientKey(nextPreset);
     setPage(1);
-  }, [presetSearch]);
+  }, [presetFocusClientId, presetSearch]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+  const clientGroups = useMemo(() => buildClientGroups(rows), [rows]);
 
-    return rows
-      .filter((d) => {
-        if (statusFilter === "Failed") return isFailedRow(d);
-        const rowStatus = normalizeStatus(d?.status);
-        return statusFilter === "All" ? true : rowStatus === statusFilter;
-      })
-      .filter((d) => {
-        if (!q) return true;
+  const filteredGroups = useMemo(() => {
+    const q = safeText(query).toLowerCase();
+    if (!q) return clientGroups;
 
-        const resolvedClientId = getResolvedClientId(d);
+    return clientGroups.filter((group) => {
+      const searchPool = [
+        group.clientId,
+        group.clientName,
+        group.key,
+        group.latest?.paystackCustomerCode,
+        group.latest?.paystackAuthorizationCode,
+        group.latest?.booksInvoiceId,
+      ]
+        .map((value) => safeText(value).toLowerCase())
+        .filter(Boolean);
 
-        const candidates = [
-          resolvedClientId,
-          d?.clientId,
-          d?.zohoClientId,
-          d?.crmClientId,
-          d?.client?.id,
-          d?.client?.crmId,
-          d?.client?.crm_id,
-          d?.client_id,
-          d?.crm_client_id,
-          d?.zoho_client_id,
-          d?.id,
-          d?.name,
-          d?.paystackCustomerCode,
-          d?.paystackAuthorizationCode,
-        ]
-          .map((x) => safeText(x).toLowerCase())
-          .filter(Boolean);
-
-        return candidates.some((x) => x.includes(q));
-      });
-  }, [rows, query, statusFilter]);
+      return searchPool.some((value) => value.includes(q));
+    });
+  }, [clientGroups, query]);
 
   useEffect(() => {
-    setPage(1);
-  }, [query, statusFilter, pageSize]);
-
-  const statusCounts = useMemo(() => {
-    const counts = { All: rows.length, Failed: 0 };
-    for (const r of rows) {
-      const s = normalizeStatus(r?.status);
-      if (s !== "Failed") {
-        counts[s] = (counts[s] || 0) + 1;
-      }
-      if (isFailedRow(r)) {
-        counts.Failed += 1;
-      }
-    }
-    return counts;
-  }, [rows]);
-
-  const statusKeys = useMemo(() => {
-    return ["All", "Scheduled", "Paid", "Failed", "Live", "Paused", "Cancelled", "Draft", "Unpaid"];
-  }, []);
-
-  const totalPages = useMemo(() => {
-    const n = Math.ceil((filtered.length || 0) / Number(pageSize || 1));
-    return n <= 0 ? 1 : n;
-  }, [filtered.length, pageSize]);
-
-  const pageClamped = useMemo(() => {
-    if (page < 1) return 1;
-    if (page > totalPages) return totalPages;
-    return page;
-  }, [page, totalPages]);
-
-  const pagedRows = useMemo(() => {
-    const start = (pageClamped - 1) * pageSize;
-    const end = start + pageSize;
-    return filtered.slice(start, end);
-  }, [filtered, pageClamped, pageSize]);
-
-  useEffect(() => {
-    const clientId = safeText(presetFocusClientId).trim();
-    if (!clientId) return;
-
-    const match =
-      pagedRows.find((r) => getResolvedClientId(r) === clientId) ||
-      pagedRows.find((r) => safeText(r?.clientId).trim() === clientId) ||
-      pagedRows.find((r) => safeText(r?.zohoClientId).trim() === clientId) ||
-      pagedRows.find((r) => safeText(r?.crmClientId).trim() === clientId) ||
-      pagedRows.find((r) => safeText(r?.client?.id).trim() === clientId) ||
-      pagedRows.find((r) => safeText(r?.id).trim() === clientId);
-
-    if (!match) return;
-
-    setFocusRowId(match.id);
-    setSelectedIds([match.id]);
-
-    window.setTimeout(() => {
-      const el = rowRefs.current[match.id];
-      if (el && typeof el.scrollIntoView === "function") {
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
-      }
-    }, 60);
-  }, [presetFocusClientId, pagedRows]);
-
-  const allVisibleSelected = pagedRows.length > 0 && pagedRows.every((x) => selectedIds.includes(x.id));
-
-  function toggleSelect(id) {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
-
-  function toggleSelectAllVisible() {
-    if (allVisibleSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !pagedRows.some((x) => x.id === id)));
+    if (!filteredGroups.length) {
+      setSelectedClientKey("");
       return;
     }
 
-    setSelectedIds((prev) => {
-      const set = new Set(prev);
-      for (const x of pagedRows) set.add(x.id);
-      return Array.from(set);
-    });
-  }
+    const desired = safeText(presetFocusClientId) || safeText(selectedClientKey);
+    const match =
+      filteredGroups.find((group) => safeText(group.clientId) === desired) ||
+      filteredGroups.find((group) => safeText(group.key) === desired);
 
-  function onExportExcel() {
-    const exportRows = filtered.length > 0 ? filtered : rows;
+    if (match) {
+      if (selectedClientKey !== match.key) {
+        setSelectedClientKey(match.key);
+      }
+      return;
+    }
+
+    if (!filteredGroups.some((group) => group.key === selectedClientKey)) {
+      setSelectedClientKey(filteredGroups[0].key);
+    }
+  }, [filteredGroups, presetFocusClientId, selectedClientKey]);
+
+  const selectedGroup = useMemo(() => {
+    return (
+      filteredGroups.find((group) => group.key === selectedClientKey) ||
+      filteredGroups.find((group) => safeText(group.clientId) === safeText(selectedClientKey)) ||
+      filteredGroups[0] ||
+      null
+    );
+  }, [filteredGroups, selectedClientKey]);
+
+  const historyRows = useMemo(() => {
+    return Array.isArray(selectedGroup?.rows) ? selectedGroup.rows : [];
+  }, [selectedGroup]);
+
+  const historyPageCount = useMemo(() => {
+    return Math.max(1, Math.ceil(historyRows.length / perPage));
+  }, [historyRows.length, perPage]);
+
+  useEffect(() => {
+    if (page > historyPageCount) setPage(historyPageCount);
+  }, [page, historyPageCount]);
+
+  const pagedHistoryRows = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return historyRows.slice(start, start + perPage);
+  }, [historyRows, page, perPage]);
+
+  function onExportHistory() {
+    if (!selectedGroup) return;
 
     const header = [
-      "ID",
-      "Name",
-      "Client ID",
-      "Zoho Client ID",
-      "Paystack Customer Code",
+      "Client Name",
+      "CRM Client ID",
+      "Debit Order Record ID",
+      "Status",
       "Amount",
       "Billing Cycle",
       "Next Charge Date",
-      "Status",
-      "Paystack Authorization Code",
       "Retry Count",
       "Last Transaction Reference",
       "Failure Reason",
+      "Books Invoice ID",
       "Updated At",
     ];
 
-    const body = exportRows.map((r) => [
-      r.id,
-      r.name,
-      getResolvedClientId(r) || "",
-      firstNonEmpty(r.zohoClientId, r.crmClientId, r.client?.id) || "",
-      r.paystackCustomerCode || "",
-      r.amount ?? "",
-      r.billingCycle || "",
-      r.nextChargeDate || "",
-      isFailedRow(r) ? "Failed" : normalizeStatus(r.status) || "",
-      r.paystackAuthorizationCode || "",
-      r.retryCount ?? 0,
-      r.lastTransactionReference || "",
-      getFailureReason(r),
-      r.updatedAt || "",
+    const body = historyRows.map((row) => [
+      selectedGroup.clientName || "",
+      selectedGroup.clientId || "",
+      row.id || "",
+      normalizeStatus(row.status),
+      row.amount ?? "",
+      row.billingCycle || "",
+      row.nextChargeDate || "",
+      getRetryCount(row),
+      row.lastTransactionReference || "",
+      getFailureReason(row),
+      row.booksInvoiceId || "",
+      row.updatedAt || "",
     ]);
 
-    downloadCsv(`tabbytech-debit-orders-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...body]);
+    downloadCsv(
+      `tabbytech-debit-history-${safeText(selectedGroup.clientId || selectedGroup.clientName || "client")}.csv`,
+      [header, ...body]
+    );
   }
 
-  function goPrev() {
-    setPage((p) => Math.max(1, p - 1));
-  }
+  const health = selectedGroup?.health || {
+    score: 0,
+    label: "Healthy",
+    tone: "good",
+    note: "",
+    failed: 0,
+    retryRecovered: 0,
+    missed25th: 0,
+    paidOnTime: 0,
+  };
 
-  function goNext() {
-    setPage((p) => Math.min(totalPages, p + 1));
-  }
+  const css = `
+    .tt-do-page {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      color: rgba(255,255,255,0.94);
+      --tt-purple: rgba(124,58,237,0.98);
+      --tt-purple2: rgba(168,85,247,0.98);
+      --tt-panel-border: rgba(255,255,255,0.10);
+      --tt-soft: rgba(255,255,255,0.62);
+    }
 
-  function getChipTone(key) {
-    if (key === "Failed" || key === "Unpaid" || key === "Cancelled") return "failed";
-    if (key === "Paid" || key === "Live") return "paid";
-    if (key === "Scheduled") return "scheduled";
-    return "default";
-  }
+    .tt-do-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tt-do-title {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.97);
+      letter-spacing: 0.2px;
+    }
+
+    .tt-do-sub {
+      margin: 6px 0 0 0;
+      font-size: 13px;
+      color: rgba(255,255,255,0.62);
+      line-height: 1.45;
+      max-width: 900px;
+    }
+
+    .tt-do-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tt-do-btn {
+      height: 38px;
+      padding: 0 15px;
+      border-radius: 12px;
+      border: 1px solid rgba(168,85,247,0.55);
+      background: linear-gradient(135deg, rgba(168,85,247,0.96), rgba(124,58,237,0.96));
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      box-shadow: 0 14px 34px rgba(124,58,237,0.24);
+      transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+      white-space: nowrap;
+    }
+
+    .tt-do-btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.04);
+      box-shadow: 0 18px 40px rgba(124,58,237,0.30);
+    }
+
+    .tt-do-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+      box-shadow: 0 14px 34px rgba(124,58,237,0.12);
+    }
+
+    .tt-do-btnSecondary {
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.90);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .tt-do-shell {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .tt-do-glass {
+      position: relative;
+      overflow: hidden;
+      border-radius: 22px;
+      border: 1px solid var(--tt-panel-border);
+      background:
+        radial-gradient(circle at top right, rgba(168,85,247,0.12), transparent 30%),
+        linear-gradient(180deg, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.035) 100%);
+      box-shadow:
+        0 24px 60px rgba(0,0,0,0.36),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter: blur(16px);
+    }
+
+    .tt-do-hero {
+      padding: 18px;
+      display: grid;
+      grid-template-columns: minmax(320px, 1.1fr) minmax(300px, 0.9fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .tt-do-leftHero {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .tt-do-searchWrap {
+      position: relative;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .tt-do-searchIcon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.8;
+    }
+
+    .tt-do-search {
+      width: 100%;
+      height: 42px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background:
+        linear-gradient(180deg, rgba(0,0,0,0.24) 0%, rgba(255,255,255,0.03) 100%);
+      color: rgba(255,255,255,0.94);
+      outline: none;
+      padding: 0 14px 0 40px;
+      font-size: 13px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+
+    .tt-do-search:focus {
+      border-color: rgba(168,85,247,0.48);
+      box-shadow: 0 0 0 6px rgba(124,58,237,0.16);
+    }
+
+    .tt-do-clientCard {
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025));
+      padding: 18px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .tt-do-kicker {
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(193,168,255,0.96);
+    }
+
+    .tt-do-clientName {
+      font-size: 28px;
+      line-height: 1.12;
+      font-weight: 900;
+      color: rgba(255,255,255,0.98);
+      margin: 0;
+      word-break: break-word;
+    }
+
+    .tt-do-metaRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tt-do-idPill {
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(168,85,247,0.34);
+      background: rgba(168,85,247,0.14);
+      color: rgba(255,255,255,0.92);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .tt-healthBadge {
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+
+    .tt-healthBadge-good {
+      background: rgba(34,197,94,0.16);
+      border-color: rgba(34,197,94,0.34);
+      color: rgba(255,255,255,0.94);
+    }
+
+    .tt-healthBadge-watch {
+      background: rgba(245,158,11,0.16);
+      border-color: rgba(245,158,11,0.34);
+      color: rgba(255,255,255,0.94);
+    }
+
+    .tt-healthBadge-risk {
+      background: rgba(239,68,68,0.16);
+      border-color: rgba(239,68,68,0.34);
+      color: rgba(255,255,255,0.94);
+    }
+
+    .tt-healthBadge-critical {
+      background: rgba(185,28,28,0.18);
+      border-color: rgba(239,68,68,0.42);
+      color: rgba(255,255,255,0.98);
+      box-shadow: 0 0 0 1px rgba(239,68,68,0.12);
+    }
+
+    .tt-do-note {
+      font-size: 13px;
+      line-height: 1.5;
+      color: rgba(255,255,255,0.72);
+      margin: 0;
+      max-width: 760px;
+    }
+
+    .tt-do-rightHero {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .tt-metricCard {
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      padding: 14px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+      min-height: 104px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .tt-metricLabel {
+      font-size: 12px;
+      color: rgba(255,255,255,0.56);
+      font-weight: 800;
+    }
+
+    .tt-metricValue {
+      font-size: 22px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.96);
+      line-height: 1.1;
+      margin-top: 6px;
+    }
+
+    .tt-metricSub {
+      font-size: 12px;
+      color: rgba(255,255,255,0.58);
+      line-height: 1.4;
+      margin-top: 8px;
+    }
+
+    .tt-do-mainGrid {
+      display: grid;
+      grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.05fr);
+      gap: 16px;
+      min-height: 0;
+    }
+
+    .tt-do-panelHeader {
+      padding: 16px 16px 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      background: rgba(0,0,0,0.08);
+    }
+
+    .tt-do-panelTitle {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.94);
+    }
+
+    .tt-do-panelSub {
+      margin: 4px 0 0 0;
+      font-size: 12px;
+      color: rgba(255,255,255,0.56);
+      line-height: 1.45;
+    }
+
+    .tt-do-panelBody {
+      padding: 16px;
+    }
+
+    .tt-do-healthGrid {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .tt-do-wrap {
+      width: 160px;
+      height: 160px;
+      position: relative;
+      margin: 0 auto;
+    }
+
+    .tt-do-svg {
+      display: block;
+      overflow: visible;
+    }
+
+    .tt-do-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      text-align: center;
+    }
+
+    .tt-do-score {
+      font-size: 30px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.98);
+      line-height: 1;
+    }
+
+    .tt-do-scoreLabel {
+      margin-top: 6px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.58);
+      font-weight: 800;
+    }
+
+    .tt-do-legend {
+      display: grid;
+      gap: 10px;
+    }
+
+    .tt-do-legendItem {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .tt-do-legendLeft {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .tt-do-legendDot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .tt-do-legendTitle {
+      font-size: 12px;
+      color: rgba(255,255,255,0.72);
+      font-weight: 800;
+    }
+
+    .tt-do-legendValue {
+      font-size: 18px;
+      color: rgba(255,255,255,0.96);
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .tt-do-insights {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .tt-do-insightCard {
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+      padding: 14px;
+    }
+
+    .tt-do-insightTitle {
+      font-size: 12px;
+      color: rgba(255,255,255,0.56);
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .tt-do-insightValue {
+      font-size: 18px;
+      color: rgba(255,255,255,0.96);
+      font-weight: 900;
+      line-height: 1.15;
+    }
+
+    .tt-do-history {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tt-do-historyToolbar {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.05));
+    }
+
+    .tt-do-historyMeta {
+      font-size: 12px;
+      color: rgba(255,255,255,0.60);
+      font-weight: 700;
+    }
+
+    .tt-do-tableScroll {
+      overflow: auto;
+      min-height: 0;
+      flex: 1;
+    }
+
+    .tt-do-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 13px;
+    }
+
+    .tt-do-th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      color: rgba(255,255,255,0.62);
+      background: rgba(10,10,14,0.84);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(10px);
+    }
+
+    .tt-do-td {
+      padding: 13px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.82);
+      white-space: nowrap;
+      vertical-align: top;
+    }
+
+    .tt-do-tr {
+      transition: transform 160ms ease, background 160ms ease;
+    }
+
+    .tt-do-tr:hover {
+      background: rgba(255,255,255,0.04);
+    }
+
+    .tt-statusBadge {
+      height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.90);
+    }
+
+    .tt-statusDot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 10px currentColor;
+      opacity: 0.95;
+    }
+
+    .tt-statusBadge-good {
+      background: rgba(16,185,129,0.15);
+      border-color: rgba(16,185,129,0.34);
+      color: #66f0bf;
+    }
+
+    .tt-statusBadge-watch {
+      background: rgba(245,158,11,0.15);
+      border-color: rgba(245,158,11,0.34);
+      color: #ffcf72;
+    }
+
+    .tt-statusBadge-critical {
+      background: rgba(239,68,68,0.16);
+      border-color: rgba(239,68,68,0.34);
+      color: #ff8b8b;
+    }
+
+    .tt-statusBadge-neutral {
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(255,255,255,0.14);
+      color: rgba(255,255,255,0.84);
+    }
+
+    .tt-do-empty {
+      min-height: 280px;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .tt-do-emptyCard {
+      max-width: 520px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      padding: 28px;
+    }
+
+    .tt-do-emptyTitle {
+      font-size: 22px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.96);
+      margin: 0 0 10px 0;
+    }
+
+    .tt-do-emptySub {
+      font-size: 13px;
+      line-height: 1.55;
+      color: rgba(255,255,255,0.66);
+      margin: 0;
+    }
+
+    .tt-do-navRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 14px 16px 16px 16px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.08);
+    }
+
+    .tt-do-pagePill {
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.88);
+      display: inline-flex;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .tt-do-clientList {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 2px;
+    }
+
+    .tt-do-clientChip {
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.80);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      max-width: 100%;
+    }
+
+    .tt-do-clientChip:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.08);
+    }
+
+    .tt-do-clientChipActive {
+      border-color: rgba(168,85,247,0.52);
+      background: linear-gradient(135deg, rgba(168,85,247,0.22), rgba(124,58,237,0.12));
+      box-shadow: 0 12px 28px rgba(124,58,237,0.16);
+      color: rgba(255,255,255,0.96);
+    }
+
+    .tt-do-miniCount {
+      font-size: 11px;
+      color: rgba(255,255,255,0.60);
+      font-weight: 800;
+    }
+
+    .tt-do-error {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(239,68,68,0.12);
+      color: rgba(255,255,255,0.90);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1320px) {
+      .tt-do-hero,
+      .tt-do-mainGrid {
+        grid-template-columns: 1fr;
+      }
+
+      .tt-do-healthGrid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .tt-do-rightHero,
+      .tt-do-insights {
+        grid-template-columns: 1fr;
+      }
+
+      .tt-do-navRow {
+        justify-content: flex-start;
+      }
+    }
+  `;
 
   return (
-    <div style={styles.page}>
-      <div style={styles.headerRow}>
-        <div style={styles.titleWrap}>
-          <h1 style={styles.title}>Debit Orders</h1>
-          <p style={styles.subtitle}>Live data from Zoho CRM.{loading ? " Loading..." : ""}</p>
+    <div className="tt-do-page">
+      <style>{css}</style>
+
+      <div className="tt-do-header">
+        <div>
+          <h1 className="tt-do-title">Debit Orders</h1>
+          <p className="tt-do-sub">
+            Premium client debit profile view with CRM record visibility, health scoring, retry behaviour and debit history.
+          </p>
+        </div>
+
+        <div className="tt-do-actions">
+          <button type="button" className="tt-do-btn" onClick={() => load({ force: true })} disabled={loading}>
+            {loading ? "Syncing..." : "Sync now"}
+          </button>
+
+          <button
+            type="button"
+            className="tt-do-btn tt-do-btnSecondary"
+            onClick={onExportHistory}
+            disabled={!selectedGroup}
+          >
+            Export history
+          </button>
         </div>
       </div>
 
-      <div style={{ ...styles.glass, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <div style={styles.panelGlow} />
+      <div className="tt-do-shell">
+        <div className="tt-do-glass">
+          {errorText ? <div className="tt-do-error">Error: {errorText}</div> : null}
 
-        {errorText ? <div style={styles.errorBar}>Error: {errorText}</div> : null}
+          <div className="tt-do-hero">
+            <div className="tt-do-leftHero">
+              <div className="tt-do-searchWrap">
+                <span className="tt-do-searchIcon">
+                  <SearchIcon />
+                </span>
+                <input
+                  className="tt-do-search"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search client name, CRM record ID, Books invoice ID, or Paystack code"
+                  aria-label="Search debit order client"
+                />
+              </div>
 
-        <div style={styles.panelHeader}>
-          <div>
-            <p style={styles.panelTitle}>All debit orders</p>
-            <p style={styles.panelMeta}>{loading ? "Loading..." : `${pagedRows.length} shown`}</p>
-          </div>
+              {filteredGroups.length ? (
+                <div className="tt-do-clientList">
+                  {filteredGroups.slice(0, 8).map((group) => {
+                    const active = selectedGroup?.key === group.key;
+                    return (
+                      <button
+                        key={group.key}
+                        type="button"
+                        className={`tt-do-clientChip ${active ? "tt-do-clientChipActive" : ""}`}
+                        onClick={() => {
+                          setSelectedClientKey(group.key);
+                          setPage(1);
+                        }}
+                        title={group.clientName || group.clientId || group.key}
+                      >
+                        <span>{group.clientName || group.clientId || group.key}</span>
+                        <span className="tt-do-miniCount">{group.totalRecords}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Selected:</span>
-            <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>{selectedIds.length}</span>
-          </div>
-        </div>
+              <div className="tt-do-clientCard">
+                <div className="tt-do-kicker">Client debit profile</div>
 
-        <div style={styles.toolbar}>
-          <div style={styles.leftTools}>
-            <div style={styles.inputWrap}>
-              <span style={styles.inputIcon}>
-                <IconSearch />
-              </span>
-              <input
-                style={styles.input}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by client id, debit order id, or Paystack codes"
-                aria-label="Search debit orders"
+                <h2 className="tt-do-clientName">
+                  {selectedGroup?.clientName || "No client selected"}
+                </h2>
+
+                <div className="tt-do-metaRow">
+                  <span className="tt-do-idPill">
+                    CRM Record ID: {selectedGroup?.clientId || "Not available"}
+                  </span>
+
+                  {selectedGroup ? (
+                    <HealthBadge tone={health.tone} label={`Client Health ${health.label}`} />
+                  ) : null}
+                </div>
+
+                <p className="tt-do-note">
+                  {selectedGroup
+                    ? health.note
+                    : "Search for a client or open Debit Orders from the Clients module to load a client-specific view."}
+                </p>
+              </div>
+            </div>
+
+            <div className="tt-do-rightHero">
+              <MetricCard
+                label="History records"
+                value={selectedGroup ? String(selectedGroup.totalRecords) : "0"}
+                sub="Debit-order rows available for this client."
+              />
+
+              <MetricCard
+                label="Tracked value"
+                value={selectedGroup ? currencyZar(selectedGroup.totalValue) : currencyZar(0)}
+                sub="Combined amount across the rows currently loaded."
+              />
+
+              <MetricCard
+                label="Latest status"
+                value={selectedGroup ? normalizeStatus(selectedGroup.latest?.status) : "Draft"}
+                sub={selectedGroup?.latest?.updatedAt ? `Updated ${formatDateTime(selectedGroup.latest.updatedAt)}` : "No update yet"}
+              />
+
+              <MetricCard
+                label="Latest next charge"
+                value={selectedGroup ? formatDate(selectedGroup.latest?.nextChargeDate) : "Not set"}
+                sub={selectedGroup?.latest?.billingCycle ? selectedGroup.latest.billingCycle : "Billing cycle not set"}
               />
             </div>
+          </div>
+        </div>
 
-            <div style={styles.chipsRow}>
-              {statusKeys.map((k) => {
-                const active = statusFilter === k;
-                return (
-                  <div
-                    key={k}
-                    style={styles.chip(active, getChipTone(k))}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setStatusFilter(k)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") setStatusFilter(k);
-                    }}
-                    title={`Filter: ${k}`}
-                  >
-                    <span>{k}</span>
-                    <span style={{ opacity: 0.82 }}>{statusCounts[k] ?? 0}</span>
-                  </div>
-                );
-              })}
-
-              <button
-                style={styles.btn("primary", loading)}
-                type="button"
-                disabled={loading}
-                onClick={() => load({ force: true })}
-                title="Re-fetch latest data"
-              >
-                {loading ? "Syncing..." : "Sync now"}
-              </button>
+        {!selectedGroup && !loading ? (
+          <div className="tt-do-glass tt-do-empty">
+            <div className="tt-do-emptyCard">
+              <h3 className="tt-do-emptyTitle">No debit-order client found</h3>
+              <p className="tt-do-emptySub">
+                No client matched the current search. Open a client from the Clients module, or search using the CRM record ID to load the debit profile.
+              </p>
             </div>
           </div>
+        ) : (
+          <>
+            <div className="tt-do-mainGrid">
+              <div className="tt-do-glass">
+                <div className="tt-do-panelHeader">
+                  <div>
+                    <p className="tt-do-panelTitle">Client health</p>
+                    <p className="tt-do-panelSub">
+                      Health donut based on missed 25th signals, retry recovery and failed debit outcomes.
+                    </p>
+                  </div>
+                </div>
 
-          <div style={styles.rightTools}>
-            <button style={styles.btn("primary", false)} type="button" onClick={onExportExcel}>
-              Export to Excel
-            </button>
+                <div className="tt-do-panelBody">
+                  <div className="tt-do-healthGrid">
+                    <DonutChart
+                      missed25th={health.missed25th}
+                      retryRecovered={health.retryRecovered}
+                      failed={health.failed}
+                      score={health.score}
+                    />
 
-            <RecordsDropdown value={pageSize} onChange={(v) => setPageSize(Number(v))} disabled={loading} />
-
-            <button
-              style={styles.btn("primary", pageClamped <= 1)}
-              type="button"
-              disabled={pageClamped <= 1}
-              onClick={goPrev}
-            >
-              Back
-            </button>
-
-            <button
-              style={styles.btn("primary", pageClamped >= totalPages)}
-              type="button"
-              disabled={pageClamped >= totalPages}
-              onClick={goNext}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-
-        <div style={styles.tableScroll}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>
-                  <input
-                    style={styles.checkbox}
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleSelectAllVisible}
-                    aria-label="Select all visible"
-                    disabled={loading || pagedRows.length === 0}
-                  />
-                </th>
-                <th style={styles.th}>Debit order</th>
-                <th style={styles.th}>Client ID</th>
-                <th style={{ ...styles.th, ...styles.thCenter }}>Paystack Customer Code</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Amount</th>
-                <th style={styles.th}>Billing cycle</th>
-                <th style={styles.th}>Next charge</th>
-                <th style={styles.th}>Updated</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {pagedRows.map((d) => {
-                const isHover = hoverRow === d.id;
-                const isSelected = selectedIds.includes(d.id);
-                const isFocused = focusRowId === d.id;
-                const normalizedStatus = isFailedRow(d) ? "Failed" : normalizeStatus(d.status);
-                const resolvedClientId = getResolvedClientId(d);
-                const secondaryClientId = getSecondaryClientId(d, resolvedClientId);
-
-                const rowStyle = {
-                  ...styles.row(isSelected),
-                  ...(isHover ? styles.rowHover : null),
-                  ...(isFocused ? styles.rowFocus : null),
-                };
-
-                return (
-                  <tr
-                    key={d.id}
-                    ref={(el) => {
-                      if (el) rowRefs.current[d.id] = el;
-                    }}
-                    style={rowStyle}
-                    onMouseEnter={() => setHoverRow(d.id)}
-                    onMouseLeave={() => setHoverRow(null)}
-                  >
-                    <td style={{ ...styles.td, width: 42 }} onClick={(e) => e.stopPropagation()}>
-                      <input
-                        style={styles.checkbox}
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(d.id)}
-                        aria-label={`Select ${d.id}`}
-                      />
-                    </td>
-
-                    <td style={styles.td}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontWeight: 900, color: "rgba(255,255,255,0.9)" }}>{d.name || d.id}</span>
-                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{d.id}</span>
+                    <div className="tt-do-legend">
+                      <div className="tt-do-legendItem">
+                        <div className="tt-do-legendLeft">
+                          <span className="tt-do-legendDot" style={{ background: "#f59e0b" }} />
+                          <span className="tt-do-legendTitle">Missed on 25th</span>
+                        </div>
+                        <span className="tt-do-legendValue">{health.missed25th}</span>
                       </div>
-                    </td>
 
-                    <td style={styles.td}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>
-                          {resolvedClientId || ""}
-                        </span>
-
-                        {secondaryClientId ? (
-                          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-                            {secondaryClientId}
-                          </span>
-                        ) : null}
+                      <div className="tt-do-legendItem">
+                        <div className="tt-do-legendLeft">
+                          <span className="tt-do-legendDot" style={{ background: "#8b5cf6" }} />
+                          <span className="tt-do-legendTitle">Recovered on retry</span>
+                        </div>
+                        <span className="tt-do-legendValue">{health.retryRecovered}</span>
                       </div>
-                    </td>
 
-                    <td style={{ ...styles.td, ...styles.tdCenter }}>{d?.paystackCustomerCode || ""}</td>
+                      <div className="tt-do-legendItem">
+                        <div className="tt-do-legendLeft">
+                          <span className="tt-do-legendDot" style={{ background: "#ef4444" }} />
+                          <span className="tt-do-legendTitle">Failed / unable to pay</span>
+                        </div>
+                        <span className="tt-do-legendValue">{health.failed}</span>
+                      </div>
 
-                    <td style={styles.td}>
-                      <span style={styles.badge(normalizedStatus)}>
-                        <span style={styles.badgeDot(normalizedStatus)} />
-                        <span>{normalizedStatus || "Draft"}</span>
-                      </span>
-                    </td>
-
-                    <td style={styles.td}>{currencyZar(d.amount)}</td>
-                    <td style={styles.td}>{d.billingCycle || ""}</td>
-                    <td style={styles.td}>{formatDate(d.nextChargeDate)}</td>
-                    <td style={styles.td}>{formatDate(d.updatedAt)}</td>
-                  </tr>
-                );
-              })}
-
-              {!loading && pagedRows.length === 0 && (
-                <tr>
-                  <td style={{ ...styles.td, padding: 20 }} colSpan={9}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.86)" }}>No debit orders found</div>
-                      <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                        Try a different search term or adjust the status filter.
+                      <div className="tt-do-legendItem">
+                        <div className="tt-do-legendLeft">
+                          <span className="tt-do-legendDot" style={{ background: "#22c55e" }} />
+                          <span className="tt-do-legendTitle">Paid on time</span>
+                        </div>
+                        <span className="tt-do-legendValue">{health.paidOnTime}</span>
                       </div>
                     </div>
-                  </td>
-                </tr>
-              )}
+                  </div>
+                </div>
+              </div>
 
-              {loading && (
-                <tr>
-                  <td style={{ ...styles.td, padding: 20 }} colSpan={9}>
-                    <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 13 }}>Loading debit orders...</div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              <div className="tt-do-glass">
+                <div className="tt-do-panelHeader">
+                  <div>
+                    <p className="tt-do-panelTitle">Client behaviour summary</p>
+                    <p className="tt-do-panelSub">
+                      Quick operational view of debit performance for this client.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="tt-do-panelBody">
+                  <div className="tt-do-insights">
+                    <div className="tt-do-insightCard">
+                      <div className="tt-do-insightTitle">Health status</div>
+                      <div className="tt-do-insightValue">{health.label}</div>
+                    </div>
+
+                    <div className="tt-do-insightCard">
+                      <div className="tt-do-insightTitle">Current Books invoice</div>
+                      <div className="tt-do-insightValue">
+                        {safeText(selectedGroup?.latest?.booksInvoiceId) || "Not linked"}
+                      </div>
+                    </div>
+
+                    <div className="tt-do-insightCard">
+                      <div className="tt-do-insightTitle">Current Paystack customer</div>
+                      <div className="tt-do-insightValue">
+                        {safeText(selectedGroup?.latest?.paystackCustomerCode) || "Not linked"}
+                      </div>
+                    </div>
+
+                    <div className="tt-do-insightCard">
+                      <div className="tt-do-insightTitle">Retry pressure</div>
+                      <div className="tt-do-insightValue">
+                        {health.retryRecovered + health.missed25th}
+                      </div>
+                    </div>
+
+                    <div className="tt-do-insightCard">
+                      <div className="tt-do-insightTitle">Latest reference</div>
+                      <div className="tt-do-insightValue">
+                        {safeText(selectedGroup?.latest?.lastTransactionReference) || "Not available"}
+                      </div>
+                    </div>
+
+                    <div className="tt-do-insightCard">
+                      <div className="tt-do-insightTitle">Latest failure reason</div>
+                      <div className="tt-do-insightValue">
+                        {safeText(getFailureReason(selectedGroup?.latest)) || "No failure logged"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="tt-do-glass tt-do-history">
+              <div className="tt-do-panelHeader">
+                <div>
+                  <p className="tt-do-panelTitle">Debit order history</p>
+                  <p className="tt-do-panelSub">
+                    Client-specific debit-order rows loaded from Zoho CRM.
+                  </p>
+                </div>
+              </div>
+
+              <div className="tt-do-historyToolbar">
+                <div className="tt-do-historyMeta">
+                  {historyRows.length} total row(s) for {selectedGroup?.clientName || selectedGroup?.clientId || "client"}
+                </div>
+
+                <div className="tt-do-actions">
+                  <HealthBadge tone={health.tone} label={health.label} />
+                </div>
+              </div>
+
+              <div className="tt-do-tableScroll">
+                <table className="tt-do-table">
+                  <thead>
+                    <tr>
+                      <th className="tt-do-th">Debit order record</th>
+                      <th className="tt-do-th">Status</th>
+                      <th className="tt-do-th">Amount</th>
+                      <th className="tt-do-th">Billing cycle</th>
+                      <th className="tt-do-th">Next charge</th>
+                      <th className="tt-do-th">Retry count</th>
+                      <th className="tt-do-th">Books invoice</th>
+                      <th className="tt-do-th">Reference</th>
+                      <th className="tt-do-th">Failure reason</th>
+                      <th className="tt-do-th">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedHistoryRows.map((row) => {
+                      const normalizedStatus = normalizeStatus(row?.status);
+
+                      return (
+                        <tr key={row.id} className="tt-do-tr">
+                          <td className="tt-do-td">
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <span style={{ fontWeight: 900, color: "rgba(255,255,255,0.94)" }}>
+                                {safeText(row?.name) || safeText(row?.id)}
+                              </span>
+                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.58)" }}>{safeText(row?.id)}</span>
+                            </div>
+                          </td>
+                          <td className="tt-do-td">
+                            <StatusBadge status={normalizedStatus} />
+                          </td>
+                          <td className="tt-do-td">{currencyZar(row?.amount)}</td>
+                          <td className="tt-do-td">{safeText(row?.billingCycle) || "Not set"}</td>
+                          <td className="tt-do-td">{formatDate(row?.nextChargeDate)}</td>
+                          <td className="tt-do-td">{String(getRetryCount(row))}</td>
+                          <td className="tt-do-td">{safeText(row?.booksInvoiceId) || "Not linked"}</td>
+                          <td className="tt-do-td">{safeText(row?.lastTransactionReference) || "Not available"}</td>
+                          <td className="tt-do-td" style={{ whiteSpace: "normal", minWidth: 220 }}>
+                            {safeText(getFailureReason(row)) || "No failure logged"}
+                          </td>
+                          <td className="tt-do-td">{formatDateTime(row?.updatedAt)}</td>
+                        </tr>
+                      );
+                    })}
+
+                    {!loading && pagedHistoryRows.length === 0 ? (
+                      <tr>
+                        <td className="tt-do-td" colSpan={10} style={{ padding: 24, whiteSpace: "normal" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>No debit history found</div>
+                            <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.45 }}>
+                              This client does not have debit-order rows in the current result set.
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+
+                    {loading ? (
+                      <tr>
+                        <td className="tt-do-td" colSpan={10} style={{ padding: 24 }}>
+                          <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>Loading debit-order history...</div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="tt-do-navRow">
+                <span className="tt-do-pagePill">
+                  Page {page} of {historyPageCount}
+                </span>
+
+                <button
+                  type="button"
+                  className="tt-do-btn"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={page <= 1}
+                >
+                  Back
+                </button>
+
+                <button
+                  type="button"
+                  className="tt-do-btn"
+                  onClick={() => setPage((prev) => Math.min(historyPageCount, prev + 1))}
+                  disabled={page >= historyPageCount}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
