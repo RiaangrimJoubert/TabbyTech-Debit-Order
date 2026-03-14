@@ -312,7 +312,13 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   function onViewDebitOrders() {
     if (!selected) return;
 
-    const clientId = String(selected?.id || "").trim();
+    const clientId = String(
+      selected?.zohoClientId ||
+      selected?.clientId ||
+      selected?.id ||
+      ""
+    ).trim();
+
     if (!clientId) {
       showToast("Client id not available.");
       return;
@@ -329,7 +335,13 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   function onViewBatches() {
     if (!selected) return;
 
-    const clientId = String(selected?.id || "").trim();
+    const clientId = String(
+      selected?.zohoClientId ||
+      selected?.clientId ||
+      selected?.id ||
+      ""
+    ).trim();
+
     const batchId = String(selected?.debit?.debitRunBatchId || "").trim();
 
     if (!clientId) {
@@ -1095,39 +1107,49 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
   .tt-editOverlay {
     position: fixed;
     inset: 0;
-    background: rgba(2,4,10,0.58);
+    background: rgba(3, 6, 18, 0.55);
     backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 1;
     z-index: 110;
     animation: ttFadeIn 180ms ease;
   }
 
   .tt-editDrawer {
     position: fixed;
-    top: 0;
-    right: 0;
-    width: min(620px, 100vw);
-    height: 100vh;
-    z-index: 111;
+    top: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: min(620px, calc(100vw - 24px));
+    border-radius: 24px;
+    border: 1px solid rgba(161, 110, 255, 0.22);
     background:
-      radial-gradient(circle at top left, rgba(168,85,247,0.20), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(124,58,237,0.18), transparent 24%),
-      linear-gradient(180deg, rgba(12,10,30,0.98) 0%, rgba(7,8,20,0.98) 100%);
-    border-left: 1px solid rgba(168,85,247,0.24);
-    box-shadow: -24px 0 60px rgba(0,0,0,0.46);
+      radial-gradient(circle at top right, rgba(140,90,255,0.16), transparent 38%),
+      radial-gradient(circle at bottom left, rgba(124,58,237,0.12), transparent 28%),
+      linear-gradient(180deg, rgba(12,16,40,0.96) 0%, rgba(14,10,34,0.97) 100%);
+    box-shadow:
+      0 20px 80px rgba(0,0,0,0.45),
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 0 0 1px rgba(140,90,255,0.08);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     display: flex;
     flex-direction: column;
-    animation: ttSlideIn 220ms ease-out;
     overflow: hidden;
+    z-index: 111;
+    animation: ttSlideIn 220ms ease-out;
   }
 
   .tt-editHead {
-    padding: 18px;
+    padding: 18px 18px 16px 18px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 14px;
     flex: 0 0 auto;
+    background:
+      radial-gradient(circle at top right, rgba(140,90,255,0.12), transparent 45%);
   }
 
   .tt-editTitle {
@@ -1147,7 +1169,8 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
   .tt-editBody {
     padding: 18px;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -1241,12 +1264,10 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     gap: 10px;
     background: rgba(0,0,0,0.18);
     flex: 0 0 auto;
-    position: sticky;
-    bottom: 0;
   }
 
   @keyframes ttSlideIn {
-    from { transform: translateX(100%); opacity: 0.8; }
+    from { transform: translateX(110%); opacity: 0.8; }
     to { transform: translateX(0); opacity: 1; }
   }
 
@@ -1281,7 +1302,13 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
   @media (max-width: 760px) {
     .tt-formGrid2 { grid-template-columns: 1fr; }
-    .tt-editDrawer { width: 100vw; }
+    .tt-editDrawer {
+      top: 12px;
+      right: 12px;
+      bottom: 12px;
+      width: calc(100vw - 24px);
+      border-radius: 20px;
+    }
     .tt-actionsRow { width: 100%; justify-content: flex-start; }
   }
   `;
