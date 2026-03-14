@@ -1928,4 +1928,4 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
                     <div className="tt-kv">
                       <div className="tt-k">Billing cycle</div>
-                      <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div
+                     <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div>
