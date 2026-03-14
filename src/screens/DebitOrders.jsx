@@ -7,6 +7,7 @@ let debitOrdersProfileCache = {
   rows: [],
   query: "",
   selectedClientKey: "",
+  historyFilter: "All",
   page: 1,
   perPage: 10,
   errorText: "",
@@ -91,14 +92,14 @@ function normalizeStatus(value) {
   }
 
   if (lower === "paid" || lower === "successful" || lower === "success") return "Paid";
-  if (lower === "live" || lower === "active") return "Live";
-  if (lower === "paused") return "Paused";
-  if (lower === "cancelled" || lower === "canceled") return "Cancelled";
+  if (lower === "live" || lower === "active") return "Paid";
+  if (lower === "paused") return "Scheduled";
+  if (lower === "cancelled" || lower === "canceled") return "Failed";
   if (lower === "scheduled" || lower === "retry" || lower === "retry pending" || lower === "pending retry") {
     return "Scheduled";
   }
-  if (lower === "unpaid") return "Unpaid";
-  if (lower === "draft") return "Draft";
+  if (lower === "unpaid") return "Failed";
+  if (lower === "draft") return "Scheduled";
 
   return s;
 }
@@ -115,8 +116,7 @@ function getFailureReason(row) {
 
 function isFailedRow(row) {
   if (normalizeStatus(row?.status) === "Failed") return true;
-  const reason = safeText(getFailureReason(row));
-  return !!reason;
+  return !!safeText(getFailureReason(row));
 }
 
 function getResolvedClientId(row) {
@@ -154,18 +154,15 @@ function getRetryCount(row) {
 }
 
 function isRetryRecoveredRow(row) {
-  const status = normalizeStatus(row?.status);
-  return !isFailedRow(row) && getRetryCount(row) > 0 && (status === "Paid" || status === "Live");
+  return !isFailedRow(row) && getRetryCount(row) > 0 && normalizeStatus(row?.status) === "Paid";
 }
 
 function isMissed25thRow(row) {
-  const status = normalizeStatus(row?.status);
-  return !isFailedRow(row) && !isRetryRecoveredRow(row) && (getRetryCount(row) > 0 || status === "Scheduled");
+  return !isFailedRow(row) && !isRetryRecoveredRow(row) && normalizeStatus(row?.status) === "Scheduled";
 }
 
 function isPaidOnTimeRow(row) {
-  const status = normalizeStatus(row?.status);
-  return !isFailedRow(row) && !isRetryRecoveredRow(row) && !isMissed25thRow(row) && (status === "Paid" || status === "Live");
+  return !isFailedRow(row) && !isRetryRecoveredRow(row) && !isMissed25thRow(row) && normalizeStatus(row?.status) === "Paid";
 }
 
 function getHealthSummary(rows) {
@@ -181,15 +178,15 @@ function getHealthSummary(rows) {
   let tone = "good";
   let note = "Client is paying consistently with low recovery pressure.";
 
-  if (failed >= 2 || score < 40) {
+  if (failed >= 2 || score <= 50) {
     label = "Critical";
     tone = "critical";
     note = "Repeated failures detected. Immediate follow-up recommended.";
-  } else if (failed >= 1 || missed25th >= 2 || score < 65) {
+  } else if (failed >= 1 || missed25th >= 2 || score <= 60) {
     label = "At Risk";
     tone = "risk";
     note = "Client is showing debit stress and should be monitored closely.";
-  } else if (retryRecovered >= 1 || missed25th >= 1 || score < 85) {
+  } else if (retryRecovered >= 1 || missed25th >= 1 || score <= 75) {
     label = "Watchlist";
     tone = "watch";
     note = "Client is still recoverable but needs closer attention.";
@@ -280,20 +277,30 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
-function DonutChart({ missed25th, retryRecovered, failed, score }) {
-  const total = Math.max(1, missed25th + retryRecovered + failed);
+function getScoreColor(score) {
+  if (score >= 90) return "#22c55e";
+  if (score >= 75) return "#84cc16";
+  if (score >= 60) return "#eab308";
+  if (score > 50) return "#f97316";
+  return "#ef4444";
+}
+
+function DonutChart({ missed25th, retryRecovered, failed, paidOnTime, score }) {
+  const total = Math.max(1, missed25th + retryRecovered + failed + paidOnTime);
   const radius = 58;
   const stroke = 14;
   const size = 160;
   const circumference = 2 * Math.PI * radius;
 
   const segments = [
-    { value: missed25th, color: "#f59e0b" },
+    { value: paidOnTime, color: "#22c55e" },
     { value: retryRecovered, color: "#8b5cf6" },
+    { value: missed25th, color: "#f59e0b" },
     { value: failed, color: "#ef4444" },
   ];
 
   let offset = 0;
+  const scoreColor = getScoreColor(score);
 
   return (
     <div className="tt-do-wrap">
@@ -329,7 +336,7 @@ function DonutChart({ missed25th, retryRecovered, failed, score }) {
       </svg>
 
       <div className="tt-do-center">
-        <div className="tt-do-score">{score}</div>
+        <div className="tt-do-score" style={{ color: scoreColor }}>{score}</div>
         <div className="tt-do-scoreLabel">Health score</div>
       </div>
     </div>
@@ -340,13 +347,8 @@ function StatusBadge({ status }) {
   const normalized = normalizeStatus(status);
   const toneMap = {
     Paid: "good",
-    Live: "good",
     Scheduled: "watch",
     Failed: "critical",
-    Cancelled: "critical",
-    Paused: "watch",
-    Draft: "neutral",
-    Unpaid: "critical",
   };
 
   return (
@@ -386,6 +388,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
   const [selectedClientKey, setSelectedClientKey] = useState(() =>
     safeText(presetFocusClientId || debitOrdersProfileCache.selectedClientKey)
   );
+  const [historyFilter, setHistoryFilter] = useState(() => safeText(debitOrdersProfileCache.historyFilter) || "All");
   const [page, setPage] = useState(() => {
     const n = Number(debitOrdersProfileCache.page || 1);
     return Number.isFinite(n) && n > 0 ? n : 1;
@@ -403,12 +406,13 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       rows,
       query,
       selectedClientKey,
+      historyFilter,
       page,
       perPage,
       errorText,
       lastLoadedAt: debitOrdersProfileCache.lastLoadedAt,
     };
-  }, [rows, query, selectedClientKey, page, perPage, errorText]);
+  }, [rows, query, selectedClientKey, historyFilter, page, perPage, errorText]);
 
   async function load({ force = false } = {}) {
     if (!force && hasFreshCache()) {
@@ -435,6 +439,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
         rows: json.data,
         query,
         selectedClientKey,
+        historyFilter,
         page,
         perPage,
         errorText: "",
@@ -497,10 +502,12 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       return;
     }
 
-    const desired = safeText(presetFocusClientId) || safeText(selectedClientKey);
+    const desired = safeText(presetFocusClientId) || safeText(selectedClientKey) || safeText(query);
+
     const match =
       filteredGroups.find((group) => safeText(group.clientId) === desired) ||
-      filteredGroups.find((group) => safeText(group.key) === desired);
+      filteredGroups.find((group) => safeText(group.key) === desired) ||
+      filteredGroups.find((group) => safeText(group.clientName).toLowerCase() === desired.toLowerCase());
 
     if (match) {
       if (selectedClientKey !== match.key) {
@@ -512,7 +519,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     if (!filteredGroups.some((group) => group.key === selectedClientKey)) {
       setSelectedClientKey(filteredGroups[0].key);
     }
-  }, [filteredGroups, presetFocusClientId, selectedClientKey]);
+  }, [filteredGroups, presetFocusClientId, selectedClientKey, query]);
 
   const selectedGroup = useMemo(() => {
     return (
@@ -524,8 +531,26 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
   }, [filteredGroups, selectedClientKey]);
 
   const historyRows = useMemo(() => {
-    return Array.isArray(selectedGroup?.rows) ? selectedGroup.rows : [];
+    const rowsForClient = Array.isArray(selectedGroup?.rows) ? selectedGroup.rows : [];
+    if (historyFilter === "Paid") return rowsForClient.filter((row) => normalizeStatus(row?.status) === "Paid");
+    if (historyFilter === "Scheduled") return rowsForClient.filter((row) => normalizeStatus(row?.status) === "Scheduled");
+    if (historyFilter === "Failed") return rowsForClient.filter((row) => isFailedRow(row) || normalizeStatus(row?.status) === "Failed");
+    return rowsForClient;
+  }, [selectedGroup, historyFilter]);
+
+  const historyCounts = useMemo(() => {
+    const rowsForClient = Array.isArray(selectedGroup?.rows) ? selectedGroup.rows : [];
+    return {
+      All: rowsForClient.length,
+      Paid: rowsForClient.filter((row) => normalizeStatus(row?.status) === "Paid").length,
+      Scheduled: rowsForClient.filter((row) => normalizeStatus(row?.status) === "Scheduled").length,
+      Failed: rowsForClient.filter((row) => isFailedRow(row) || normalizeStatus(row?.status) === "Failed").length,
+    };
   }, [selectedGroup]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [historyFilter, selectedGroup?.key]);
 
   const historyPageCount = useMemo(() => {
     return Math.max(1, Math.ceil(historyRows.length / perPage));
@@ -599,10 +624,11 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       flex-direction: column;
       gap: 16px;
       color: rgba(255,255,255,0.94);
-      --tt-purple: rgba(124,58,237,0.98);
-      --tt-purple2: rgba(168,85,247,0.98);
-      --tt-panel-border: rgba(255,255,255,0.10);
-      --tt-soft: rgba(255,255,255,0.62);
+      --tt-purple: #7c3aed;
+      --tt-purple2: #a855f7;
+      --tt-purple3: #5b21b6;
+      --tt-purple4: #3b0764;
+      --tt-panel-border: rgba(168,85,247,0.18);
     }
 
     .tt-do-header {
@@ -617,7 +643,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       margin: 0;
       font-size: 26px;
       font-weight: 900;
-      color: rgba(255,255,255,0.97);
+      color: rgba(255,255,255,0.98);
       letter-spacing: 0.2px;
     }
 
@@ -640,8 +666,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       height: 38px;
       padding: 0 15px;
       border-radius: 12px;
-      border: 1px solid rgba(168,85,247,0.55);
-      background: linear-gradient(135deg, rgba(168,85,247,0.96), rgba(124,58,237,0.96));
+      border: 1px solid rgba(168,85,247,0.58);
+      background: linear-gradient(135deg, #a855f7, #7c3aed);
       color: #fff;
       display: inline-flex;
       align-items: center;
@@ -651,15 +677,15 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       font-size: 12px;
       font-weight: 900;
       letter-spacing: 0.2px;
-      box-shadow: 0 14px 34px rgba(124,58,237,0.24);
+      box-shadow: 0 14px 34px rgba(124,58,237,0.32);
       transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
       white-space: nowrap;
     }
 
     .tt-do-btn:hover {
       transform: translateY(-1px);
-      filter: brightness(1.04);
-      box-shadow: 0 18px 40px rgba(124,58,237,0.30);
+      filter: brightness(1.05);
+      box-shadow: 0 18px 40px rgba(124,58,237,0.38);
     }
 
     .tt-do-btn:disabled {
@@ -667,14 +693,6 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       cursor: not-allowed;
       transform: none;
       filter: none;
-      box-shadow: 0 14px 34px rgba(124,58,237,0.12);
-    }
-
-    .tt-do-btnSecondary {
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(255,255,255,0.06);
-      color: rgba(255,255,255,0.90);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
     }
 
     .tt-do-shell {
@@ -691,10 +709,11 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       border-radius: 22px;
       border: 1px solid var(--tt-panel-border);
       background:
-        radial-gradient(circle at top right, rgba(168,85,247,0.12), transparent 30%),
-        linear-gradient(180deg, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.035) 100%);
+        radial-gradient(circle at top right, rgba(168,85,247,0.20), transparent 24%),
+        radial-gradient(circle at bottom left, rgba(91,33,182,0.14), transparent 28%),
+        linear-gradient(180deg, rgba(20,18,40,0.98) 0%, rgba(8,10,24,0.98) 100%);
       box-shadow:
-        0 24px 60px rgba(0,0,0,0.36),
+        0 24px 60px rgba(0,0,0,0.40),
         inset 0 1px 0 rgba(255,255,255,0.05);
       backdrop-filter: blur(16px);
     }
@@ -731,9 +750,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       width: 100%;
       height: 42px;
       border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background:
-        linear-gradient(180deg, rgba(0,0,0,0.24) 0%, rgba(255,255,255,0.03) 100%);
+      border: 1px solid rgba(168,85,247,0.30);
+      background: linear-gradient(180deg, rgba(7,8,20,0.96) 0%, rgba(20,18,40,0.96) 100%);
       color: rgba(255,255,255,0.94);
       outline: none;
       padding: 0 14px 0 40px;
@@ -742,17 +760,17 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     }
 
     .tt-do-search:focus {
-      border-color: rgba(168,85,247,0.48);
-      box-shadow: 0 0 0 6px rgba(124,58,237,0.16);
+      border-color: rgba(168,85,247,0.6);
+      box-shadow: 0 0 0 5px rgba(124,58,237,0.18);
     }
 
     .tt-do-clientCard {
       border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.10);
+      border: 1px solid rgba(168,85,247,0.18);
       background:
-        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025));
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
       padding: 18px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
       display: flex;
       flex-direction: column;
       gap: 14px;
@@ -815,22 +833,21 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     }
 
     .tt-healthBadge-watch {
-      background: rgba(245,158,11,0.16);
-      border-color: rgba(245,158,11,0.34);
+      background: rgba(132,204,22,0.16);
+      border-color: rgba(132,204,22,0.34);
       color: rgba(255,255,255,0.94);
     }
 
     .tt-healthBadge-risk {
-      background: rgba(239,68,68,0.16);
-      border-color: rgba(239,68,68,0.34);
+      background: rgba(234,179,8,0.16);
+      border-color: rgba(234,179,8,0.34);
       color: rgba(255,255,255,0.94);
     }
 
     .tt-healthBadge-critical {
-      background: rgba(185,28,28,0.18);
+      background: rgba(239,68,68,0.18);
       border-color: rgba(239,68,68,0.42);
       color: rgba(255,255,255,0.98);
-      box-shadow: 0 0 0 1px rgba(239,68,68,0.12);
     }
 
     .tt-do-note {
@@ -849,11 +866,10 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
     .tt-metricCard {
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.10);
+      border: 1px solid rgba(168,85,247,0.16);
       background:
-        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
       padding: 14px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
       min-height: 104px;
       display: flex;
       flex-direction: column;
@@ -890,12 +906,12 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
     .tt-do-panelHeader {
       padding: 16px 16px 12px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid rgba(168,85,247,0.14);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      background: rgba(0,0,0,0.08);
+      background: rgba(15,12,30,0.65);
     }
 
     .tt-do-panelTitle {
@@ -949,7 +965,6 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     .tt-do-score {
       font-size: 30px;
       font-weight: 900;
-      color: rgba(255,255,255,0.98);
       line-height: 1;
     }
 
@@ -1011,8 +1026,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
     .tt-do-insightCard {
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.10);
-      background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+      border: 1px solid rgba(168,85,247,0.14);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
       padding: 14px;
     }
 
@@ -1028,6 +1043,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       color: rgba(255,255,255,0.96);
       font-weight: 900;
       line-height: 1.15;
+      word-break: break-word;
     }
 
     .tt-do-history {
@@ -1038,20 +1054,54 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
     .tt-do-historyToolbar {
       padding: 14px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid rgba(168,85,247,0.14);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       flex-wrap: wrap;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.05));
+      background: rgba(15,12,30,0.6);
     }
 
     .tt-do-historyMeta {
       font-size: 12px;
       color: rgba(255,255,255,0.60);
       font-weight: 700;
+    }
+
+    .tt-do-pillRow {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .tt-do-pill {
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.82);
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .tt-do-pill:hover {
+      transform: translateY(-1px);
+    }
+
+    .tt-do-pillActive {
+      border-color: rgba(168,85,247,0.52);
+      background: linear-gradient(135deg, rgba(168,85,247,0.22), rgba(124,58,237,0.12));
+      color: rgba(255,255,255,0.96);
+      box-shadow: 0 12px 28px rgba(124,58,237,0.18);
     }
 
     .tt-do-tableScroll {
@@ -1077,8 +1127,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       font-weight: 900;
       letter-spacing: 0.2px;
       color: rgba(255,255,255,0.62);
-      background: rgba(10,10,14,0.84);
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(7,8,18,0.92);
+      border-bottom: 1px solid rgba(168,85,247,0.14);
       backdrop-filter: blur(10px);
     }
 
@@ -1091,7 +1141,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     }
 
     .tt-do-tr {
-      transition: transform 160ms ease, background 160ms ease;
+      transition: background 160ms ease;
     }
 
     .tt-do-tr:hover {
@@ -1123,8 +1173,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     }
 
     .tt-statusBadge-good {
-      background: rgba(16,185,129,0.15);
-      border-color: rgba(16,185,129,0.34);
+      background: rgba(34,197,94,0.15);
+      border-color: rgba(34,197,94,0.34);
       color: #66f0bf;
     }
 
@@ -1157,9 +1207,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     .tt-do-emptyCard {
       max-width: 520px;
       border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid rgba(168,85,247,0.14);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
       padding: 28px;
     }
 
@@ -1183,8 +1232,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       gap: 10px;
       justify-content: flex-end;
       padding: 14px 16px 16px 16px;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      background: rgba(0,0,0,0.08);
+      border-top: 1px solid rgba(168,85,247,0.14);
+      background: rgba(15,12,30,0.6);
     }
 
     .tt-do-pagePill {
@@ -1232,8 +1281,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
     .tt-do-clientChipActive {
       border-color: rgba(168,85,247,0.52);
-      background: linear-gradient(135deg, rgba(168,85,247,0.22), rgba(124,58,237,0.12));
-      box-shadow: 0 12px 28px rgba(124,58,237,0.16);
+      background: linear-gradient(135deg, rgba(168,85,247,0.24), rgba(124,58,237,0.14));
+      box-shadow: 0 12px 28px rgba(124,58,237,0.20);
       color: rgba(255,255,255,0.96);
     }
 
@@ -1245,7 +1294,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
     .tt-do-error {
       padding: 12px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid rgba(168,85,247,0.14);
       background: rgba(239,68,68,0.12);
       color: rgba(255,255,255,0.90);
       font-size: 12px;
@@ -1294,7 +1343,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
           <button
             type="button"
-            className="tt-do-btn tt-do-btnSecondary"
+            className="tt-do-btn"
             onClick={onExportHistory}
             disabled={!selectedGroup}
           >
@@ -1429,6 +1478,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                       missed25th={health.missed25th}
                       retryRecovered={health.retryRecovered}
                       failed={health.failed}
+                      paidOnTime={health.paidOnTime}
                       score={health.score}
                     />
 
@@ -1537,11 +1587,27 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
               <div className="tt-do-historyToolbar">
                 <div className="tt-do-historyMeta">
-                  {historyRows.length} total row(s) for {selectedGroup?.clientName || selectedGroup?.clientId || "client"}
+                  {historyRows.length} filtered row(s) for {selectedGroup?.clientName || selectedGroup?.clientId || "client"}
                 </div>
 
                 <div className="tt-do-actions">
                   <HealthBadge tone={health.tone} label={health.label} />
+                </div>
+              </div>
+
+              <div className="tt-do-historyToolbar" style={{ borderTop: "1px solid rgba(168,85,247,0.08)" }}>
+                <div className="tt-do-pillRow">
+                  {["All", "Paid", "Scheduled", "Failed"].map((pill) => (
+                    <button
+                      key={pill}
+                      type="button"
+                      className={`tt-do-pill ${historyFilter === pill ? "tt-do-pillActive" : ""}`}
+                      onClick={() => setHistoryFilter(pill)}
+                    >
+                      <span>{pill}</span>
+                      <span>{historyCounts[pill] ?? 0}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1598,7 +1664,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>No debit history found</div>
                             <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.45 }}>
-                              This client does not have debit-order rows in the current result set.
+                              No rows matched the selected pill for this client.
                             </div>
                           </div>
                         </td>
