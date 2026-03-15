@@ -206,15 +206,30 @@ function getHealthSummary(rows) {
   };
 }
 
+function getSortTimestamp(row) {
+  const value = firstNonEmpty(
+    row?.updatedAt,
+    row?.updated_at,
+    row?.Updated_Time,
+    row?.Modified_Time,
+    row?.Last_Updated,
+    row?.createdAt,
+    row?.created_at
+  );
+  const time = new Date(value || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 function buildClientGroups(rows) {
   const map = new Map();
 
   for (const row of Array.isArray(rows) ? rows : []) {
-    const clientId = getResolvedClientId(row);
+    const clientId = safeText(getResolvedClientId(row));
     const clientName = getResolvedClientName(row);
-    const key = firstNonEmpty(clientId, clientName, row?.id);
 
-    if (!key) continue;
+    if (!clientId) continue;
+
+    const key = clientId;
 
     if (!map.has(key)) {
       map.set(key, {
@@ -233,9 +248,7 @@ function buildClientGroups(rows) {
   }
 
   const groups = Array.from(map.values()).map((group) => {
-    const orderedRows = [...group.rows].sort((a, b) => {
-      return new Date(b?.updatedAt || 0).getTime() - new Date(a?.updatedAt || 0).getTime();
-    });
+    const orderedRows = [...group.rows].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
 
     const latest = orderedRows[0] || null;
     const health = getHealthSummary(orderedRows);
@@ -251,11 +264,7 @@ function buildClientGroups(rows) {
     };
   });
 
-  return groups.sort((a, b) => {
-    const aTime = new Date(a.latest?.updatedAt || 0).getTime();
-    const bTime = new Date(b.latest?.updatedAt || 0).getTime();
-    return bTime - aTime;
-  });
+  return groups.sort((a, b) => getSortTimestamp(b.latest) - getSortTimestamp(a.latest));
 }
 
 function downloadCsv(filename, rows) {
@@ -741,7 +750,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       row.lastTransactionReference || "",
       getFailureReason(row),
       row.booksInvoiceId || "",
-      row.updatedAt || "",
+      row.updatedAt || row.Updated_Time || row.Modified_Time || "",
     ]);
 
     downloadCsv(
@@ -1936,7 +1945,19 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
               <MetricCard
                 label="Latest status"
                 value={selectedGroup ? normalizeStatus(selectedGroup.latest?.status) : "Draft"}
-                sub={selectedGroup?.latest?.updatedAt ? `Updated ${formatDateTime(selectedGroup.latest.updatedAt)}` : "No update yet"}
+                sub={
+                  selectedGroup?.latest
+                    ? `Updated ${formatDateTime(
+                        firstNonEmpty(
+                          selectedGroup.latest.updatedAt,
+                          selectedGroup.latest.updated_at,
+                          selectedGroup.latest.Updated_Time,
+                          selectedGroup.latest.Modified_Time,
+                          selectedGroup.latest.Last_Updated
+                        )
+                      )}`
+                    : "No update yet"
+                }
               />
 
               <MetricCard
@@ -2151,7 +2172,17 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                           <td className="tt-do-td" style={{ whiteSpace: "normal", minWidth: 220 }}>
                             {safeText(getFailureReason(row)) || "No failure logged"}
                           </td>
-                          <td className="tt-do-td">{formatDateTime(row?.updatedAt)}</td>
+                          <td className="tt-do-td">
+                            {formatDateTime(
+                              firstNonEmpty(
+                                row?.updatedAt,
+                                row?.updated_at,
+                                row?.Updated_Time,
+                                row?.Modified_Time,
+                                row?.Last_Updated
+                              )
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
