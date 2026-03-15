@@ -2014,70 +2014,6 @@ export default function Dashboard() {
             <div className="ttd-panelHeader">
               <div>
                 <h3 className="ttd-panelTitle">Current cycle activity</h3>
-                <p className="ttd-panelSub">Snapshot of successful, failed, retry, and suspended activity inside the selected dashboard window</p
- </div>
-
-              <div className="ttd-rangeGroup">
-                {["24H", "7D", "30D"].map((r) => {
-                  const val = r.toLowerCase();
-                  return (
-                    <button
-                      key={r}
-                      onClick={() => setRange(val)}
-                      className={cx("ttd-rangeBtn", range === val && "ttd-rangeBtnActive")}
-                    >
-                      {r}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <LineTrendChart data={debitPerformanceData} />
-          </div>
-        </Card>
-
-        <Card className="ttd-card">
-          <div className="ttd-panel">
-            <div className="ttd-panelHeader">
-              <div>
-                <h3 className="ttd-panelTitle">Retry pressure by cycle</h3>
-                <p className="ttd-panelSub">Operational view of retry timing around your 25th and 1st collection windows</p>
-              </div>
-            </div>
-
-            <div className="ttd-donutLayout">
-              <DonutChart
-                centerValue={safeNum(data.top.retryScheduled)}
-                centerLabel="Retry queue"
-                segments={retrySegments}
-              />
-
-              <div className="ttd-legendStack">
-                {retrySegments.map((item) => (
-                  <div key={item.label} className="ttd-legendCard">
-                    <div className="ttd-legendLeft">
-                      <span className="ttd-legendSwatch" style={{ background: item.color }} />
-                      <div>
-                        <div className="ttd-legendLabel">{item.label}</div>
-                        <div className="ttd-legendSub">{safeNum(item.value)} scheduled</div>
-                      </div>
-                    </div>
-                    <div className="ttd-legendPct">{safeNum(item.pct).toFixed(0)}%</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="ttd-grid2-equal">
-        <Card className="ttd-card">
-          <div className="ttd-panel">
-            <div className="ttd-panelHeader">
-              <div>
-                <h3 className="ttd-panelTitle">Current cycle activity</h3>
                 <p className="ttd-panelSub">Snapshot of successful, failed, retry, and suspended activity inside the selected dashboard window</p>
               </div>
             </div>
@@ -2113,7 +2049,9 @@ export default function Dashboard() {
               <div>
                 <h3 className="ttd-panelTitle">Cycle health and pressure</h3>
                 <p className="ttd-panelSub">Fast finance view for latest run health, exception pressure, and collection quality</p>
-              </div>      
+              </div>
+            </div>
+
             <div className="ttd-opGrid">
               <div className="ttd-opStat">
                 <div className="ttd-opLabel">
