@@ -1424,6 +1424,37 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
 
   .ttb-tableWrap {
     overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(214,214,223,0.88) rgba(255,255,255,0.04);
+  }
+
+  .ttb-tableWrap::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  .ttb-tableWrap::-webkit-scrollbar-track {
+    background: linear-gradient(180deg, rgba(13,12,26,0.94) 0%, rgba(19,17,38,0.94) 100%);
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+    margin: 6px;
+  }
+
+  .ttb-tableWrap::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(245,245,250,0.92) 0%, rgba(194,194,202,0.9) 100%);
+    border-radius: 999px;
+    border: 3px solid rgba(13,12,26,0.92);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.48),
+      0 6px 16px rgba(0,0,0,0.26);
+  }
+
+  .ttb-tableWrap::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(210,210,220,0.96) 100%);
+  }
+
+  .ttb-tableWrap::-webkit-scrollbar-corner {
+    background: rgba(13,12,26,0.94);
   }
 
   .ttb-table {
