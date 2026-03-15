@@ -378,7 +378,7 @@ function RecordsDropdown({ value, onChange, options }) {
                       <TickIcon />
                     </span>
                   ) : (
-                    <span style={{ width: 18, height: 18 }} />
+                    <span className="tt-do-ddTickSpacer" />
                   )}
                 </button>
               );
@@ -782,6 +782,15 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       --tt-purple3: #5b21b6;
       --tt-purple4: #3b0764;
       --tt-panel-border: rgba(168,85,247,0.18);
+      --tt-scroll-track: rgba(255,255,255,0.04);
+      --tt-scroll-thumb: linear-gradient(180deg, rgba(255,255,255,0.82) 0%, rgba(216,180,254,0.96) 100%);
+      --tt-scroll-thumb-hover: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(196,181,253,1) 100%);
+      --tt-scroll-border: rgba(168,85,247,0.16);
+      --tt-scroll-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 8px 18px rgba(124,58,237,0.22);
+    }
+
+    .tt-do-page * {
+      box-sizing: border-box;
     }
 
     .tt-do-header {
@@ -952,6 +961,41 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     .tt-do-selectorScroll {
       max-height: 235px;
       overflow: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(245,245,255,0.82) rgba(255,255,255,0.04);
+    }
+
+    .tt-do-selectorScroll::-webkit-scrollbar,
+    .tt-do-tableScroll::-webkit-scrollbar {
+      width: 14px;
+      height: 14px;
+    }
+
+    .tt-do-selectorScroll::-webkit-scrollbar-track,
+    .tt-do-tableScroll::-webkit-scrollbar-track {
+      background: linear-gradient(180deg, rgba(11,10,24,0.92) 0%, rgba(19,17,38,0.92) 100%);
+      border-left: 1px solid var(--tt-scroll-border);
+      border-radius: 999px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+      margin: 6px;
+    }
+
+    .tt-do-selectorScroll::-webkit-scrollbar-thumb,
+    .tt-do-tableScroll::-webkit-scrollbar-thumb {
+      background: var(--tt-scroll-thumb);
+      border-radius: 999px;
+      border: 3px solid rgba(10,10,18,0.92);
+      box-shadow: var(--tt-scroll-shadow);
+    }
+
+    .tt-do-selectorScroll::-webkit-scrollbar-thumb:hover,
+    .tt-do-tableScroll::-webkit-scrollbar-thumb:hover {
+      background: var(--tt-scroll-thumb-hover);
+    }
+
+    .tt-do-selectorScroll::-webkit-scrollbar-corner,
+    .tt-do-tableScroll::-webkit-scrollbar-corner {
+      background: rgba(10,10,18,0.92);
     }
 
     .tt-do-selectorTable {
@@ -1382,6 +1426,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       overflow: auto;
       min-height: 0;
       flex: 1;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(245,245,255,0.82) rgba(255,255,255,0.04);
     }
 
     .tt-do-table {
@@ -1552,9 +1598,10 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     .tt-do-ddBtn {
       height: 34px;
       padding: 0 12px;
-      border-radius: 11px;
-      border: 1px solid rgba(168,85,247,0.40);
-      background: rgba(0,0,0,0.42);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.78);
+      background:
+        linear-gradient(180deg, rgba(26,20,48,0.96) 0%, rgba(14,12,28,0.96) 100%);
       color: rgba(255,255,255,0.92);
       display: inline-flex;
       align-items: center;
@@ -1566,10 +1613,27 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       letter-spacing: 0.15px;
       min-width: 130px;
       box-sizing: border-box;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 0 0 1px rgba(168,85,247,0.06);
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, background 160ms ease;
+    }
+
+    .tt-do-ddBtn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255,255,255,0.92);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        0 12px 28px rgba(124,58,237,0.18);
     }
 
     .tt-do-ddBtnOpen {
-      background: rgba(168,85,247,0.16);
+      background:
+        linear-gradient(180deg, rgba(38,28,68,0.98) 0%, rgba(18,14,36,0.98) 100%);
+      border-color: rgba(255,255,255,0.96);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        0 14px 32px rgba(124,58,237,0.22);
     }
 
     .tt-do-ddCaret {
@@ -1577,6 +1641,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      flex: 0 0 auto;
     }
 
     .tt-do-ddMenu {
@@ -1585,9 +1650,12 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       left: 0;
       min-width: 190px;
       border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(10,10,14,0.92);
-      box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+      border: 1px solid rgba(168,85,247,0.26);
+      background:
+        linear-gradient(180deg, rgba(12,10,28,0.98) 0%, rgba(8,8,20,0.98) 100%);
+      box-shadow:
+        0 18px 50px rgba(0,0,0,0.45),
+        0 0 0 1px rgba(168,85,247,0.06);
       backdrop-filter: blur(14px);
       overflow: hidden;
       z-index: 60;
@@ -1610,10 +1678,16 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       border-right: none;
       border-top: none;
       outline: none;
+      transition: background 160ms ease;
+    }
+
+    .tt-do-ddItem:hover {
+      background: rgba(168,85,247,0.12);
     }
 
     .tt-do-ddItemActive {
-      background: rgba(168,85,247,0.22);
+      background: linear-gradient(90deg, rgba(168,85,247,0.22), rgba(124,58,237,0.12));
+      color: rgba(255,255,255,0.96);
     }
 
     .tt-do-ddTick {
@@ -1626,6 +1700,13 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       background: rgba(168,85,247,0.25);
       border: 1px solid rgba(168,85,247,0.35);
       font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .tt-do-ddTickSpacer {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
     }
 
     @media (max-width: 1320px) {
