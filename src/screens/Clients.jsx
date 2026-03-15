@@ -39,6 +39,79 @@ function getPrimaryCrmId(client) {
   ).trim();
 }
 
+function safeText(v) {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+function downloadCsv(filename, rows) {
+  const csvEscape = (v) => {
+    const s = safeText(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+function currencyZar(n) {
+  const val = Number(n || 0);
+  return val.toLocaleString("en-ZA", {
+    style: "currency",
+    currency: "ZAR",
+    maximumFractionDigits: 0,
+  });
+}
+
+function fmtDateShort(yyyyMmDd) {
+  const d = new Date(`${yyyyMmDd}T00:00:00.000Z`);
+  return d.toLocaleDateString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function fmtDateTimeShort(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function fmtDateTimeLong(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function statusBadgeClass(status) {
+  if (status === "Active") return "tt-badge tt-bActive";
+  if (status === "Paused") return "tt-badge tt-bPaused";
+  if (status === "Risk") return "tt-badge tt-bRisk";
+  return "tt-badge tt-bNew";
+}
+
 function useOnClickOutside(ref, handler) {
   useEffect(() => {
     function onDown(e) {
@@ -46,8 +119,10 @@ function useOnClickOutside(ref, handler) {
       if (ref.current.contains(e.target)) return;
       handler();
     }
+
     window.addEventListener("mousedown", onDown);
     window.addEventListener("touchstart", onDown);
+
     return () => {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("touchstart", onDown);
@@ -80,70 +155,10 @@ function IconSearch({ size = 16 }) {
   );
 }
 
-function safeText(v) {
-  if (v === null || v === undefined) return "";
-  return String(v);
-}
-
-function downloadCsv(filename, rows) {
-  const csvEscape = (v) => {
-    const s = safeText(v);
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  };
-
-  const lines = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([lines], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  URL.revokeObjectURL(url);
-}
-
-function currencyZar(n) {
-  const val = Number(n || 0);
-  return val.toLocaleString("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 });
-}
-
-function fmtDateShort(yyyyMmDd) {
-  const d = new Date(`${yyyyMmDd}T00:00:00.000Z`);
-  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-}
-
-function fmtDateTimeShort(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "2-digit" });
-}
-
-function fmtDateTimeLong(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString("en-ZA", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function statusBadgeClass(status) {
-  if (status === "Active") return "tt-badge tt-bActive";
-  if (status === "Paused") return "tt-badge tt-bPaused";
-  if (status === "Risk") return "tt-badge tt-bRisk";
-  return "tt-badge tt-bNew";
-}
-
 function RecordsDropdown({ value, onChange, disabled }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
+
   useOnClickOutside(wrapRef, () => setOpen(false));
 
   const options = [
@@ -191,7 +206,8 @@ function RecordsDropdown({ value, onChange, disabled }) {
                   aria-selected={isActive}
                   className={isActive ? "tt-ddItem tt-ddItemActive" : "tt-ddItem"}
                   style={{
-                    borderBottom: idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                    borderBottom:
+                      idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
                   }}
                   onClick={() => select(o.value)}
                   onKeyDown={(e) => {
@@ -201,6 +217,77 @@ function RecordsDropdown({ value, onChange, disabled }) {
                 >
                   <span>{o.label}</span>
                   {isActive ? <span className="tt-ddTick">✓</span> : <span style={{ width: 18 }} />}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PremiumSelect({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder = "Select option",
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const active =
+    options.find((o) => String(o.value) === String(value)) ||
+    null;
+
+  function select(nextValue) {
+    onChange(nextValue);
+    setOpen(false);
+  }
+
+  return (
+    <div className="tt-formField">
+      <label className="tt-label">{label}</label>
+
+      <div ref={wrapRef} className="tt-pselectWrap">
+        <button
+          type="button"
+          className={open ? "tt-pselectBtn tt-pselectBtnOpen" : "tt-pselectBtn"}
+          onClick={() => setOpen((x) => !x)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span className={active ? "tt-pselectValue" : "tt-pselectPlaceholder"}>
+            {active ? active.label : placeholder}
+          </span>
+          <span className="tt-pselectCaret">▾</span>
+        </button>
+
+        {open && (
+          <div className="tt-pselectMenu" role="listbox" aria-label={label}>
+            {options.map((option, idx) => {
+              const isActive = String(option.value) === String(value);
+              return (
+                <div
+                  key={option.value}
+                  role="option"
+                  aria-selected={isActive}
+                  className={isActive ? "tt-pselectItem tt-pselectItemActive" : "tt-pselectItem"}
+                  style={{
+                    borderBottom:
+                      idx === options.length - 1 ? "none" : "1px solid rgba(255,255,255,0.06)",
+                  }}
+                  onClick={() => select(option.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") select(option.value);
+                  }}
+                  tabIndex={0}
+                >
+                  <span>{option.label}</span>
+                  {isActive ? <span className="tt-pselectTick">✓</span> : <span style={{ width: 18 }} />}
                 </div>
               );
             })}
@@ -289,33 +376,31 @@ function EditDrawer({ editDraft, onCloseEdit, updateDraft, onSaveEdit }) {
                 />
               </div>
 
-              <div className="tt-formField">
-                <label className="tt-label">Risk</label>
-                <select
-                  className="tt-selectDark"
-                  value={editDraft.risk || ""}
-                  onChange={(e) => updateDraft("risk", e.target.value)}
-                >
-                  <option value="">Select risk</option>
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </div>
+              <PremiumSelect
+                label="Risk"
+                value={editDraft.risk || ""}
+                placeholder="Select risk"
+                options={[
+                  { value: "", label: "Select risk" },
+                  { value: "Low", label: "Low" },
+                  { value: "Medium", label: "Medium" },
+                  { value: "High", label: "High" },
+                ]}
+                onChange={(nextValue) => updateDraft("risk", nextValue)}
+              />
 
-              <div className="tt-formField">
-                <label className="tt-label">Client status</label>
-                <select
-                  className="tt-selectDark"
-                  value={editDraft.status || ""}
-                  onChange={(e) => updateDraft("status", e.target.value)}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Paused">Paused</option>
-                  <option value="Risk">Risk</option>
-                  <option value="New">New</option>
-                </select>
-              </div>
+              <PremiumSelect
+                label="Client status"
+                value={editDraft.status || ""}
+                placeholder="Select status"
+                options={[
+                  { value: "Active", label: "Active" },
+                  { value: "Paused", label: "Paused" },
+                  { value: "Risk", label: "Risk" },
+                  { value: "New", label: "New" },
+                ]}
+                onChange={(nextValue) => updateDraft("status", nextValue)}
+              />
             </div>
           </div>
 
@@ -1435,6 +1520,124 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     font-weight: 900;
   }
 
+  .tt-pselectWrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .tt-pselectBtn {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(168,85,247,0.18);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+      rgba(3,4,12,0.72);
+    color: rgba(255,255,255,0.94);
+    outline: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.15px;
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      border-color 160ms ease,
+      background 160ms ease;
+  }
+
+  .tt-pselectBtn:hover {
+    transform: translateY(-1px);
+  }
+
+  .tt-pselectBtnOpen {
+    border-color: rgba(168,85,247,0.48);
+    box-shadow:
+      0 0 0 5px rgba(124,58,237,0.16),
+      inset 0 1px 0 rgba(255,255,255,0.03);
+    background:
+      linear-gradient(180deg, rgba(168,85,247,0.10), rgba(255,255,255,0.02)),
+      rgba(3,4,12,0.72);
+  }
+
+  .tt-pselectValue {
+    color: rgba(255,255,255,0.94);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tt-pselectPlaceholder {
+    color: rgba(255,255,255,0.46);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tt-pselectCaret {
+    opacity: 0.95;
+    flex: 0 0 auto;
+  }
+
+  .tt-pselectMenu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    border-radius: 14px;
+    border: 1px solid rgba(168,85,247,0.24);
+    background: rgba(10,10,14,0.96);
+    box-shadow:
+      0 18px 50px rgba(0,0,0,0.45),
+      0 0 0 1px rgba(168,85,247,0.08);
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+    z-index: 1400;
+  }
+
+  .tt-pselectItem {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: rgba(255,255,255,0.88);
+    background: transparent;
+  }
+
+  .tt-pselectItem:hover {
+    background: rgba(168,85,247,0.12);
+  }
+
+  .tt-pselectItemActive {
+    background: linear-gradient(135deg, rgba(168,85,247,0.24), rgba(124,58,237,0.14));
+    color: rgba(255,255,255,0.96);
+  }
+
+  .tt-pselectTick {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(168,85,247,0.25);
+    border: 1px solid rgba(168,85,247,0.35);
+    font-weight: 900;
+    flex: 0 0 auto;
+  }
+
   .tt-editOverlay {
     position: fixed;
     inset: 0;
@@ -1927,7 +2130,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                     <p className="tt-sectionTitle">Debit profile</p>
 
                     <div className="tt-kv">
-                                            <div className="tt-k">Billing cycle</div>
+                      <div className="tt-k">Billing cycle</div>
                       <div className="tt-v">{selected.debit?.billingCycle || "Not set"}</div>
 
                       <div className="tt-k">Next charge date</div>
