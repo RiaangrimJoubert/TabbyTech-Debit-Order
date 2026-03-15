@@ -1731,6 +1731,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                     <tbody>
                       {pagedClientGroups.map((group) => {
                         const active = selectedGroup?.key === group.key;
+                        const displayClientId = group.clientId || getResolvedClientId(group.latest) || "Not available";
+
                         return (
                           <tr
                             key={group.key}
@@ -1743,7 +1745,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                             <td className="tt-do-selectorTd" style={{ fontWeight: 800 }}>
                               {group.clientName || "Unknown client"}
                             </td>
-                            <td className="tt-do-selectorTd">{group.client_id || group.clientId || "Not available"}</td>
+                            <td className="tt-do-selectorTd">{displayClientId}</td>
                             <td className="tt-do-selectorTd">{group.totalRecords}</td>
                             <td className="tt-do-selectorTd">
                               <span className={`tt-do-miniBadge tt-do-miniBadge-${group.health.tone}`}>
@@ -1804,7 +1806,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
                 <div className="tt-do-metaRow">
                   <span className="tt-do-idPill">
-                    CRM Record ID: {selectedGroup?.clientId || "Not available"}
+                    CRM Record ID: {selectedGroup?.clientId || getResolvedClientId(selectedGroup?.latest) || "Not available"}
                   </span>
 
                   {selectedGroup ? (
