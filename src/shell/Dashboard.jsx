@@ -2015,3 +2015,383 @@ export default function Dashboard() {
               <div>
                 <h3 className="ttd-panelTitle">Current cycle activity</h3>
                 <p className="ttd-panelSub">Snapshot of successful, failed, retry, and suspended activity inside the selected dashboard window</p
+ </div>
+
+              <div className="ttd-rangeGroup">
+                {["24H", "7D", "30D"].map((r) => {
+                  const val = r.toLowerCase();
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => setRange(val)}
+                      className={cx("ttd-rangeBtn", range === val && "ttd-rangeBtnActive")}
+                    >
+                      {r}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <LineTrendChart data={debitPerformanceData} />
+          </div>
+        </Card>
+
+        <Card className="ttd-card">
+          <div className="ttd-panel">
+            <div className="ttd-panelHeader">
+              <div>
+                <h3 className="ttd-panelTitle">Retry pressure by cycle</h3>
+                <p className="ttd-panelSub">Operational view of retry timing around your 25th and 1st collection windows</p>
+              </div>
+            </div>
+
+            <div className="ttd-donutLayout">
+              <DonutChart
+                centerValue={safeNum(data.top.retryScheduled)}
+                centerLabel="Retry queue"
+                segments={retrySegments}
+              />
+
+              <div className="ttd-legendStack">
+                {retrySegments.map((item) => (
+                  <div key={item.label} className="ttd-legendCard">
+                    <div className="ttd-legendLeft">
+                      <span className="ttd-legendSwatch" style={{ background: item.color }} />
+                      <div>
+                        <div className="ttd-legendLabel">{item.label}</div>
+                        <div className="ttd-legendSub">{safeNum(item.value)} scheduled</div>
+                      </div>
+                    </div>
+                    <div className="ttd-legendPct">{safeNum(item.pct).toFixed(0)}%</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="ttd-grid2-equal">
+        <Card className="ttd-card">
+          <div className="ttd-panel">
+            <div className="ttd-panelHeader">
+              <div>
+                <h3 className="ttd-panelTitle">Current cycle activity</h3>
+                <p className="ttd-panelSub">Snapshot of successful, failed, retry, and suspended activity inside the selected dashboard window</p>
+              </div>
+            </div>
+
+            <div className="ttd-donutLayout">
+              <DonutChart
+                centerValue={safeNum(summaryCards.attemptedToday)}
+                centerLabel="Cycle items"
+                segments={operationalSegments}
+              />
+
+              <div className="ttd-legendStack">
+                {operationalSegments.map((segment) => (
+                  <div key={segment.label} className="ttd-legendCard">
+                    <div className="ttd-legendLeft">
+                      <span className="ttd-legendSwatch" style={{ background: segment.color }} />
+                      <div>
+                        <div className="ttd-legendLabel">{segment.label}</div>
+                        <div className="ttd-legendSub">{safeNum(segment.value)} items</div>
+                      </div>
+                    </div>
+                    <div className="ttd-legendPct">{safeNum(segment.pct).toFixed(0)}%</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="ttd-card">
+          <div className="ttd-panel">
+            <div className="ttd-panelHeader">
+              <div>
+                <h3 className="ttd-panelTitle">Cycle health and pressure</h3>
+                <p className="ttd-panelSub">Fast finance view for latest run health, exception pressure, and collection quality</p>
+              </div>
+            </div>
+
+            <div className="ttd-opGrid">
+              <div className="ttd-opStat">
+                <div className="ttd-opLabel">
+                  <span className="ttd-miniDot" style={{ background: "#22c55e" }} />
+                  Success rate
+                </div>
+                <div className="ttd-opValue">{safeNum(data.top.successRate).toFixed(0)}%</div>
+                <div className="ttd-opSub">Based on the selected dashboard summary window</div>
+              </div>
+
+              <div className="ttd-opStat">
+                <div className="ttd-opLabel">
+                  <span className="ttd-miniDot" style={{ background: "#ef4444" }} />
+                  Failure rate
+                </div>
+                <div className="ttd-opValue">{safeNum(data.top.failureRate).toFixed(0)}%</div>
+                <div className="ttd-opSub">Tracks failed collection pressure</div>
+              </div>
+
+              <div className="ttd-opStat">
+                <div className="ttd-opLabel">
+                  <span className="ttd-miniDot" style={{ background: "#8b5cf6" }} />
+                  Retry rate
+                </div>
+                <div className="ttd-opValue">{safeNum(data.top.retryRate).toFixed(0)}%</div>
+                <div className="ttd-opSub">Indicates follow-up load between collection windows</div>
+              </div>
+
+              <div className="ttd-opStat">
+                <div className="ttd-opLabel">
+                  <span className="ttd-miniDot" style={{ background: "#60a5fa" }} />
+                  Last run result
+                </div>
+                <div className="ttd-opValue">
+                  {safeStr(lastRun?.runStatus || lastRun?.result || "N/A") || "N/A"}
+                </div>
+                <div className="ttd-opSub">
+                  {lastRun?.startedAt
+                    ? fmtWhen(lastRun.startedAt)
+                    : lastRun?.started_at
+                    ? fmtWhen(lastRun.started_at)
+                    : "No run yet"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="ttd-grid2-equal">
+        <Card className="ttd-card">
+          <div className="ttd-panel">
+            <div className="ttd-panelHeader">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "12px",
+                    background: "rgba(139, 92, 246, 0.12)",
+                    border: "1px solid rgba(139, 92, 246, 0.20)",
+                    color: "#a78bfa",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <IconClock />
+                </div>
+                <div>
+                  <h3 className="ttd-panelTitle">Collection schedule monitor</h3>
+                  <p className="ttd-panelSub">{cronError ? `API error: ${cronError}` : "Tracks the 25th and 1st debit order cycle runner"}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="ttd-cronList">
+              {cronJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="ttd-cronItem"
+                  style={{
+                    borderColor:
+                      job.status === "failed"
+                        ? "rgba(239,68,68,0.20)"
+                        : job.status === "partial"
+                        ? "rgba(249,115,22,0.20)"
+                        : "rgba(255,255,255,0.08)",
+                    background:
+                      job.status === "failed"
+                        ? "rgba(239,68,68,0.05)"
+                        : job.status === "partial"
+                        ? "rgba(249,115,22,0.05)"
+                        : "rgba(18,18,31,0.40)",
+                  }}
+                >
+                  <div className="ttd-cronTop">
+                    <div>
+                      <div className="ttd-cronTitle">{job.name}</div>
+                      <div className="ttd-cronMeta">{job.schedule}</div>
+                    </div>
+
+                    <StatusBadge status={job.status}>
+                      {job.status === "running"
+                        ? "Running"
+                        : job.status === "failed"
+                        ? "Failed"
+                        : job.status === "partial"
+                        ? "Partial"
+                        : job.status === "ok"
+                        ? "Success"
+                        : "Queued"}
+                    </StatusBadge>
+                  </div>
+
+                  <div className="ttd-cronRow">
+                    <span>Last run: {job.lastRun}</span>
+                    <span style={{ color: job.status === "ok" ? "#4ade80" : job.status === "failed" ? "#f87171" : "#9ca3af" }}>
+                      {job.status === "ok" ? "Healthy" : job.status === "failed" ? "Needs fix" : "Monitoring"}
+                    </span>
+                  </div>
+
+                  <div className="ttd-progressTrack">
+                    <div
+                      className="ttd-progressFill"
+                      style={{
+                        width: `${job.progress}%`,
+                        background:
+                          job.status === "failed"
+                            ? "#ef4444"
+                            : job.status === "partial"
+                            ? "#f97316"
+                            : "linear-gradient(90deg, #8b5cf6, #a78bfa)",
+                      }}
+                    />
+                  </div>
+
+                  {job.error ? (
+                    <div className="ttd-errorText">
+                      <IconExclamation />
+                      {job.error}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+
+        <div className="ttd-arrMrrStack">
+          <Card className="ttd-card ttd-financeCard">
+            <div className="ttd-panel">
+              <div className="ttd-panelHeader">
+                <div>
+                  <h3 className="ttd-panelTitle">Monthly MRR</h3>
+                  <p className="ttd-panelSub">Recurring monthly revenue view tied to active monthly subscriptions</p>
+                </div>
+              </div>
+
+              <div className={cx("ttd-financeValue", !data.monthlyMRR && "ttd-financeValueMuted")}>
+                {data.monthlyMRR ? formatZAR(data.monthlyMRR) : "Awaiting source"}
+              </div>
+
+              <div className="ttd-financeSub">
+                Active {safeNum(data.monthlyActive)} • Retry pressure {safeNum(data.top.retryScheduled)}
+              </div>
+
+              {!data.monthlyMRR ? (
+                <div className="ttd-bottomStateNote">No live MRR source exposed to dashboard yet</div>
+              ) : null}
+            </div>
+          </Card>
+
+          <Card className="ttd-card ttd-financeCard">
+            <div className="ttd-panel">
+              <div className="ttd-panelHeader">
+                <div>
+                  <h3 className="ttd-panelTitle">Annual ARR</h3>
+                  <p className="ttd-panelSub">Recurring annual revenue view tied to active annual subscriptions</p>
+                </div>
+              </div>
+
+              <div className={cx("ttd-financeValue", !data.annualARR && "ttd-financeValueMuted")}>
+                {data.annualARR ? formatZAR(data.annualARR) : "Awaiting source"}
+              </div>
+
+              <div className="ttd-financeSub">
+                View monthly • Active annual {safeNum(data.annualActive)}
+              </div>
+
+              {!data.annualARR ? (
+                <div className="ttd-bottomStateNote">No live ARR source exposed to dashboard yet</div>
+              ) : null}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      <div className="ttd-gridBottomSingle">
+        <Card className="ttd-card">
+          <div className="ttd-panel">
+            <div className="ttd-panelHeader">
+              <div>
+                <h3 className="ttd-panelTitle">Recent run history</h3>
+                <p className="ttd-panelSub">Fast access to the latest debit order cycle runs and batch states</p>
+              </div>
+
+              <PremiumBatchDropdown
+                value={selectedBatch}
+                options={batchDropdownOptions}
+                onChange={setSelectedBatch}
+              />
+            </div>
+
+            <div className="ttd-batchTableWrap">
+              <table className="ttd-table">
+                <thead>
+                  <tr>
+                    <th className="ttd-th">Run</th>
+                    <th className="ttd-th">Status</th>
+                    <th className="ttd-th" style={{ textAlign: "right" }}>Items</th>
+                    <th className="ttd-th" style={{ textAlign: "right" }}>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredBatches.map((b) => (
+                    <tr
+                      key={b.key}
+                      className={cx(
+                        "ttd-tr",
+                        (selectedBatch === b.batch || selectedBatch === b.batchId) && "ttd-trSelected"
+                      )}
+                      onClick={() => setSelectedBatch(b.batchId || b.batch)}
+                    >
+                      <td className="ttd-td" style={{ fontWeight: 700 }}>{b.batch}</td>
+                      <td className="ttd-td">
+                        <StatusBadge status={safeStr(b.status).toLowerCase()}>
+                          {safeStr(b.status) || "Pending"}
+                        </StatusBadge>
+                      </td>
+                      <td className="ttd-td" style={{ textAlign: "right" }}>{safeNum(b.items)}</td>
+                      <td className="ttd-td" style={{ textAlign: "right" }}>{formatZAR(b.value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "14px" }}>
+              <button
+                className="ttd-exportBtn"
+                onClick={handleExportVisibleBatches}
+                disabled={!filteredBatches.length}
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {overallError ? (
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "14px",
+            borderRadius: "14px",
+            border: "1px solid rgba(239,68,68,0.22)",
+            background: "rgba(239,68,68,0.06)",
+            color: "#f87171",
+            fontSize: "12px",
+            fontWeight: 700,
+          }}
+        >
+          Dashboard API error: {overallError}
+        </div>
+      ) : null}
+    </div>
+  );
+}
