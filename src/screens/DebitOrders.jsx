@@ -1581,13 +1581,15 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     .tt-do-ddWrap {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     .tt-do-ddLabel {
-      font-size: 12px;
-      color: rgba(255,255,255,0.55);
-      font-weight: 800;
+      font-size: 11px;
+      color: rgba(255,255,255,0.62);
+      font-weight: 900;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
     }
 
     .tt-do-ddRel {
@@ -1596,98 +1598,110 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     }
 
     .tt-do-ddBtn {
-      height: 34px;
+      height: 30px;
       padding: 0 12px;
       border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.78);
+      border: 1px solid rgba(255,255,255,0.88);
       background:
-        linear-gradient(180deg, rgba(26,20,48,0.96) 0%, rgba(14,12,28,0.96) 100%);
-      color: rgba(255,255,255,0.92);
+        linear-gradient(180deg, rgba(56,38,92,0.98) 0%, rgba(36,23,63,0.98) 100%);
+      color: rgba(255,255,255,0.96);
       display: inline-flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 900;
-      letter-spacing: 0.15px;
-      min-width: 130px;
+      letter-spacing: -0.01em;
+      min-width: 106px;
       box-sizing: border-box;
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.04),
-        0 0 0 1px rgba(168,85,247,0.06);
+        inset 0 1px 0 rgba(255,255,255,0.07),
+        0 0 0 1px rgba(168,85,247,0.06),
+        0 10px 24px rgba(35,12,79,0.24);
       transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, background 160ms ease;
     }
 
     .tt-do-ddBtn:hover {
       transform: translateY(-1px);
-      border-color: rgba(255,255,255,0.92);
+      border-color: rgba(255,255,255,0.96);
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.05),
-        0 12px 28px rgba(124,58,237,0.18);
+        inset 0 1px 0 rgba(255,255,255,0.08),
+        0 0 0 1px rgba(168,85,247,0.08),
+        0 14px 28px rgba(58,22,122,0.28);
     }
 
     .tt-do-ddBtnOpen {
       background:
-        linear-gradient(180deg, rgba(38,28,68,0.98) 0%, rgba(18,14,36,0.98) 100%);
+        linear-gradient(180deg, rgba(61,41,102,0.99) 0%, rgba(34,21,61,0.99) 100%);
       border-color: rgba(255,255,255,0.96);
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.05),
-        0 14px 32px rgba(124,58,237,0.22);
+        inset 0 1px 0 rgba(255,255,255,0.08),
+        0 0 0 1px rgba(168,85,247,0.08),
+        0 16px 34px rgba(58,22,122,0.34);
     }
 
     .tt-do-ddCaret {
-      opacity: 0.95;
+      opacity: 0.98;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       flex: 0 0 auto;
+      transition: transform 160ms ease;
+    }
+
+    .tt-do-ddBtnOpen .tt-do-ddCaret {
+      transform: rotate(180deg);
     }
 
     .tt-do-ddMenu {
       position: absolute;
-      top: 40px;
-      left: 0;
-      min-width: 190px;
+      top: calc(100% + 6px);
+      right: 0;
+      left: auto;
+      min-width: 152px;
       border-radius: 14px;
-      border: 1px solid rgba(168,85,247,0.26);
+      border: 1px solid rgba(124,58,237,0.34);
       background:
-        linear-gradient(180deg, rgba(12,10,28,0.98) 0%, rgba(8,8,20,0.98) 100%);
+        linear-gradient(180deg, rgba(9,8,20,0.99) 0%, rgba(5,5,14,0.99) 100%);
       box-shadow:
-        0 18px 50px rgba(0,0,0,0.45),
-        0 0 0 1px rgba(168,85,247,0.06);
-      backdrop-filter: blur(14px);
+        0 22px 52px rgba(0,0,0,0.52),
+        0 0 0 1px rgba(168,85,247,0.05),
+        inset 0 1px 0 rgba(255,255,255,0.03);
+      backdrop-filter: blur(18px);
       overflow: hidden;
       z-index: 60;
     }
 
     .tt-do-ddItem {
       width: 100%;
-      padding: 10px 12px;
+      min-height: 38px;
+      padding: 0 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
       cursor: pointer;
-      font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 0.2px;
-      color: rgba(255,255,255,0.88);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: -0.01em;
+      color: rgba(255,255,255,0.92);
       background: transparent;
       border-left: none;
       border-right: none;
       border-top: none;
       outline: none;
+      text-align: left;
       transition: background 160ms ease;
     }
 
     .tt-do-ddItem:hover {
-      background: rgba(168,85,247,0.12);
+      background: rgba(124,58,237,0.10);
     }
 
     .tt-do-ddItemActive {
-      background: linear-gradient(90deg, rgba(168,85,247,0.22), rgba(124,58,237,0.12));
-      color: rgba(255,255,255,0.96);
+      background: linear-gradient(90deg, rgba(124,58,237,0.22), rgba(91,33,182,0.10));
+      color: rgba(255,255,255,0.98);
     }
 
     .tt-do-ddTick {
@@ -1697,8 +1711,11 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: rgba(168,85,247,0.25);
-      border: 1px solid rgba(168,85,247,0.35);
+      background: linear-gradient(180deg, rgba(168,85,247,0.32) 0%, rgba(124,58,237,0.26) 100%);
+      border: 1px solid rgba(168,85,247,0.45);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 6px 16px rgba(124,58,237,0.18);
       font-weight: 900;
       flex: 0 0 auto;
     }
