@@ -2114,8 +2114,7 @@ export default function Dashboard() {
                 <h3 className="ttd-panelTitle">Cycle health and pressure</h3>
                 <p className="ttd-panelSub">Fast finance view for latest run health, exception pressure, and collection quality</p>
               </div>
-            </div>
-
+            
             <div className="ttd-opGrid">
               <div className="ttd-opStat">
                 <div className="ttd-opLabel">
