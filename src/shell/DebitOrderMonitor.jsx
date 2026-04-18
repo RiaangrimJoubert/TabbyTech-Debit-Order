@@ -34,7 +34,8 @@ function hasFreshDebitOrderMonitorCache(startDate, endDate) {
     !!debitOrderMonitorCache.attemptsData &&
     debitOrderMonitorCache.startDate === String(startDate || "") &&
     debitOrderMonitorCache.endDate === String(endDate || "") &&
-    Date.now() - Number(debitOrderMonitorCache.lastLoadedAt || 0) < DEBIT_ORDER_MONITOR_CACHE_TTL_MS
+    Date.now() - Number(debitOrderMonitorCache.lastLoadedAt || 0) <
+      DEBIT_ORDER_MONITOR_CACHE_TTL_MS
   );
 }
 
@@ -102,7 +103,11 @@ function parseYmdLocal(value) {
   const mo = Number(m[2]) - 1;
   const d = Number(m[3]);
   const dt = new Date(y, mo, d);
-  if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) {
+  if (
+    dt.getFullYear() !== y ||
+    dt.getMonth() !== mo ||
+    dt.getDate() !== d
+  ) {
     return null;
   }
   return dt;
@@ -122,6 +127,22 @@ function useOnClickOutside(ref, handler) {
       window.removeEventListener("touchstart", onDown);
     };
   }, [ref, handler]);
+}
+
+function useWindowWidth() {
+  const [width, setWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1440
+  );
+
+  useEffect(() => {
+    function onResize() {
+      setWidth(window.innerWidth);
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  return width;
 }
 
 function normalizeOutcome(status) {
@@ -209,7 +230,9 @@ function PremiumDatePicker({ value, onChange, ariaLabel }) {
               ‹
             </button>
 
-            <div className="tdm-dateMonthLabel">{formatPickerMonth(viewDate)}</div>
+            <div className="tdm-dateMonthLabel">
+              {formatPickerMonth(viewDate)}
+            </div>
 
             <button
               type="button"
@@ -232,7 +255,12 @@ function PremiumDatePicker({ value, onChange, ariaLabel }) {
           <div className="tdm-dateGrid">
             {cells.map((cell) => {
               if (cell.type === "empty") {
-                return <div key={cell.key} className="tdm-dateCell tdm-dateCellEmpty" />;
+                return (
+                  <div
+                    key={cell.key}
+                    className="tdm-dateCell tdm-dateCellEmpty"
+                  />
+                );
               }
 
               const cls = [
@@ -287,14 +315,32 @@ function exportRowsToCsv(filename, rows, columns) {
 }
 
 const IconClock = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <circle cx="12" cy="12" r="10"></circle>
     <polyline points="12 6 12 12 16 14"></polyline>
   </svg>
 );
 
 const IconList = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <line x1="8" y1="6" x2="21" y2="6"></line>
     <line x1="8" y1="12" x2="21" y2="12"></line>
     <line x1="8" y1="18" x2="21" y2="18"></line>
@@ -305,14 +351,32 @@ const IconList = () => (
 );
 
 const IconArrowUp = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <line x1="12" y1="19" x2="12" y2="5"></line>
     <polyline points="5 12 12 5 19 12"></polyline>
   </svg>
 );
 
 const IconArrowDown = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <line x1="12" y1="5" x2="12" y2="19"></line>
     <polyline points="19 12 12 19 5 12"></polyline>
   </svg>
@@ -323,7 +387,8 @@ function Card({ children, style = {}, glow = false }) {
     <div
       className={cx("glass-panel", glow && "glow-border")}
       style={{
-        background: "linear-gradient(145deg, rgba(26, 26, 46, 0.4) 0%, rgba(18, 18, 31, 0.6) 100%)",
+        background:
+          "linear-gradient(145deg, rgba(26, 26, 46, 0.4) 0%, rgba(18, 18, 31, 0.6) 100%)",
         backdropFilter: "blur(12px)",
         border: "1px solid rgba(139, 92, 246, 0.15)",
         borderRadius: "16px",
@@ -339,14 +404,46 @@ function Card({ children, style = {}, glow = false }) {
 
 function StatusBadge({ status, children }) {
   const styles = {
-    running: { background: "rgba(34, 197, 94, 0.1)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.2)" },
-    queued: { background: "rgba(234, 179, 8, 0.1)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.2)" },
-    failed: { background: "rgba(239, 68, 68, 0.1)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.2)" },
-    partial: { background: "rgba(249, 115, 22, 0.1)", color: "#fb923c", border: "1px solid rgba(249, 115, 22, 0.2)" },
-    ok: { background: "rgba(34, 197, 94, 0.1)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.2)" },
-    retry: { background: "rgba(139, 92, 246, 0.1)", color: "#a78bfa", border: "1px solid rgba(139, 92, 246, 0.2)" },
-    pending: { background: "rgba(59, 130, 246, 0.1)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.2)" },
-    suspended: { background: "rgba(107, 114, 128, 0.14)", color: "#d1d5db", border: "1px solid rgba(107, 114, 128, 0.2)" },
+    running: {
+      background: "rgba(34, 197, 94, 0.1)",
+      color: "#4ade80",
+      border: "1px solid rgba(34, 197, 94, 0.2)",
+    },
+    queued: {
+      background: "rgba(234, 179, 8, 0.1)",
+      color: "#facc15",
+      border: "1px solid rgba(234, 179, 8, 0.2)",
+    },
+    failed: {
+      background: "rgba(239, 68, 68, 0.1)",
+      color: "#f87171",
+      border: "1px solid rgba(239, 68, 68, 0.2)",
+    },
+    partial: {
+      background: "rgba(249, 115, 22, 0.1)",
+      color: "#fb923c",
+      border: "1px solid rgba(249, 115, 22, 0.2)",
+    },
+    ok: {
+      background: "rgba(34, 197, 94, 0.1)",
+      color: "#4ade80",
+      border: "1px solid rgba(34, 197, 94, 0.2)",
+    },
+    retry: {
+      background: "rgba(139, 92, 246, 0.1)",
+      color: "#a78bfa",
+      border: "1px solid rgba(139, 92, 246, 0.2)",
+    },
+    pending: {
+      background: "rgba(59, 130, 246, 0.1)",
+      color: "#60a5fa",
+      border: "1px solid rgba(59, 130, 246, 0.2)",
+    },
+    suspended: {
+      background: "rgba(107, 114, 128, 0.14)",
+      color: "#d1d5db",
+      border: "1px solid rgba(107, 114, 128, 0.2)",
+    },
   };
 
   const badgeStyle = styles[status] || styles.pending;
@@ -366,13 +463,41 @@ function StatusBadge({ status, children }) {
   );
 }
 
-function MetricCard({ title, value, subtext, trend, trendUp, icon, color = "purple" }) {
+function MetricCard({
+  title,
+  value,
+  subtext,
+  trend,
+  trendUp,
+  icon,
+  color = "purple",
+}) {
   const colorClasses = {
-    purple: { gradient: "linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(124, 58, 237, 0.05))", text: "#a78bfa" },
-    green: { gradient: "linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.05))", text: "#4ade80" },
-    orange: { gradient: "linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(234, 88, 12, 0.05))", text: "#fb923c" },
-    blue: { gradient: "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.05))", text: "#60a5fa" },
-    red: { gradient: "linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.05))", text: "#f87171" },
+    purple: {
+      gradient:
+        "linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(124, 58, 237, 0.05))",
+      text: "#a78bfa",
+    },
+    green: {
+      gradient:
+        "linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.05))",
+      text: "#4ade80",
+    },
+    orange: {
+      gradient:
+        "linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(234, 88, 12, 0.05))",
+      text: "#fb923c",
+    },
+    blue: {
+      gradient:
+        "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.05))",
+      text: "#60a5fa",
+    },
+    red: {
+      gradient:
+        "linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.05))",
+      text: "#f87171",
+    },
   };
 
   const colors = colorClasses[color] || colorClasses.purple;
@@ -394,8 +519,26 @@ function MetricCard({ title, value, subtext, trend, trendUp, icon, color = "purp
       </div>
 
       <div style={{ position: "relative", zIndex: 10 }}>
-        <p style={{ fontSize: "0.875rem", color: "#9ca3af", marginBottom: "0.5rem" }}>{title}</p>
-        <h3 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem", letterSpacing: "-0.025em" }}>{value}</h3>
+        <p
+          style={{
+            fontSize: "0.875rem",
+            color: "#9ca3af",
+            marginBottom: "0.5rem",
+          }}
+        >
+          {title}
+        </p>
+        <h3
+          style={{
+            fontSize: "1.5rem",
+            fontWeight: "bold",
+            color: "white",
+            marginBottom: "0.25rem",
+            letterSpacing: "-0.025em",
+          }}
+        >
+          {value}
+        </h3>
         <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>{subtext}</p>
 
         {trend ? (
@@ -483,12 +626,33 @@ function DonutChart({ data }) {
   const totalValue = data.reduce((acc, d) => acc + Number(d.value || 0), 0);
 
   return (
-    <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "12rem", height: "12rem", transform: "rotate(-90deg)" }}>
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ width: "12rem", height: "12rem", transform: "rotate(-90deg)" }}
+      >
         {data.map((item, index) => createArc(item.value, item.color, index))}
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
-        <div style={{ fontSize: "1.875rem", fontWeight: "bold", color: "white" }}>{totalValue}</div>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+        }}
+      >
+        <div style={{ fontSize: "1.875rem", fontWeight: "bold", color: "white" }}>
+          {totalValue}
+        </div>
         <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Total</div>
       </div>
     </div>
@@ -547,7 +711,6 @@ async function fetchJson(path) {
   return json;
 }
 
-/* FIX START: keep reports for debit stats, add dashboard cron-metrics for cron panel */
 async function fetchDebitOrderMonitorData({ startDate, endDate }) {
   const summaryQs = new URLSearchParams({
     startDate,
@@ -569,16 +732,47 @@ async function fetchDebitOrderMonitorData({ startDate, endDate }) {
 
   return { summaryJson, attemptsJson, cronJson };
 }
-/* FIX END */
 
 export default function DebitOrderMonitor() {
-  const [startDate, setStartDate] = useState(() => debitOrderMonitorCache.startDate || startOfMonthYmdLocal());
-  const [endDate, setEndDate] = useState(() => debitOrderMonitorCache.endDate || todayYmdLocal());
-  const [loading, setLoading] = useState(() => !hasFreshDebitOrderMonitorCache(startOfMonthYmdLocal(), todayYmdLocal()));
+  const windowWidth = useWindowWidth();
+  const isXL = windowWidth >= 1500;
+  const isDesktop = windowWidth >= 1200;
+  const isTablet = windowWidth >= 768 && windowWidth < 1200;
+  const isMobile = windowWidth < 768;
+
+  const kpiGridColumns = isXL
+    ? "repeat(4, 1fr)"
+    : isDesktop
+    ? "repeat(2, 1fr)"
+    : "1fr";
+
+  const middleGridColumns = isXL
+    ? "1.25fr 1fr 1fr"
+    : isDesktop
+    ? "1fr 1fr"
+    : "1fr";
+
+  const bottomGridColumns = isDesktop ? "1fr 1fr" : "1fr";
+
+  const [startDate, setStartDate] = useState(
+    () => debitOrderMonitorCache.startDate || startOfMonthYmdLocal()
+  );
+  const [endDate, setEndDate] = useState(
+    () => debitOrderMonitorCache.endDate || todayYmdLocal()
+  );
+  const [loading, setLoading] = useState(
+    () => !hasFreshDebitOrderMonitorCache(startOfMonthYmdLocal(), todayYmdLocal())
+  );
   const [error, setError] = useState(() => safeStr(debitOrderMonitorCache.error));
-  const [summaryData, setSummaryData] = useState(() => debitOrderMonitorCache.summaryData || null);
-  const [attemptsData, setAttemptsData] = useState(() => debitOrderMonitorCache.attemptsData || null);
-  const [cronData, setCronData] = useState(() => debitOrderMonitorCache.cronData || null);
+  const [summaryData, setSummaryData] = useState(
+    () => debitOrderMonitorCache.summaryData || null
+  );
+  const [attemptsData, setAttemptsData] = useState(
+    () => debitOrderMonitorCache.attemptsData || null
+  );
+  const [cronData, setCronData] = useState(
+    () => debitOrderMonitorCache.cronData || null
+  );
   const [attemptsPage, setAttemptsPage] = useState(1);
 
   useEffect(() => {
@@ -615,7 +809,8 @@ export default function DebitOrderMonitor() {
       try {
         setLoading(true);
         setError("");
-        const { summaryJson, attemptsJson, cronJson } = await fetchDebitOrderMonitorData({ startDate, endDate });
+        const { summaryJson, attemptsJson, cronJson } =
+          await fetchDebitOrderMonitorData({ startDate, endDate });
         if (!alive) return;
 
         setSummaryData(summaryJson);
@@ -661,7 +856,8 @@ export default function DebitOrderMonitor() {
     try {
       setLoading(true);
       setError("");
-      const { summaryJson, attemptsJson, cronJson } = await fetchDebitOrderMonitorData({ startDate, endDate });
+      const { summaryJson, attemptsJson, cronJson } =
+        await fetchDebitOrderMonitorData({ startDate, endDate });
 
       setSummaryData(summaryJson);
       setAttemptsData(attemptsJson);
@@ -768,28 +964,40 @@ export default function DebitOrderMonitor() {
   const retryScheduled = retryCount;
   const failed = failedCount;
 
-  /* FIX START: cron panel mapped only from dashboard cron-metrics */
   const cronPayload = cronData || {};
-  const cronLastRun = cronPayload?.lastRun || null;
+  const cronLatestRuns = Array.isArray(cronPayload?.latestRuns)
+    ? cronPayload.latestRuns
+    : [];
+  const attemptsTodayFromCron = cronPayload?.attemptsToday || {};
+
   const cronRuns = useMemo(() => {
-    if (!cronLastRun) return [];
-    return [
-      {
-        started_at: safeStr(cronLastRun?.startedAt || ""),
-        ended_at: safeStr(cronLastRun?.endedAt || ""),
-        result: safeStr(cronLastRun?.runStatus || ""),
-        success_count: safeNum(cronPayload?.attemptsToday?.success || 0),
-        fail_count: safeNum(cronPayload?.attemptsToday?.failed || 0),
-        last_error: safeStr(cronLastRun?.lastError || ""),
-      },
-    ];
-  }, [cronLastRun, cronPayload]);
-  /* FIX END */
+    return cronLatestRuns.map((run, index) => {
+      const summary = run?.summary || {};
+      const successCountFromRun =
+        safeNum(summary?.success) ||
+        (index === 0 ? safeNum(attemptsTodayFromCron?.SUCCESS || attemptsTodayFromCron?.success) : 0);
+
+      const failCountFromRun =
+        safeNum(summary?.failed) ||
+        (index === 0 ? safeNum(attemptsTodayFromCron?.FAILED || attemptsTodayFromCron?.failed) : 0);
+
+      return {
+        started_at: safeStr(run?.startedAt),
+        ended_at: safeStr(run?.endedAt),
+        result: safeStr(run?.runStatus),
+        success_count: successCountFromRun,
+        fail_count: failCountFromRun,
+        last_error: safeStr(run?.lastError),
+      };
+    });
+  }, [cronLatestRuns, attemptsTodayFromCron]);
 
   const recentAttempts = useMemo(() => {
     return attemptsRows
       .slice()
-      .sort((a, b) => String(b.attemptedAt || "").localeCompare(String(a.attemptedAt || "")))
+      .sort((a, b) =>
+        String(b.attemptedAt || "").localeCompare(String(a.attemptedAt || ""))
+      )
       .map((row) => ({
         created_at: row.attemptedAt,
         client_id: row.clientId,
@@ -800,8 +1008,12 @@ export default function DebitOrderMonitor() {
       }));
   }, [attemptsRows]);
 
-  const attemptsPageCount = Math.max(1, Math.ceil(recentAttempts.length / ATTEMPTS_PER_PAGE));
+  const attemptsPageCount = Math.max(
+    1,
+    Math.ceil(recentAttempts.length / ATTEMPTS_PER_PAGE)
+  );
   const currentAttemptsPage = Math.min(attemptsPage, attemptsPageCount);
+
   const pagedRecentAttempts = useMemo(() => {
     const start = (currentAttemptsPage - 1) * ATTEMPTS_PER_PAGE;
     return recentAttempts.slice(start, start + ATTEMPTS_PER_PAGE);
@@ -815,7 +1027,8 @@ export default function DebitOrderMonitor() {
   };
 
   const healthDonut = useMemo(() => {
-    const total = successCount + failedCount + retryCount + pendingCount + suspendedCount;
+    const total =
+      successCount + failedCount + retryCount + pendingCount + suspendedCount;
     if (total <= 0) {
       return [
         { name: "Successful", value: 0, color: "#10b981" },
@@ -867,10 +1080,30 @@ export default function DebitOrderMonitor() {
     const total = Math.max(1, by.success + by.failed + by.retry + by.pending);
 
     return [
-      { label: "Successful", value: by.success, pct: Math.round((by.success / total) * 100), color: "#10b981" },
-      { label: "Failed", value: by.failed, pct: Math.round((by.failed / total) * 100), color: "#ef4444" },
-      { label: "Scheduled retry queued", value: by.retry, pct: Math.round((by.retry / total) * 100), color: "#8b5cf6" },
-      { label: "Pending", value: by.pending, pct: Math.round((by.pending / total) * 100), color: "#60a5fa" },
+      {
+        label: "Successful",
+        value: by.success,
+        pct: Math.round((by.success / total) * 100),
+        color: "#10b981",
+      },
+      {
+        label: "Failed",
+        value: by.failed,
+        pct: Math.round((by.failed / total) * 100),
+        color: "#ef4444",
+      },
+      {
+        label: "Scheduled retry queued",
+        value: by.retry,
+        pct: Math.round((by.retry / total) * 100),
+        color: "#8b5cf6",
+      },
+      {
+        label: "Pending",
+        value: by.pending,
+        pct: Math.round((by.pending / total) * 100),
+        color: "#60a5fa",
+      },
     ];
   }, [failedCount, pendingCount, retryCount, successCount, suspendedCount]);
 
@@ -898,7 +1131,8 @@ export default function DebitOrderMonitor() {
     []
   );
 
-  const isLive = !error && (!!summaryData?.ok || !!attemptsData?.ok || !!cronData?.ok);
+  const isLive =
+    !error && (!!summaryData?.ok || !!attemptsData?.ok || !!cronData?.ok);
 
   return (
     <div
@@ -1122,15 +1356,24 @@ export default function DebitOrderMonitor() {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-start",
+          alignItems: isMobile ? "stretch" : "flex-start",
           marginBottom: "1.5rem",
           padding: "0 0.5rem",
           gap: "1rem",
           flexWrap: "wrap",
+          flexDirection: isMobile ? "column" : "row",
         }}
       >
-        <div>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem", letterSpacing: "-0.025em" }}>
+        <div style={{ minWidth: 0 }}>
+          <h2
+            style={{
+              fontSize: isMobile ? "1.25rem" : "1.5rem",
+              fontWeight: "bold",
+              color: "white",
+              marginBottom: "0.25rem",
+              letterSpacing: "-0.025em",
+            }}
+          >
             Debit Order Monitor
           </h2>
           <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>
@@ -1140,22 +1383,63 @@ export default function DebitOrderMonitor() {
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "end", gap: "0.75rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: isMobile ? "stretch" : "end",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+            justifyContent: isMobile ? "stretch" : "flex-end",
+            width: isMobile ? "100%" : "auto",
+          }}
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <span style={{ fontSize: "11px", fontWeight: 800, color: "rgba(255,255,255,0.62)" }}>Start date</span>
-            <PremiumDatePicker value={startDate} onChange={setStartDate} ariaLabel="Start date" />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 800,
+                color: "rgba(255,255,255,0.62)",
+              }}
+            >
+              Start date
+            </span>
+            <PremiumDatePicker
+              value={startDate}
+              onChange={setStartDate}
+              ariaLabel="Start date"
+            />
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <span style={{ fontSize: "11px", fontWeight: 800, color: "rgba(255,255,255,0.62)" }}>End date</span>
-            <PremiumDatePicker value={endDate} onChange={setEndDate} ariaLabel="End date" />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 800,
+                color: "rgba(255,255,255,0.62)",
+              }}
+            >
+              End date
+            </span>
+            <PremiumDatePicker
+              value={endDate}
+              onChange={setEndDate}
+              ariaLabel="End date"
+            />
           </div>
 
-          <PremiumButton title="Apply date range to debit order monitor" onClick={applyRange} disabled={loading}>
+          <PremiumButton
+            title="Apply date range to debit order monitor"
+            onClick={applyRange}
+            disabled={loading}
+          >
             Apply range
           </PremiumButton>
 
-          <PremiumButton title="Refresh debit order monitor" onClick={syncNow} disabled={loading}>
+          <PremiumButton
+            title="Refresh debit order monitor"
+            onClick={syncNow}
+            disabled={loading}
+          >
             {loading ? "Syncing..." : "Sync now"}
           </PremiumButton>
 
@@ -1166,8 +1450,12 @@ export default function DebitOrderMonitor() {
               gap: "0.5rem",
               padding: "0.375rem 0.75rem",
               borderRadius: "9999px",
-              backgroundColor: isLive ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)",
-              border: isLive ? "1px solid rgba(34, 197, 94, 0.2)" : "1px solid rgba(239, 68, 68, 0.2)",
+              backgroundColor: isLive
+                ? "rgba(34, 197, 94, 0.1)"
+                : "rgba(239, 68, 68, 0.1)",
+              border: isLive
+                ? "1px solid rgba(34, 197, 94, 0.2)"
+                : "1px solid rgba(239, 68, 68, 0.2)",
               color: isLive ? "#4ade80" : "#f87171",
               fontSize: "0.875rem",
             }}
@@ -1193,15 +1481,24 @@ export default function DebitOrderMonitor() {
               color: "#9ca3af",
               fontSize: "0.75rem",
               fontFamily: "monospace",
+              whiteSpace: isMobile ? "normal" : "nowrap",
             }}
             title="Selected monitor range"
           >
-            {fmtDate(filters?.startDate || startDate)} to {fmtDate(filters?.endDate || endDate)}
+            {fmtDate(filters?.startDate || startDate)} to{" "}
+            {fmtDate(filters?.endDate || endDate)}
           </div>
         </div>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: kpiGridColumns,
+          gap: "1rem",
+          marginBottom: "1.5rem",
+        }}
+      >
         <MetricCard
           title="Attempts in range"
           value={String(kpis.dueInRange)}
@@ -1243,54 +1540,155 @@ export default function DebitOrderMonitor() {
         />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.25fr 1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: middleGridColumns,
+          gap: "1rem",
+          marginBottom: "1.5rem",
+          alignItems: "start",
+        }}
+      >
         <Card style={{ padding: "1.25rem" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Range health</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Successful vs failed vs scheduled retry vs pending</p>
+          <h3
+            style={{
+              fontSize: "1rem",
+              fontWeight: "bold",
+              color: "white",
+              marginBottom: "0.25rem",
+            }}
+          >
+            Range health
+          </h3>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>
+            Successful vs failed vs scheduled retry vs pending
+          </p>
 
           <div style={{ display: "flex", justifyContent: "center" }}>
             <DonutChart data={healthDonut} />
           </div>
 
-          <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div
+            style={{
+              marginTop: "1rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.5rem",
+            }}
+          >
             {healthDonut.map((item) => (
-              <div key={item.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div
+                key={item.name}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <div style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", backgroundColor: item.color }}></div>
-                  <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{item.name}</span>
+                  <div
+                    style={{
+                      width: "0.5rem",
+                      height: "0.5rem",
+                      borderRadius: "50%",
+                      backgroundColor: item.color,
+                    }}
+                  ></div>
+                  <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                    {item.name}
+                  </span>
                 </div>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "white" }}>{item.value}</span>
+                <span
+                  style={{ fontSize: "0.75rem", fontWeight: 600, color: "white" }}
+                >
+                  {item.value}
+                </span>
               </div>
             ))}
           </div>
         </Card>
 
         <Card style={{ padding: "1.25rem" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Schedule distribution</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Attempts, 25th schedule, retry, failed</p>
+          <h3
+            style={{
+              fontSize: "1rem",
+              fontWeight: "bold",
+              color: "white",
+              marginBottom: "0.25rem",
+            }}
+          >
+            Schedule distribution
+          </h3>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>
+            Attempts, 25th schedule, retry, failed
+          </p>
 
           <div style={{ display: "flex", justifyContent: "center" }}>
             <DonutChart data={scheduleDonut} />
           </div>
 
-          <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div
+            style={{
+              marginTop: "1rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.5rem",
+            }}
+          >
             {scheduleDonut.map((item) => (
-              <div key={item.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div
+                key={item.name}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <div style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", backgroundColor: item.color }}></div>
-                  <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{item.name}</span>
+                  <div
+                    style={{
+                      width: "0.5rem",
+                      height: "0.5rem",
+                      borderRadius: "50%",
+                      backgroundColor: item.color,
+                    }}
+                  ></div>
+                  <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                    {item.name}
+                  </span>
                 </div>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "white" }}>{item.value}</span>
+                <span
+                  style={{ fontSize: "0.75rem", fontWeight: 600, color: "white" }}
+                >
+                  {item.value}
+                </span>
               </div>
             ))}
           </div>
         </Card>
 
         <Card style={{ padding: "1.25rem" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Mini status list</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Snapshot for selected range</p>
+          <h3
+            style={{
+              fontSize: "1rem",
+              fontWeight: "bold",
+              color: "white",
+              marginBottom: "0.25rem",
+            }}
+          >
+            Mini status list
+          </h3>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>
+            Snapshot for selected range
+          </p>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+            }}
+          >
             {attemptStatusMini.map((s) => (
               <div
                 key={s.label}
@@ -1301,45 +1699,115 @@ export default function DebitOrderMonitor() {
                   border: "1px solid rgba(139, 92, 246, 0.1)",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.5rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    marginBottom: "0.5rem",
+                  }}
+                >
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <div style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", backgroundColor: s.color }}></div>
-                    <span style={{ fontSize: "0.875rem", color: "white", fontWeight: 600 }}>{s.label}</span>
+                    <div
+                      style={{
+                        width: "0.5rem",
+                        height: "0.5rem",
+                        borderRadius: "50%",
+                        backgroundColor: s.color,
+                      }}
+                    ></div>
+                    <span
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "white",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {s.label}
+                    </span>
                   </div>
-                  <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{s.value}</span>
+                  <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                    {s.value}
+                  </span>
                 </div>
 
-                <div style={{ height: "0.25rem", backgroundColor: "rgba(55, 65, 81, 0.5)", borderRadius: "9999px", overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "0.25rem",
+                    backgroundColor: "rgba(55, 65, 81, 0.5)",
+                    borderRadius: "9999px",
+                    overflow: "hidden",
+                  }}
+                >
                   <div
                     style={{
                       height: "100%",
                       width: `${Math.min(100, Math.max(0, s.pct))}%`,
                       borderRadius: "9999px",
-                      background: s.label === "Scheduled retry queued" ? "linear-gradient(90deg, #8b5cf6, #a78bfa)" : s.color,
+                      background:
+                        s.label === "Scheduled retry queued"
+                          ? "linear-gradient(90deg, #8b5cf6, #a78bfa)"
+                          : s.color,
                       transition: "all 0.5s ease",
                     }}
                   ></div>
                 </div>
 
-                <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#6b7280" }}>{s.pct}% of selected range activity</div>
+                <div
+                  style={{
+                    marginTop: "0.5rem",
+                    fontSize: "0.75rem",
+                    color: "#6b7280",
+                  }}
+                >
+                  {s.pct}% of selected range activity
+                </div>
               </div>
             ))}
           </div>
         </Card>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-        <Card style={{ padding: "1.25rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: bottomGridColumns,
+          gap: "1rem",
+          alignItems: "start",
+        }}
+      >
+        <Card style={{ padding: "1.25rem", height: "fit-content" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1rem",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
             <div>
-              <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Last Cron run</h3>
+              <h3
+                style={{
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  color: "white",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Last Cron run
+              </h3>
               <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
                 Latest cron status
                 {error ? ` • API error: ${error}` : ""}
               </p>
             </div>
 
-            <PremiumButton title="Export Cron runs to CSV" onClick={() => exportRowsToCsv("cron_runs.csv", cronRuns, cronColumns)}>
+            <PremiumButton
+              title="Export Cron runs to CSV"
+              onClick={() => exportRowsToCsv("cron_runs.csv", cronRuns, cronColumns)}
+            >
               Export to Excel
             </PremiumButton>
           </div>
@@ -1347,12 +1815,35 @@ export default function DebitOrderMonitor() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ textAlign: "left", fontSize: "0.75rem", color: "#6b7280", borderBottom: "1px solid rgba(139, 92, 246, 0.1)" }}>
+                <tr
+                  style={{
+                    textAlign: "left",
+                    fontSize: "0.75rem",
+                    color: "#6b7280",
+                    borderBottom: "1px solid rgba(139, 92, 246, 0.1)",
+                  }}
+                >
                   <th style={{ paddingBottom: "0.75rem", fontWeight: 500 }}>Started</th>
                   <th style={{ paddingBottom: "0.75rem", fontWeight: 500 }}>Ended</th>
                   <th style={{ paddingBottom: "0.75rem", fontWeight: 500 }}>Status</th>
-                  <th style={{ paddingBottom: "0.75rem", fontWeight: 500, textAlign: "right" }}>OK</th>
-                  <th style={{ paddingBottom: "0.75rem", fontWeight: 500, textAlign: "right" }}>Fail</th>
+                  <th
+                    style={{
+                      paddingBottom: "0.75rem",
+                      fontWeight: 500,
+                      textAlign: "right",
+                    }}
+                  >
+                    OK
+                  </th>
+                  <th
+                    style={{
+                      paddingBottom: "0.75rem",
+                      fontWeight: 500,
+                      textAlign: "right",
+                    }}
+                  >
+                    Fail
+                  </th>
                 </tr>
               </thead>
 
@@ -1366,21 +1857,70 @@ export default function DebitOrderMonitor() {
                   else if (result === "SUCCESS") badge = "ok";
 
                   return (
-                    <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
-                      <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 500, fontSize: "0.75rem" }}>{fmtWhen(r?.started_at)}</td>
-                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(r?.ended_at)}</td>
-                      <td style={{ padding: "0.75rem 0" }}>
-                        <StatusBadge status={badge}>{result || "QUEUED"}</StatusBadge>
+                    <tr
+                      key={idx}
+                      style={{
+                        borderBottom: "1px solid rgba(139, 92, 246, 0.05)",
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: "0.75rem 0",
+                          color: "white",
+                          fontWeight: 500,
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        {fmtWhen(r?.started_at)}
                       </td>
-                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{Number(r?.success_count || 0)}</td>
-                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{Number(r?.fail_count || 0)}</td>
+                      <td
+                        style={{
+                          padding: "0.75rem 0",
+                          color: "#9ca3af",
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        {fmtWhen(r?.ended_at)}
+                      </td>
+                      <td style={{ padding: "0.75rem 0" }}>
+                        <StatusBadge status={badge}>
+                          {result || "QUEUED"}
+                        </StatusBadge>
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.75rem 0",
+                          textAlign: "right",
+                          color: "white",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {Number(r?.success_count || 0)}
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.75rem 0",
+                          textAlign: "right",
+                          color: "white",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {Number(r?.fail_count || 0)}
+                      </td>
                     </tr>
                   );
                 })}
 
                 {cronRuns.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
+                    <td
+                      colSpan={5}
+                      style={{
+                        padding: "1rem 0",
+                        color: "#6b7280",
+                        fontSize: "0.75rem",
+                      }}
+                    >
                       No cron data yet.
                     </td>
                   </tr>
@@ -1390,14 +1930,43 @@ export default function DebitOrderMonitor() {
           </div>
         </Card>
 
-        <Card style={{ padding: "1.25rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <Card style={{ padding: "1.25rem", height: "fit-content" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1rem",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
             <div>
-              <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Recent charge attempts</h3>
-              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Mapped from live reports attempts</p>
+              <h3
+                style={{
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  color: "white",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Recent charge attempts
+              </h3>
+              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                Mapped from live reports attempts
+              </p>
             </div>
 
-            <PremiumButton title="Export Attempts to CSV" onClick={() => exportRowsToCsv("charge_attempts_recent.csv", recentAttempts, attemptsColumns)}>
+            <PremiumButton
+              title="Export Attempts to CSV"
+              onClick={() =>
+                exportRowsToCsv(
+                  "charge_attempts_recent.csv",
+                  recentAttempts,
+                  attemptsColumns
+                )
+              }
+            >
               Export to Excel
             </PremiumButton>
           </div>
@@ -1405,10 +1974,25 @@ export default function DebitOrderMonitor() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ textAlign: "left", fontSize: "0.75rem", color: "#6b7280", borderBottom: "1px solid rgba(139, 92, 246, 0.1)" }}>
+                <tr
+                  style={{
+                    textAlign: "left",
+                    fontSize: "0.75rem",
+                    color: "#6b7280",
+                    borderBottom: "1px solid rgba(139, 92, 246, 0.1)",
+                  }}
+                >
                   <th style={{ paddingBottom: "0.75rem", fontWeight: 500 }}>Created</th>
                   <th style={{ paddingBottom: "0.75rem", fontWeight: 500 }}>Client id</th>
-                  <th style={{ paddingBottom: "0.75rem", fontWeight: 500, textAlign: "right" }}>Amount</th>
+                  <th
+                    style={{
+                      paddingBottom: "0.75rem",
+                      fontWeight: 500,
+                      textAlign: "right",
+                    }}
+                  >
+                    Amount
+                  </th>
                   <th style={{ paddingBottom: "0.75rem", fontWeight: 500 }}>Status</th>
                 </tr>
               </thead>
@@ -1423,14 +2007,46 @@ export default function DebitOrderMonitor() {
                   else if (st === "suspended") badge = "suspended";
 
                   return (
-                    <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
-                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtDateTime(a?.created_at)}</td>
-                      <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 600, fontSize: "0.75rem", fontFamily: "monospace" }}>
+                    <tr
+                      key={idx}
+                      style={{
+                        borderBottom: "1px solid rgba(139, 92, 246, 0.05)",
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: "0.75rem 0",
+                          color: "#9ca3af",
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        {fmtDateTime(a?.created_at)}
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.75rem 0",
+                          color: "white",
+                          fontWeight: 600,
+                          fontSize: "0.75rem",
+                          fontFamily: "monospace",
+                        }}
+                      >
                         {safeStr(a?.client_id || "") || "N/A"}
                       </td>
-                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{safeNum(a?.amount || 0)}</td>
+                      <td
+                        style={{
+                          padding: "0.75rem 0",
+                          textAlign: "right",
+                          color: "white",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {safeNum(a?.amount || 0)}
+                      </td>
                       <td style={{ padding: "0.75rem 0" }}>
-                        <StatusBadge status={badge}>{st ? st.toUpperCase() : "PENDING"}</StatusBadge>
+                        <StatusBadge status={badge}>
+                          {st ? st.toUpperCase() : "PENDING"}
+                        </StatusBadge>
                       </td>
                     </tr>
                   );
@@ -1438,7 +2054,14 @@ export default function DebitOrderMonitor() {
 
                 {pagedRecentAttempts.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
+                    <td
+                      colSpan={4}
+                      style={{
+                        padding: "1rem 0",
+                        color: "#6b7280",
+                        fontSize: "0.75rem",
+                      }}
+                    >
                       No charge attempt data in the selected range.
                     </td>
                   </tr>
@@ -1464,7 +2087,9 @@ export default function DebitOrderMonitor() {
             <button
               type="button"
               className="tdm-pageBtn"
-              onClick={() => setAttemptsPage((p) => Math.min(attemptsPageCount, p + 1))}
+              onClick={() =>
+                setAttemptsPage((p) => Math.min(attemptsPageCount, p + 1))
+              }
               disabled={currentAttemptsPage >= attemptsPageCount}
             >
               Next
