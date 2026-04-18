@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 const ATTEMPTS_PER_PAGE = 10;
+const CRON_PER_PAGE = 10;
 
 let debitOrderMonitorCache = {
   summaryData: null,
@@ -774,6 +775,7 @@ export default function DebitOrderMonitor() {
     () => debitOrderMonitorCache.cronData || null
   );
   const [attemptsPage, setAttemptsPage] = useState(1);
+  const [cronPage, setCronPage] = useState(1);
 
   useEffect(() => {
     debitOrderMonitorCache = {
@@ -791,6 +793,10 @@ export default function DebitOrderMonitor() {
   useEffect(() => {
     setAttemptsPage(1);
   }, [startDate, endDate]);
+
+  useEffect(() => {
+    setCronPage(1);
+  }, [cronData]);
 
   useEffect(() => {
     let alive = true;
@@ -975,11 +981,15 @@ export default function DebitOrderMonitor() {
       const summary = run?.summary || {};
       const successCountFromRun =
         safeNum(summary?.success) ||
-        (index === 0 ? safeNum(attemptsTodayFromCron?.SUCCESS || attemptsTodayFromCron?.success) : 0);
+        (index === 0
+          ? safeNum(attemptsTodayFromCron?.SUCCESS || attemptsTodayFromCron?.success)
+          : 0);
 
       const failCountFromRun =
         safeNum(summary?.failed) ||
-        (index === 0 ? safeNum(attemptsTodayFromCron?.FAILED || attemptsTodayFromCron?.failed) : 0);
+        (index === 0
+          ? safeNum(attemptsTodayFromCron?.FAILED || attemptsTodayFromCron?.failed)
+          : 0);
 
       return {
         started_at: safeStr(run?.startedAt),
@@ -1018,6 +1028,14 @@ export default function DebitOrderMonitor() {
     const start = (currentAttemptsPage - 1) * ATTEMPTS_PER_PAGE;
     return recentAttempts.slice(start, start + ATTEMPTS_PER_PAGE);
   }, [recentAttempts, currentAttemptsPage]);
+
+  const cronPageCount = Math.max(1, Math.ceil(cronRuns.length / CRON_PER_PAGE));
+  const currentCronPage = Math.min(cronPage, cronPageCount);
+
+  const pagedCronRuns = useMemo(() => {
+    const start = (currentCronPage - 1) * CRON_PER_PAGE;
+    return cronRuns.slice(start, start + CRON_PER_PAGE);
+  }, [cronRuns, currentCronPage]);
 
   const kpis = {
     dueInRange,
@@ -1848,7 +1866,7 @@ export default function DebitOrderMonitor() {
               </thead>
 
               <tbody style={{ fontSize: "0.875rem" }}>
-                {cronRuns.slice(0, 10).map((r, idx) => {
+                {pagedCronRuns.map((r, idx) => {
                   const result = safeStr(r?.result || "").toUpperCase();
                   let badge = "queued";
                   if (result === "RUNNING") badge = "running";
@@ -1911,7 +1929,7 @@ export default function DebitOrderMonitor() {
                   );
                 })}
 
-                {cronRuns.length === 0 ? (
+                {pagedCronRuns.length === 0 ? (
                   <tr>
                     <td
                       colSpan={5}
@@ -1927,6 +1945,30 @@ export default function DebitOrderMonitor() {
                 ) : null}
               </tbody>
             </table>
+          </div>
+
+          <div className="tdm-pageRow">
+            <button
+              type="button"
+              className="tdm-pageBtn"
+              onClick={() => setCronPage((p) => Math.max(1, p - 1))}
+              disabled={currentCronPage <= 1}
+            >
+              Back
+            </button>
+
+            <div className="tdm-pageText">
+              Page {currentCronPage} of {cronPageCount} · {cronRuns.length} records
+            </div>
+
+            <button
+              type="button"
+              className="tdm-pageBtn"
+              onClick={() => setCronPage((p) => Math.min(cronPageCount, p + 1))}
+              disabled={currentCronPage >= cronPageCount}
+            >
+              Next
+            </button>
           </div>
         </Card>
 
