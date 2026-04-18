@@ -14,6 +14,7 @@ const LS = {
 
 const SUMMARY_CACHE_MS = 10 * 60 * 1000;
 const CRON_LIVE_REFRESH_MS = 30 * 1000;
+const REPORTS_ATTEMPTS_PER_PAGE = 300;
 
 function useLocalStorageState(key, initialValue) {
   const [val, setVal] = useState(() => {
@@ -65,8 +66,7 @@ function formatZAR2(n) {
 }
 
 function fmtWhen(ts) {
-  if (!ts) return "";
-  return String(ts).trim();
+  return safeStr(ts);
 }
 
 function fmtDateShort(value) {
@@ -87,6 +87,19 @@ function fmtDateLong(value) {
     year: "numeric",
     month: "short",
     day: "2-digit",
+  });
+}
+
+function fmtDateTime(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -129,6 +142,13 @@ function toYmd(date) {
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function addDaysYmdLocal(ymd, days) {
+  const dt = parseYmdLocal(ymd);
+  if (!dt) return "";
+  dt.setDate(dt.getDate() + Number(days || 0));
+  return toYmd(dt);
 }
 
 function formatPickerMonth(date) {
@@ -175,7 +195,7 @@ function getApiBase() {
 }
 
 async function fetchJson(path) {
-  const base = getApiBase();
+  const base = getApiBase().replace(/\/+$/, "");
   const url = `${base}${path}`;
   const resp = await fetch(url, {
     method: "GET",
@@ -295,6 +315,17 @@ function normalizeBatchStatus(raw) {
   if (["QUEUED", "PENDING", "INITIATED", "CREATED"].includes(s)) return "Pending";
   if (["EXPORTED", "EXPORT"].includes(s)) return "Exported";
   if (["SENT"].includes(s)) return "Sent";
+  return s.charAt(0) + s.slice(1).toLowerCase();
+}
+
+function normalizeOutcome(raw) {
+  const s = safeStr(raw).toUpperCase();
+  if (!s) return "Pending";
+  if (s === "SUCCESS" || s === "PAID" || s === "SUCCESSFUL") return "Successful";
+  if (s === "FAILED") return "Failed";
+  if (s === "INITIATED" || s === "PENDING") return "Pending";
+  if (s === "RETRY" || s === "RETRY SCHEDULED") return "Retry Scheduled";
+  if (s === "SUSPENDED") return "Suspended";
   return s.charAt(0) + s.slice(1).toLowerCase();
 }
 
@@ -484,12 +515,7 @@ const IconTick = () => (
 
 function Card({ children, style = {}, className = "" }) {
   return (
-    <div
-      className={cx("ttd-card", className)}
-      style={{
-        ...style,
-      }}
-    >
+    <div className={cx("ttd-card", className)} style={{ ...style }}>
       {children}
     </div>
   );
@@ -737,12 +763,7 @@ function PremiumDatePicker({ value, onChange, ariaLabel }) {
           <div className="ttd-dateGrid">
             {cells.map((cell) => {
               if (cell.type === "empty") {
-                return (
-                  <div
-                    key={cell.key}
-                    className="ttd-dateCell ttd-dateCellEmpty"
-                  />
-                );
+                return <div key={cell.key} className="ttd-dateCell ttd-dateCellEmpty" />;
               }
 
               const cls = [
@@ -966,28 +987,255 @@ async function fetchCronMetrics() {
   return fetchJson("/api/dashboard/cron-metrics");
 }
 
-// FIX START: switched dashboard summary to explicit date range
-async function fetchDashboardSummary(startDate, endDate) {
-  const qs = new URLSearchParams({
+async function fetchDashboardReportsData(startDate, endDate) {
+  const summaryQs = new URLSearchParams({
     startDate: safeStr(startDate),
     endDate: safeStr(endDate),
   });
-  return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
+
+  const attemptsQs = new URLSearchParams({
+    startDate: safeStr(startDate),
+    endDate: safeStr(endDate),
+    page: "1",
+    perPage: String(REPORTS_ATTEMPTS_PER_PAGE),
+  });
+
+  const [summaryJson, attemptsJson] = await Promise.all([
+    fetchJson(`/api/reports/summary?${summaryQs.toString()}`),
+    fetchJson(`/api/reports/attempts?${attemptsQs.toString()}`),
+  ]);
+
+  return { summaryJson, attemptsJson };
 }
-// FIX END
 
 function resolveRealMetric(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function buildAttemptsRows(attemptsJson) {
+  const rawRows = Array.isArray(attemptsJson?.data?.attempts?.rows)
+    ? attemptsJson.data.attempts.rows
+    : Array.isArray(attemptsJson?.rows)
+    ? attemptsJson.rows
+    : [];
+
+  return rawRows.map((row, index) => {
+    const chargeDate = safeStr(row.chargeDate || row.charge_date || row.date);
+    const chargeDay =
+      safeNum(row.chargeDay || row.charge_day) ||
+      (chargeDate ? safeNum(chargeDate.slice(-2)) : 0);
+
+    return {
+      id: safeStr(row.rowId || row.id || `attempt-${index + 1}`),
+      clientId: safeStr(row.clientId || row.client_id),
+      clientName: safeStr(
+        row.clientName ||
+          row.client_name ||
+          row.name ||
+          row.client?.name ||
+          row.crmName
+      ),
+      chargeDate,
+      chargeDay,
+      status: safeStr(row.status || row.outcome),
+      outcome: normalizeOutcome(row.outcome || row.status),
+      reference: safeStr(row.reference || row.attempt_key),
+      failureReason: safeStr(row.failureReason || row.failure_reason || row.error || row.last_error),
+      attemptedAt: safeStr(row.attemptedAt || row.attempted_at || row.created_at),
+      amountZar: safeNum(row.amountZar || row.amount_zar || row.amount),
+    };
+  });
+}
+
+function buildPerformanceSeriesFromAttempts(attemptsRows, startDate, endDate) {
+  if (!safeStr(startDate) || !safeStr(endDate)) return [];
+
+  if (startDate === endDate) {
+    const slots = [
+      { label: "00:00", from: 0, to: 4 },
+      { label: "04:00", from: 4, to: 8 },
+      { label: "08:00", from: 8, to: 12 },
+      { label: "12:00", from: 12, to: 16 },
+      { label: "16:00", from: 16, to: 20 },
+      { label: "20:00", from: 20, to: 24 },
+      { label: "Now", from: 0, to: 24, cumulative: true },
+    ];
+
+    return slots.map((slot) => {
+      let successful = 0;
+      let failed = 0;
+      let retry = 0;
+
+      attemptsRows.forEach((row) => {
+        if (row.chargeDate !== startDate) return;
+
+        const dt = row.attemptedAt ? new Date(row.attemptedAt) : null;
+        const hour = dt && !Number.isNaN(dt.getTime()) ? dt.getHours() : 0;
+
+        const inRange = slot.cumulative
+          ? hour >= slot.from && hour < slot.to
+          : hour >= slot.from && hour < slot.to;
+
+        if (!inRange) return;
+
+        if (row.outcome === "Successful") successful += 1;
+        else if (row.outcome === "Failed") failed += 1;
+        else if (row.outcome === "Retry Scheduled") retry += 1;
+      });
+
+      return {
+        time: slot.label,
+        successful,
+        failed,
+        retry,
+      };
+    });
+  }
+
+  const bucketStart = addDaysYmdLocal(endDate, -6);
+  const bucketDates = [];
+  let cursor = bucketStart;
+
+  while (cursor && cursor <= endDate && bucketDates.length < 7) {
+    bucketDates.push(cursor);
+    cursor = addDaysYmdLocal(cursor, 1);
+  }
+
+  while (bucketDates.length < 7) {
+    const prev = bucketDates.length ? addDaysYmdLocal(bucketDates[0], -1) : endDate;
+    bucketDates.unshift(prev);
+  }
+
+  const map = new Map(
+    bucketDates.map((ymd) => [
+      ymd,
+      {
+        time: ymd.slice(5),
+        successful: 0,
+        failed: 0,
+        retry: 0,
+      },
+    ])
+  );
+
+  attemptsRows.forEach((row) => {
+    if (!row.chargeDate || row.chargeDate < startDate || row.chargeDate > endDate) return;
+    if (!map.has(row.chargeDate)) return;
+
+    const bucket = map.get(row.chargeDate);
+
+    if (row.outcome === "Successful") bucket.successful += 1;
+    else if (row.outcome === "Failed") bucket.failed += 1;
+    else if (row.outcome === "Retry Scheduled") bucket.retry += 1;
+  });
+
+  return bucketDates.map((d) => map.get(d));
+}
+
+function buildRetryDistributionFromAttempts(attemptsRows) {
+  let cycle25 = 0;
+  let retry1 = 0;
+  let other = 0;
+
+  attemptsRows.forEach((row) => {
+    if (row.outcome !== "Retry Scheduled") return;
+
+    if (safeNum(row.chargeDay) === 25) cycle25 += 1;
+    else if (safeNum(row.chargeDay) === 1) retry1 += 1;
+    else other += 1;
+  });
+
+  return [
+    { name: "25th Cycle", value: cycle25, color: "#22c55e" },
+    { name: "1st Retry", value: retry1, color: "#f59e0b" },
+    { name: "Other Retry", value: other, color: "#ef4444" },
+  ];
+}
+
+function buildRecentBatchesFromAttempts(attemptsRows, cronMetrics) {
+  const groups = new Map();
+
+  attemptsRows.forEach((row) => {
+    const key = safeStr(row.chargeDate) || "Unknown";
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        batch: key,
+        date: key,
+        items: 0,
+        value: 0,
+        success: 0,
+        failed: 0,
+        retry: 0,
+        suspended: 0,
+        runStatus: "",
+      });
+    }
+
+    const g = groups.get(key);
+    g.items += 1;
+    g.value += safeNum(row.amountZar);
+
+    if (row.outcome === "Successful") g.success += 1;
+    else if (row.outcome === "Failed") g.failed += 1;
+    else if (row.outcome === "Retry Scheduled") g.retry += 1;
+    else if (row.outcome === "Suspended") g.suspended += 1;
+  });
+
+  const latestRuns = Array.isArray(cronMetrics?.latestRuns) ? cronMetrics.latestRuns : [];
+  latestRuns.forEach((run) => {
+    const runDate = safeStr(run?.runDate || run?.startedAt).slice(0, 10);
+    if (!runDate) return;
+
+    if (!groups.has(runDate)) {
+      groups.set(runDate, {
+        batch: runDate,
+        date: runDate,
+        items: 0,
+        value: 0,
+        success: 0,
+        failed: 0,
+        retry: 0,
+        suspended: 0,
+        runStatus: safeStr(run?.runStatus),
+      });
+    } else {
+      const g = groups.get(runDate);
+      if (!g.runStatus) g.runStatus = safeStr(run?.runStatus);
+    }
+  });
+
+  return Array.from(groups.values())
+    .sort((a, b) => safeStr(b.batch).localeCompare(safeStr(a.batch)))
+    .slice(0, 10)
+    .map((g, index) => {
+      let status = "Pending";
+      if (safeNum(g.failed) > 0 && safeNum(g.success) > 0) status = "Partial";
+      else if (safeNum(g.failed) > 0) status = "Failed";
+      else if (safeNum(g.retry) > 0) status = "Retry Scheduled";
+      else if (safeNum(g.suspended) > 0) status = "Suspended";
+      else if (safeNum(g.success) > 0) status = "Successful";
+      else if (safeStr(g.runStatus)) status = normalizeBatchStatus(g.runStatus);
+
+      return normalizeDashboardBatchRow(
+        {
+          batch: g.batch,
+          date: g.date,
+          items: g.items,
+          value: g.value,
+          status,
+        },
+        index
+      );
+    });
+}
+
 export default function Dashboard() {
-  // FIX START: replace range state with premium date state
   const [startDate, setStartDate] = useLocalStorageState(LS.startDate, startOfMonthYmdLocal());
   const [endDate, setEndDate] = useLocalStorageState(LS.endDate, todayYmdLocal());
   const [appliedStartDate, setAppliedStartDate] = useState(() => safeStr(startDate) || startOfMonthYmdLocal());
   const [appliedEndDate, setAppliedEndDate] = useState(() => safeStr(endDate) || todayYmdLocal());
-  // FIX END
 
   const [subView] = useLocalStorageState(LS.subView, "monthly");
   const [metric] = useLocalStorageState(LS.metric, "revenue");
@@ -997,14 +1245,12 @@ export default function Dashboard() {
   const [cronLoading, setCronLoading] = useState(() => !getCronCache());
   const [cronError, setCronError] = useState("");
 
-  // FIX START: summary cache is now keyed by applied date range
-  const [dashboardSummary, setDashboardSummary] = useState(
+  const [reportsPayload, setReportsPayload] = useState(
     () => getSummaryCache(appliedStartDate, appliedEndDate)
   );
   const [summaryLoading, setSummaryLoading] = useState(
     () => !getSummaryCache(appliedStartDate, appliedEndDate)
   );
-  // FIX END
   const [summaryError, setSummaryError] = useState("");
 
   useEffect(() => {
@@ -1039,23 +1285,22 @@ export default function Dashboard() {
     };
   }, []);
 
-  // FIX START: summary loading is driven by appliedStartDate + appliedEndDate
   useEffect(() => {
     let alive = true;
     const cached = getSummaryCache(appliedStartDate, appliedEndDate);
 
     if (cached) {
-      setDashboardSummary(cached);
+      setReportsPayload(cached);
       setSummaryLoading(false);
     }
 
-    async function loadSummary() {
+    async function loadReports() {
       try {
         if (!cached) setSummaryLoading(true);
         setSummaryError("");
-        const data = await fetchDashboardSummary(appliedStartDate, appliedEndDate);
+        const data = await fetchDashboardReportsData(appliedStartDate, appliedEndDate);
         setSummaryCache(appliedStartDate, appliedEndDate, data);
-        if (alive) setDashboardSummary(data);
+        if (alive) setReportsPayload(data);
       } catch (e) {
         if (alive) setSummaryError(String(e?.message || e));
       } finally {
@@ -1063,43 +1308,59 @@ export default function Dashboard() {
       }
     }
 
-    loadSummary();
+    loadReports();
 
     return () => {
       alive = false;
     };
   }, [appliedStartDate, appliedEndDate]);
-  // FIX END
 
-  const summaryData = dashboardSummary?.data || {};
+  const reportsSummary = reportsPayload?.summaryJson || {};
+  const reportsAttempts = reportsPayload?.attemptsJson || {};
+
+  const summaryData = reportsSummary?.data || {};
   const summaryCards = summaryData?.cards || {};
-  const summaryCharts = summaryData?.charts || {};
-  const rawSummaryBatches = Array.isArray(summaryData?.batches) ? summaryData.batches : [];
+  const attemptsRows = useMemo(() => buildAttemptsRows(reportsAttempts), [reportsAttempts]);
 
-  const summaryBatches = useMemo(() => {
-    return rawSummaryBatches.map((row, index) => normalizeDashboardBatchRow(row, index));
-  }, [rawSummaryBatches]);
+  const successCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Successful").length,
+    [attemptsRows]
+  );
+
+  const failedCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Failed").length,
+    [attemptsRows]
+  );
+
+  const retryCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Retry Scheduled").length,
+    [attemptsRows]
+  );
+
+  const suspendedCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Suspended").length,
+    [attemptsRows]
+  );
+
+  const pendingCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Pending").length,
+    [attemptsRows]
+  );
+
+  const totalAttemptsInRange = attemptsRows.length;
 
   const attemptsToday = cronMetrics?.attemptsToday || {
-    attempted: safeNum(summaryCards.attemptedToday),
-    success: safeNum(summaryCards.successfulToday),
-    failed: safeNum(summaryCards.failedToday),
-    retry: safeNum(summaryCards.retryScheduledToday),
-    suspended: safeNum(summaryCards.suspendedToday),
+    attempted: totalAttemptsInRange,
+    success: safeNum(successCount),
+    failed: safeNum(failedCount),
+    retry: safeNum(retryCount),
+    suspended: safeNum(suspendedCount),
   };
 
   const cronLastRun = cronMetrics?.lastRun || null;
-  const summaryLastRun = summaryData?.cron?.lastRun || null;
+  const lastRun = cronLastRun || null;
 
-  const lastRun = cronLastRun || summaryLastRun || null;
-
-  const lastResult = String(
-    cronLastRun?.runStatus ||
-      cronLastRun?.result ||
-      summaryLastRun?.runStatus ||
-      summaryLastRun?.result ||
-      ""
-  ).toUpperCase();
+  const lastResult = String(cronLastRun?.runStatus || cronLastRun?.result || "").toUpperCase();
 
   let cronStatus = "queued";
   if (!lastRun) cronStatus = "queued";
@@ -1135,6 +1396,27 @@ export default function Dashboard() {
     },
   ];
 
+  const realTotalDebitOrderValue =
+    resolveRealMetric(summaryCards.totalScheduledValue) ||
+    resolveRealMetric(summaryCards.totalDebitOrderValue) ||
+    attemptsRows.reduce((sum, row) => sum + safeNum(row.amountZar), 0);
+
+  const realTotalCollected =
+    resolveRealMetric(summaryCards.totalCollected) ||
+    attemptsRows
+      .filter((row) => row.outcome === "Successful")
+      .reduce((sum, row) => sum + safeNum(row.amountZar), 0);
+
+  const realEstimatedFees =
+    resolveRealMetric(summaryCards.totalFees) ||
+    resolveRealMetric(summaryCards.estimatedPaystackFees) ||
+    0;
+
+  const realNetToBank =
+    resolveRealMetric(summaryCards.netToBank) ||
+    resolveRealMetric(summaryCards.estimatedMoneyToBank) ||
+    Math.max(0, safeNum(realTotalCollected) - safeNum(realEstimatedFees));
+
   const realMonthlyMRR =
     resolveRealMetric(summaryCards.monthlyMRR) ||
     resolveRealMetric(summaryCards.mrr) ||
@@ -1159,38 +1441,63 @@ export default function Dashboard() {
     resolveRealMetric(summaryCards.activeAnnualSubscriptions) ||
     0;
 
+  const successRate =
+    totalAttemptsInRange > 0 ? (safeNum(successCount) / totalAttemptsInRange) * 100 : 0;
+  const failureRate =
+    totalAttemptsInRange > 0 ? (safeNum(failedCount) / totalAttemptsInRange) * 100 : 0;
+  const retryRate =
+    totalAttemptsInRange > 0 ? (safeNum(retryCount) / totalAttemptsInRange) * 100 : 0;
+
+  const recentBatches = useMemo(
+    () => buildRecentBatchesFromAttempts(attemptsRows, cronMetrics),
+    [attemptsRows, cronMetrics]
+  );
+
   const data = useMemo(() => {
     return {
       top: {
-        totalDebitOrderValue: safeNum(summaryCards.totalDebitOrderValue),
-        totalCollected: safeNum(summaryCards.totalCollected),
-        estimatedMoneyToBank: safeNum(summaryCards.estimatedMoneyToBank),
-        estimatedPaystackFees: safeNum(summaryCards.estimatedPaystackFees),
-        retryScheduled: safeNum(summaryCards.retryScheduledToday),
-        suspended: safeNum(summaryCards.suspendedToday),
-        successRate: safeNum(summaryCards.successRate),
-        failureRate: safeNum(summaryCards.failureRate),
-        retryRate: safeNum(summaryCards.retryRate),
+        totalDebitOrderValue: safeNum(realTotalDebitOrderValue),
+        totalCollected: safeNum(realTotalCollected),
+        estimatedMoneyToBank: safeNum(realNetToBank),
+        estimatedPaystackFees: safeNum(realEstimatedFees),
+        retryScheduled: safeNum(retryCount),
+        suspended: safeNum(suspendedCount),
+        successRate: safeNum(successRate),
+        failureRate: safeNum(failureRate),
+        retryRate: safeNum(retryRate),
       },
       monthlyActive,
       annualActive,
       monthlyMRR: realMonthlyMRR,
       annualARR: realAnnualARR,
-      recentBatches: summaryBatches,
+      recentBatches,
     };
-  }, [summaryBatches, summaryCards, monthlyActive, annualActive, realMonthlyMRR, realAnnualARR]);
+  }, [
+    realTotalDebitOrderValue,
+    realTotalCollected,
+    realNetToBank,
+    realEstimatedFees,
+    retryCount,
+    suspendedCount,
+    successRate,
+    failureRate,
+    retryRate,
+    monthlyActive,
+    annualActive,
+    realMonthlyMRR,
+    realAnnualARR,
+    recentBatches,
+  ]);
 
   const debitPerformanceData = useMemo(() => {
-    return Array.isArray(summaryCharts?.debitPerformance) ? summaryCharts.debitPerformance : [];
-  }, [summaryCharts]);
+    return buildPerformanceSeriesFromAttempts(attemptsRows, appliedStartDate, appliedEndDate);
+  }, [attemptsRows, appliedStartDate, appliedEndDate]);
 
   const retryDistributionData = useMemo(() => {
-    return Array.isArray(summaryCharts?.retryDistribution) ? summaryCharts.retryDistribution : [];
-  }, [summaryCharts]);
+    return buildRetryDistributionFromAttempts(attemptsRows);
+  }, [attemptsRows]);
 
-  const filteredBatches = useMemo(() => {
-    return data.recentBatches;
-  }, [data.recentBatches]);
+  const filteredBatches = useMemo(() => data.recentBatches, [data.recentBatches]);
 
   useEffect(() => {
     if (!filteredBatches.length) return;
@@ -1210,23 +1517,24 @@ export default function Dashboard() {
 
   const outcomeTotal = Math.max(
     1,
-    safeNum(attemptsToday.success) +
-      safeNum(attemptsToday.failed) +
+    safeNum(successCount) +
+      safeNum(failedCount) +
       safeNum(data.top.retryScheduled) +
-      safeNum(data.top.suspended)
+      safeNum(data.top.suspended) +
+      safeNum(pendingCount)
   );
 
   const operationalSegments = [
     {
       label: "Successful",
-      value: safeNum(attemptsToday.success),
-      pct: (safeNum(attemptsToday.success) / outcomeTotal) * 100,
+      value: safeNum(successCount),
+      pct: (safeNum(successCount) / outcomeTotal) * 100,
       color: "#22c55e",
     },
     {
       label: "Failed",
-      value: safeNum(attemptsToday.failed),
-      pct: (safeNum(attemptsToday.failed) / outcomeTotal) * 100,
+      value: safeNum(failedCount),
+      pct: (safeNum(failedCount) / outcomeTotal) * 100,
       color: "#ef4444",
     },
     {
@@ -1255,7 +1563,10 @@ export default function Dashboard() {
       date: safeStr(b.date || ""),
     }));
 
-    exportRowsToCsv(`tabbytech-batches-${appliedStartDate}-${appliedEndDate}-${Date.now()}.csv`, rows);
+    exportRowsToCsv(
+      `tabbytech-batches-${appliedStartDate}-${appliedEndDate}-${Date.now()}.csv`,
+      rows
+    );
   }
 
   const batchDropdownOptions = filteredBatches.length
@@ -1265,7 +1576,6 @@ export default function Dashboard() {
       }))
     : [{ value: "", label: "No batches" }];
 
-  // FIX START: premium apply/sync handlers
   function applyRange() {
     if (safeStr(startDate) && safeStr(endDate) && startDate > endDate) {
       setSummaryError("Start date cannot be after end date.");
@@ -1291,16 +1601,15 @@ export default function Dashboard() {
       setSummaryLoading(true);
       setSummaryError("");
 
-      const data = await fetchDashboardSummary(nextStart, nextEnd);
+      const data = await fetchDashboardReportsData(nextStart, nextEnd);
       setSummaryCache(nextStart, nextEnd, data);
-      setDashboardSummary(data);
+      setReportsPayload(data);
     } catch (e) {
       setSummaryError(String(e?.message || e));
     } finally {
       setSummaryLoading(false);
     }
   }
-  // FIX END
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
@@ -1365,13 +1674,15 @@ export default function Dashboard() {
     .ttd-headerTools {
       display: inline-flex;
       align-items: flex-end;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 18px;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 22px;
       border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(12, 16, 33, 0.64);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+      background:
+        radial-gradient(circle at top right, rgba(124,58,237,0.12), transparent 32%),
+        linear-gradient(180deg, rgba(16,18,36,0.92) 0%, rgba(10,12,24,0.92) 100%);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 42px rgba(0,0,0,0.24);
       flex-wrap: wrap;
     }
 
@@ -1387,7 +1698,7 @@ export default function Dashboard() {
       font-size: 12px;
       font-weight: 700;
       white-space: nowrap;
-      height: 40px;
+      height: 42px;
     }
 
     .ttd-liveDot {
@@ -1396,6 +1707,11 @@ export default function Dashboard() {
       border-radius: 999px;
       background: #22c55e;
       animation: ttdPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes ttdPulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(0.9); }
     }
 
     .ttd-dateGroup {
@@ -1411,33 +1727,40 @@ export default function Dashboard() {
       margin-left: 2px;
     }
 
-    .ttd-datePickerWrap { position: relative; }
+    .ttd-datePickerWrap {
+      position: relative;
+    }
 
     .ttd-dateInput {
-      height: 40px;
-      min-width: 160px;
-      border-radius: 12px;
-      border: 1px solid rgba(168,85,247,0.65);
+      height: 42px;
+      min-width: 180px;
+      border-radius: 14px;
+      border: 1px solid rgba(168,85,247,0.70);
       background:
-        linear-gradient(135deg, rgba(168,85,247,0.18), rgba(124,58,237,0.18)),
+        linear-gradient(135deg, rgba(168,85,247,0.20), rgba(124,58,237,0.20)),
         rgba(0,0,0,0.45);
       color: rgba(255,255,255,0.96);
-      padding: 0 12px;
+      padding: 0 14px;
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 900;
       outline: none;
       display: inline-flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      box-shadow: 0 10px 24px rgba(124,58,237,0.12);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 14px 30px rgba(124,58,237,0.14);
       cursor: pointer;
       user-select: none;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
     }
 
     .ttd-dateInput:hover {
-      border-color: rgba(168,85,247,0.90);
-      box-shadow: 0 12px 28px rgba(124,58,237,0.22);
+      border-color: rgba(168,85,247,0.95);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 18px 34px rgba(124,58,237,0.22);
       transform: translateY(-1px);
     }
 
@@ -1445,21 +1768,24 @@ export default function Dashboard() {
       border-color: rgba(168,85,247,0.95);
       box-shadow:
         0 0 0 4px rgba(124,58,237,0.20),
-        0 16px 34px rgba(124,58,237,0.26);
+        0 18px 36px rgba(124,58,237,0.28);
     }
 
-    .ttd-dateCaret { opacity: 0.96; font-size: 12px; }
+    .ttd-dateCaret {
+      opacity: 0.96;
+      font-size: 12px;
+    }
 
     .ttd-datePopup {
       position: absolute;
-      top: 46px;
+      top: 48px;
       right: 0;
-      width: 292px;
-      border-radius: 16px;
+      width: 300px;
+      border-radius: 18px;
       border: 1px solid rgba(168,85,247,0.38);
-      background: linear-gradient(180deg, rgba(18,12,36,0.96) 0%, rgba(11,10,22,0.96) 100%);
+      background: linear-gradient(180deg, rgba(18,12,36,0.98) 0%, rgba(11,10,22,0.98) 100%);
       box-shadow: 0 24px 56px rgba(0,0,0,0.46);
-      backdrop-filter: blur(16px);
+      backdrop-filter: blur(18px);
       padding: 12px;
       z-index: 80;
       animation: ttdDatePopIn 140ms ease-out;
@@ -1486,8 +1812,8 @@ export default function Dashboard() {
     }
 
     .ttd-dateNavBtn {
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: 10px;
       border: 1px solid rgba(168,85,247,0.28);
       background: rgba(124,58,237,0.16);
@@ -1512,7 +1838,9 @@ export default function Dashboard() {
       gap: 6px;
     }
 
-    .ttd-dateWeekdays { margin-bottom: 6px; }
+    .ttd-dateWeekdays {
+      margin-bottom: 6px;
+    }
 
     .ttd-dateWeekday {
       height: 28px;
@@ -1561,9 +1889,9 @@ export default function Dashboard() {
     }
 
     .ttd-actionBtn {
-      min-width: 132px;
-      height: 40px;
-      padding: 0 16px;
+      min-width: 138px;
+      height: 42px;
+      padding: 0 18px;
       border-radius: 14px;
       border: 1px solid rgba(168,85,247,0.54);
       background: linear-gradient(135deg, rgba(168,85,247,0.98), rgba(124,58,237,0.98));
@@ -1612,20 +1940,15 @@ export default function Dashboard() {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 12px;
+      padding: 8px 14px;
       border-radius: 999px;
       background: rgba(18, 18, 31, 0.6);
       border: 1px solid rgba(139, 92, 246, 0.2);
-      color: #9ca3af;
+      color: #d1d5db;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
       white-space: nowrap;
-      height: 40px;
-    }
-
-    @keyframes ttdPulse {
-      0%,100% { opacity: 1; transform: scale(1); }
-      50% { opacity: .5; transform: scale(0.9); }
+      height: 42px;
     }
 
     .ttd-grid4 {
@@ -2350,14 +2673,12 @@ export default function Dashboard() {
             {overallError ? " • error" : ""}
             {subView ? ` • ${String(subView)}` : ""}
             {metric ? ` • ${String(metric)}` : ""}
-            {summaryData?.asOfDate ? ` • as of ${summaryData.asOfDate}` : ""}
             {` • ${nextCycleLabel}`}
           </p>
         </div>
 
         <div className="ttd-headerRight">
           <div className="ttd-headerTools">
-            {/* FIX START: premium date controls */}
             <div className="ttd-dateGroup">
               <span className="ttd-dateGroupLabel">Start date</span>
               <PremiumDatePicker
@@ -2387,7 +2708,6 @@ export default function Dashboard() {
             <div className="ttd-dateRangePill" title="Applied dashboard range">
               {fmtDateLong(appliedStartDate)} to {fmtDateLong(appliedEndDate)}
             </div>
-            {/* FIX END */}
 
             <div className="ttd-livePill">
               <span className="ttd-liveDot" />
@@ -2417,8 +2737,8 @@ export default function Dashboard() {
         <MetricCard
           title="Latest Successful Collections"
           value={formatZAR(data.top.totalCollected)}
-          subtext={`${safeNum(summaryCards.successfulToday)} successful items in current reporting period`}
-          trend={safeNum(summaryCards.successfulToday) > 0 ? "Successful collections in selected range" : "No successful collections in selected range"}
+          subtext={`${safeNum(successCount)} successful items in selected range`}
+          trend={safeNum(successCount) > 0 ? "Successful collections found" : "No successful collections in range"}
           trendUp={true}
           icon={IconCheckCircle}
           color="green"
@@ -2437,8 +2757,8 @@ export default function Dashboard() {
         <MetricCard
           title="Exceptions and Fees"
           value={formatZAR2(data.top.estimatedPaystackFees)}
-          subtext={`Failed ${safeNum(summaryCards.failedToday)} • Retry ${safeNum(data.top.retryScheduled)}`}
-          trend={safeNum(summaryCards.failedToday) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
+          subtext={`Failed ${safeNum(failedCount)} • Retry ${safeNum(data.top.retryScheduled)}`}
+          trend={safeNum(failedCount) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
           trendUp={false}
           icon={IconRedo}
           color="orange"
@@ -2506,7 +2826,7 @@ export default function Dashboard() {
 
             <div className="ttd-donutLayout">
               <DonutChart
-                centerValue={safeNum(summaryCards.attemptedToday)}
+                centerValue={safeNum(totalAttemptsInRange)}
                 centerLabel="Cycle items"
                 segments={operationalSegments}
               />
@@ -2653,7 +2973,7 @@ export default function Dashboard() {
                   </div>
 
                   <div className="ttd-cronRow">
-                    <span>Last run: {job.lastRun}</span>
+                    <span>Last run: {job.lastRun || "Not yet run"}</span>
                     <span style={{ color: job.status === "ok" ? "#4ade80" : job.status === "failed" ? "#f87171" : "#9ca3af" }}>
                       {job.status === "ok" ? "Healthy" : job.status === "failed" ? "Needs fix" : "Monitoring"}
                     </span>
