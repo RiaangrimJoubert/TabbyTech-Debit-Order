@@ -14,7 +14,6 @@ const LS = {
 
 const SUMMARY_CACHE_MS = 10 * 60 * 1000;
 const CRON_LIVE_REFRESH_MS = 30 * 1000;
-const REPORTS_ATTEMPTS_PER_PAGE = 300;
 
 function useLocalStorageState(key, initialValue) {
   const [val, setVal] = useState(() => {
@@ -66,7 +65,8 @@ function formatZAR2(n) {
 }
 
 function fmtWhen(ts) {
-  return safeStr(ts);
+  if (!ts) return "";
+  return String(ts).trim();
 }
 
 function fmtDateShort(value) {
@@ -87,19 +87,6 @@ function fmtDateLong(value) {
     year: "numeric",
     month: "short",
     day: "2-digit",
-  });
-}
-
-function fmtDateTime(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString("en-ZA", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
@@ -142,13 +129,6 @@ function toYmd(date) {
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
-}
-
-function addDaysYmdLocal(ymd, days) {
-  const dt = parseYmdLocal(ymd);
-  if (!dt) return "";
-  dt.setDate(dt.getDate() + Number(days || 0));
-  return toYmd(dt);
 }
 
 function formatPickerMonth(date) {
@@ -195,7 +175,7 @@ function getApiBase() {
 }
 
 async function fetchJson(path) {
-  const base = getApiBase().replace(/\/+$/, "");
+  const base = getApiBase();
   const url = `${base}${path}`;
   const resp = await fetch(url, {
     method: "GET",
@@ -315,17 +295,6 @@ function normalizeBatchStatus(raw) {
   if (["QUEUED", "PENDING", "INITIATED", "CREATED"].includes(s)) return "Pending";
   if (["EXPORTED", "EXPORT"].includes(s)) return "Exported";
   if (["SENT"].includes(s)) return "Sent";
-  return s.charAt(0) + s.slice(1).toLowerCase();
-}
-
-function normalizeOutcome(raw) {
-  const s = safeStr(raw).toUpperCase();
-  if (!s) return "Pending";
-  if (s === "SUCCESS" || s === "PAID" || s === "SUCCESSFUL") return "Successful";
-  if (s === "FAILED") return "Failed";
-  if (s === "INITIATED" || s === "PENDING") return "Pending";
-  if (s === "RETRY" || s === "RETRY SCHEDULED") return "Retry Scheduled";
-  if (s === "SUSPENDED") return "Suspended";
   return s.charAt(0) + s.slice(1).toLowerCase();
 }
 
@@ -515,7 +484,12 @@ const IconTick = () => (
 
 function Card({ children, style = {}, className = "" }) {
   return (
-    <div className={cx("ttd-card", className)} style={{ ...style }}>
+    <div
+      className={cx("ttd-card", className)}
+      style={{
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
@@ -763,7 +737,12 @@ function PremiumDatePicker({ value, onChange, ariaLabel }) {
           <div className="ttd-dateGrid">
             {cells.map((cell) => {
               if (cell.type === "empty") {
-                return <div key={cell.key} className="ttd-dateCell ttd-dateCellEmpty" />;
+                return (
+                  <div
+                    key={cell.key}
+                    className="ttd-dateCell ttd-dateCellEmpty"
+                  />
+                );
               }
 
               const cls = [
@@ -972,7 +951,7 @@ function LineTrendChart({ data }) {
         </svg>
       </div>
 
-      <div className="ttd-xAxis">
+      <div className="ttd-xAxis" style={{ gridTemplateColumns: `repeat(${Math.max(rows.length || 1, 1)}, minmax(0, 1fr))` }}>
         {rows.map((d, idx) => (
           <div key={`lx-${idx}`} className="ttd-xAxisLabel">
             {d.time}
@@ -987,255 +966,162 @@ async function fetchCronMetrics() {
   return fetchJson("/api/dashboard/cron-metrics");
 }
 
-async function fetchDashboardReportsData(startDate, endDate) {
-  const summaryQs = new URLSearchParams({
+// FIX START: switched dashboard summary to explicit date range
+async function fetchDashboardSummary(startDate, endDate) {
+  const qs = new URLSearchParams({
     startDate: safeStr(startDate),
     endDate: safeStr(endDate),
   });
-
-  const attemptsQs = new URLSearchParams({
-    startDate: safeStr(startDate),
-    endDate: safeStr(endDate),
-    page: "1",
-    perPage: String(REPORTS_ATTEMPTS_PER_PAGE),
-  });
-
-  const [summaryJson, attemptsJson] = await Promise.all([
-    fetchJson(`/api/reports/summary?${summaryQs.toString()}`),
-    fetchJson(`/api/reports/attempts?${attemptsQs.toString()}`),
-  ]);
-
-  return { summaryJson, attemptsJson };
+  return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
 }
+// FIX END
 
 function resolveRealMetric(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function buildAttemptsRows(attemptsJson) {
-  const rawRows = Array.isArray(attemptsJson?.data?.attempts?.rows)
-    ? attemptsJson.data.attempts.rows
-    : Array.isArray(attemptsJson?.rows)
-    ? attemptsJson.rows
-    : [];
 
-  return rawRows.map((row, index) => {
-    const chargeDate = safeStr(row.chargeDate || row.charge_date || row.date);
-    const chargeDay =
-      safeNum(row.chargeDay || row.charge_day) ||
-      (chargeDate ? safeNum(chargeDate.slice(-2)) : 0);
-
-    return {
-      id: safeStr(row.rowId || row.id || `attempt-${index + 1}`),
-      clientId: safeStr(row.clientId || row.client_id),
-      clientName: safeStr(
-        row.clientName ||
-          row.client_name ||
-          row.name ||
-          row.client?.name ||
-          row.crmName
-      ),
-      chargeDate,
-      chargeDay,
-      status: safeStr(row.status || row.outcome),
-      outcome: normalizeOutcome(row.outcome || row.status),
-      reference: safeStr(row.reference || row.attempt_key),
-      failureReason: safeStr(row.failureReason || row.failure_reason || row.error || row.last_error),
-      attemptedAt: safeStr(row.attemptedAt || row.attempted_at || row.created_at),
-      amountZar: safeNum(row.amountZar || row.amount_zar || row.amount),
-    };
-  });
-}
-
-function buildPerformanceSeriesFromAttempts(attemptsRows, startDate, endDate) {
-  if (!safeStr(startDate) || !safeStr(endDate)) return [];
-
-  if (startDate === endDate) {
-    const slots = [
-      { label: "00:00", from: 0, to: 4 },
-      { label: "04:00", from: 4, to: 8 },
-      { label: "08:00", from: 8, to: 12 },
-      { label: "12:00", from: 12, to: 16 },
-      { label: "16:00", from: 16, to: 20 },
-      { label: "20:00", from: 20, to: 24 },
-      { label: "Now", from: 0, to: 24, cumulative: true },
-    ];
-
-    return slots.map((slot) => {
-      let successful = 0;
-      let failed = 0;
-      let retry = 0;
-
-      attemptsRows.forEach((row) => {
-        if (row.chargeDate !== startDate) return;
-
-        const dt = row.attemptedAt ? new Date(row.attemptedAt) : null;
-        const hour = dt && !Number.isNaN(dt.getTime()) ? dt.getHours() : 0;
-
-        const inRange = slot.cumulative
-          ? hour >= slot.from && hour < slot.to
-          : hour >= slot.from && hour < slot.to;
-
-        if (!inRange) return;
-
-        if (row.outcome === "Successful") successful += 1;
-        else if (row.outcome === "Failed") failed += 1;
-        else if (row.outcome === "Retry Scheduled") retry += 1;
-      });
-
-      return {
-        time: slot.label,
-        successful,
-        failed,
-        retry,
-      };
-    });
+function readNumByKeys(source, keys, fallback = 0) {
+  const obj = source && typeof source === "object" ? source : {};
+  for (const key of keys) {
+    const value = obj?.[key];
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
   }
+  return fallback;
+}
 
-  const bucketStart = addDaysYmdLocal(endDate, -6);
-  const bucketDates = [];
-  let cursor = bucketStart;
-
-  while (cursor && cursor <= endDate && bucketDates.length < 7) {
-    bucketDates.push(cursor);
-    cursor = addDaysYmdLocal(cursor, 1);
+function readStrByKeys(source, keys, fallback = "") {
+  const obj = source && typeof source === "object" ? source : {};
+  for (const key of keys) {
+    const value = safeStr(obj?.[key]);
+    if (value) return value;
   }
+  return fallback;
+}
 
-  while (bucketDates.length < 7) {
-    const prev = bucketDates.length ? addDaysYmdLocal(bucketDates[0], -1) : endDate;
-    bucketDates.unshift(prev);
+function readArrayByKeys(source, keys) {
+  const obj = source && typeof source === "object" ? source : {};
+  for (const key of keys) {
+    const value = obj?.[key];
+    if (Array.isArray(value)) return value;
   }
-
-  const map = new Map(
-    bucketDates.map((ymd) => [
-      ymd,
-      {
-        time: ymd.slice(5),
-        successful: 0,
-        failed: 0,
-        retry: 0,
-      },
-    ])
-  );
-
-  attemptsRows.forEach((row) => {
-    if (!row.chargeDate || row.chargeDate < startDate || row.chargeDate > endDate) return;
-    if (!map.has(row.chargeDate)) return;
-
-    const bucket = map.get(row.chargeDate);
-
-    if (row.outcome === "Successful") bucket.successful += 1;
-    else if (row.outcome === "Failed") bucket.failed += 1;
-    else if (row.outcome === "Retry Scheduled") bucket.retry += 1;
-  });
-
-  return bucketDates.map((d) => map.get(d));
+  return [];
 }
 
-function buildRetryDistributionFromAttempts(attemptsRows) {
-  let cycle25 = 0;
-  let retry1 = 0;
-  let other = 0;
+function normalizeAttemptsMetrics(cronMetrics, summaryCards) {
+  const source = cronMetrics?.attemptsToday && typeof cronMetrics.attemptsToday === "object"
+    ? cronMetrics.attemptsToday
+    : summaryCards;
 
-  attemptsRows.forEach((row) => {
-    if (row.outcome !== "Retry Scheduled") return;
+  const attempted =
+    readNumByKeys(source, [
+      "attempted",
+      "attemptedToday",
+      "attempts",
+      "attemptsToday",
+      "total",
+      "totalAttempts",
+      "INITIATED",
+      "initiated",
+      "processed",
+    ]) ||
+    (
+      readNumByKeys(source, ["success", "successfulToday", "SUCCESS", "successful"]) +
+      readNumByKeys(source, ["failed", "failedToday", "FAILED"]) +
+      readNumByKeys(source, ["retry", "retryScheduledToday", "retryScheduled", "RETRY"]) +
+      readNumByKeys(source, ["suspended", "suspendedToday", "SUSPENDED"])
+    );
 
-    if (safeNum(row.chargeDay) === 25) cycle25 += 1;
-    else if (safeNum(row.chargeDay) === 1) retry1 += 1;
-    else other += 1;
-  });
-
-  return [
-    { name: "25th Cycle", value: cycle25, color: "#22c55e" },
-    { name: "1st Retry", value: retry1, color: "#f59e0b" },
-    { name: "Other Retry", value: other, color: "#ef4444" },
-  ];
+  return {
+    attempted,
+    success: readNumByKeys(source, ["success", "successfulToday", "successful", "SUCCESS"]),
+    failed: readNumByKeys(source, ["failed", "failedToday", "FAILED"]),
+    retry: readNumByKeys(source, ["retry", "retryScheduledToday", "retryScheduled", "RETRY"]),
+    suspended: readNumByKeys(source, ["suspended", "suspendedToday", "SUSPENDED"]),
+  };
 }
 
-function buildRecentBatchesFromAttempts(attemptsRows, cronMetrics) {
-  const groups = new Map();
+function normalizeLastRun(cronMetrics, summaryData) {
+  const cronLastRun =
+    cronMetrics?.lastRun ||
+    (Array.isArray(cronMetrics?.latestRuns) ? cronMetrics.latestRuns[0] : null);
 
-  attemptsRows.forEach((row) => {
-    const key = safeStr(row.chargeDate) || "Unknown";
+  const summaryCron = summaryData?.cron || {};
+  const summaryLastRun =
+    summaryCron?.lastRun ||
+    summaryData?.lastRun ||
+    summaryCron?.latestRun ||
+    (Array.isArray(summaryCron?.latestRuns) ? summaryCron.latestRuns[0] : null);
 
-    if (!groups.has(key)) {
-      groups.set(key, {
-        batch: key,
-        date: key,
-        items: 0,
-        value: 0,
-        success: 0,
-        failed: 0,
-        retry: 0,
-        suspended: 0,
-        runStatus: "",
-      });
-    }
+  const raw = cronLastRun || summaryLastRun || null;
+  if (!raw) return null;
 
-    const g = groups.get(key);
-    g.items += 1;
-    g.value += safeNum(row.amountZar);
-
-    if (row.outcome === "Successful") g.success += 1;
-    else if (row.outcome === "Failed") g.failed += 1;
-    else if (row.outcome === "Retry Scheduled") g.retry += 1;
-    else if (row.outcome === "Suspended") g.suspended += 1;
-  });
-
-  const latestRuns = Array.isArray(cronMetrics?.latestRuns) ? cronMetrics.latestRuns : [];
-  latestRuns.forEach((run) => {
-    const runDate = safeStr(run?.runDate || run?.startedAt).slice(0, 10);
-    if (!runDate) return;
-
-    if (!groups.has(runDate)) {
-      groups.set(runDate, {
-        batch: runDate,
-        date: runDate,
-        items: 0,
-        value: 0,
-        success: 0,
-        failed: 0,
-        retry: 0,
-        suspended: 0,
-        runStatus: safeStr(run?.runStatus),
-      });
-    } else {
-      const g = groups.get(runDate);
-      if (!g.runStatus) g.runStatus = safeStr(run?.runStatus);
-    }
-  });
-
-  return Array.from(groups.values())
-    .sort((a, b) => safeStr(b.batch).localeCompare(safeStr(a.batch)))
-    .slice(0, 10)
-    .map((g, index) => {
-      let status = "Pending";
-      if (safeNum(g.failed) > 0 && safeNum(g.success) > 0) status = "Partial";
-      else if (safeNum(g.failed) > 0) status = "Failed";
-      else if (safeNum(g.retry) > 0) status = "Retry Scheduled";
-      else if (safeNum(g.suspended) > 0) status = "Suspended";
-      else if (safeNum(g.success) > 0) status = "Successful";
-      else if (safeStr(g.runStatus)) status = normalizeBatchStatus(g.runStatus);
-
-      return normalizeDashboardBatchRow(
-        {
-          batch: g.batch,
-          date: g.date,
-          items: g.items,
-          value: g.value,
-          status,
-        },
-        index
-      );
-    });
+  const runStatus = readStrByKeys(raw, ["runStatus", "run_status", "status", "result", "outcome"]);
+  return {
+    ...raw,
+    runStatus,
+    startedAt: readStrByKeys(raw, ["startedAt", "started_at", "startTime", "started"]),
+    endedAt: readStrByKeys(raw, ["endedAt", "ended_at", "endTime", "ended"]),
+    lastError: readStrByKeys(raw, ["lastError", "last_error", "error"]),
+  };
 }
+
+function normalizeTrendPoint(point, index) {
+  const row = point || {};
+  return {
+    time:
+      safeStr(row.time) ||
+      safeStr(row.label) ||
+      fmtDateShort(row.date || row.day || row.period || row.month) ||
+      `P${index + 1}`,
+    successful: readNumByKeys(row, ["successful", "success", "paid", "collected"]),
+    failed: readNumByKeys(row, ["failed", "failure", "fail"]),
+    retry: readNumByKeys(row, ["retry", "retried", "retryScheduled"]),
+  };
+}
+
+function normalizeRetrySegmentRow(item, index) {
+  const row = item || {};
+  return {
+    label:
+      safeStr(row.label) ||
+      safeStr(row.name) ||
+      safeStr(row.bucket) ||
+      safeStr(row.period) ||
+      `Segment ${index + 1}`,
+    value: readNumByKeys(row, ["value", "count", "total", "items"]),
+    color: safeStr(row.color) || "#8b5cf6",
+  };
+}
+
+function buildRetrySegmentsFromCards(summaryCards) {
+  const retry = readNumByKeys(summaryCards, ["retryScheduledToday", "retryScheduled", "retry"]);
+  const failed = readNumByKeys(summaryCards, ["failedToday", "failed"]);
+  const success = readNumByKeys(summaryCards, ["successfulToday", "success"]);
+  const rows = [
+    { label: "Retry scheduled", value: retry, color: "#8b5cf6" },
+    { label: "Failed", value: failed, color: "#ef4444" },
+    { label: "Successful", value: success, color: "#22c55e" },
+  ].filter((row) => row.value > 0);
+
+  const total = rows.reduce((sum, row) => sum + row.value, 0) || 1;
+
+  return rows.map((row) => ({
+    ...row,
+    pct: (row.value / total) * 100,
+  }));
+}
+
 
 export default function Dashboard() {
+  // FIX START: replace range state with premium date state
   const [startDate, setStartDate] = useLocalStorageState(LS.startDate, startOfMonthYmdLocal());
   const [endDate, setEndDate] = useLocalStorageState(LS.endDate, todayYmdLocal());
   const [appliedStartDate, setAppliedStartDate] = useState(() => safeStr(startDate) || startOfMonthYmdLocal());
   const [appliedEndDate, setAppliedEndDate] = useState(() => safeStr(endDate) || todayYmdLocal());
+  // FIX END
 
   const [subView] = useLocalStorageState(LS.subView, "monthly");
   const [metric] = useLocalStorageState(LS.metric, "revenue");
@@ -1245,12 +1131,14 @@ export default function Dashboard() {
   const [cronLoading, setCronLoading] = useState(() => !getCronCache());
   const [cronError, setCronError] = useState("");
 
-  const [reportsPayload, setReportsPayload] = useState(
+  // FIX START: summary cache is now keyed by applied date range
+  const [dashboardSummary, setDashboardSummary] = useState(
     () => getSummaryCache(appliedStartDate, appliedEndDate)
   );
   const [summaryLoading, setSummaryLoading] = useState(
     () => !getSummaryCache(appliedStartDate, appliedEndDate)
   );
+  // FIX END
   const [summaryError, setSummaryError] = useState("");
 
   useEffect(() => {
@@ -1285,22 +1173,23 @@ export default function Dashboard() {
     };
   }, []);
 
+  // FIX START: summary loading is driven by appliedStartDate + appliedEndDate
   useEffect(() => {
     let alive = true;
     const cached = getSummaryCache(appliedStartDate, appliedEndDate);
 
     if (cached) {
-      setReportsPayload(cached);
+      setDashboardSummary(cached);
       setSummaryLoading(false);
     }
 
-    async function loadReports() {
+    async function loadSummary() {
       try {
         if (!cached) setSummaryLoading(true);
         setSummaryError("");
-        const data = await fetchDashboardReportsData(appliedStartDate, appliedEndDate);
+        const data = await fetchDashboardSummary(appliedStartDate, appliedEndDate);
         setSummaryCache(appliedStartDate, appliedEndDate, data);
-        if (alive) setReportsPayload(data);
+        if (alive) setDashboardSummary(data);
       } catch (e) {
         if (alive) setSummaryError(String(e?.message || e));
       } finally {
@@ -1308,59 +1197,41 @@ export default function Dashboard() {
       }
     }
 
-    loadReports();
+    loadSummary();
 
     return () => {
       alive = false;
     };
   }, [appliedStartDate, appliedEndDate]);
+  // FIX END
 
-  const reportsSummary = reportsPayload?.summaryJson || {};
-  const reportsAttempts = reportsPayload?.attemptsJson || {};
-
-  const summaryData = reportsSummary?.data || {};
+  const summaryData = dashboardSummary?.data || {};
   const summaryCards = summaryData?.cards || {};
-  const attemptsRows = useMemo(() => buildAttemptsRows(reportsAttempts), [reportsAttempts]);
+  const summaryCharts = summaryData?.charts || {};
+  const rawSummaryBatches = Array.isArray(summaryData?.batches) ? summaryData.batches : [];
 
-  const successCount = useMemo(
-    () => attemptsRows.filter((row) => row.outcome === "Successful").length,
-    [attemptsRows]
+  const summaryBatches = useMemo(() => {
+    return rawSummaryBatches.map((row, index) => normalizeDashboardBatchRow(row, index));
+  }, [rawSummaryBatches]);
+
+  // FIX START: normalize cron metrics and last run across current endpoint shapes
+  const attemptsToday = useMemo(
+    () => normalizeAttemptsMetrics(cronMetrics, summaryCards),
+    [cronMetrics, summaryCards]
   );
 
-  const failedCount = useMemo(
-    () => attemptsRows.filter((row) => row.outcome === "Failed").length,
-    [attemptsRows]
+  const lastRun = useMemo(
+    () => normalizeLastRun(cronMetrics, summaryData),
+    [cronMetrics, summaryData]
   );
 
-  const retryCount = useMemo(
-    () => attemptsRows.filter((row) => row.outcome === "Retry Scheduled").length,
-    [attemptsRows]
-  );
-
-  const suspendedCount = useMemo(
-    () => attemptsRows.filter((row) => row.outcome === "Suspended").length,
-    [attemptsRows]
-  );
-
-  const pendingCount = useMemo(
-    () => attemptsRows.filter((row) => row.outcome === "Pending").length,
-    [attemptsRows]
-  );
-
-  const totalAttemptsInRange = attemptsRows.length;
-
-  const attemptsToday = cronMetrics?.attemptsToday || {
-    attempted: totalAttemptsInRange,
-    success: safeNum(successCount),
-    failed: safeNum(failedCount),
-    retry: safeNum(retryCount),
-    suspended: safeNum(suspendedCount),
-  };
-
-  const cronLastRun = cronMetrics?.lastRun || null;
-  const lastRun = cronLastRun || null;
-
-  const lastResult = String(cronLastRun?.runStatus || cronLastRun?.result || "").toUpperCase();
+  const lastResult = String(
+    lastRun?.runStatus ||
+      lastRun?.result ||
+      lastRun?.status ||
+      ""
+  ).toUpperCase();
+  // FIX END
 
   let cronStatus = "queued";
   if (!lastRun) cronStatus = "queued";
@@ -1396,108 +1267,117 @@ export default function Dashboard() {
     },
   ];
 
-  const realTotalDebitOrderValue =
-    resolveRealMetric(summaryCards.totalScheduledValue) ||
-    resolveRealMetric(summaryCards.totalDebitOrderValue) ||
-    attemptsRows.reduce((sum, row) => sum + safeNum(row.amountZar), 0);
-
-  const realTotalCollected =
-    resolveRealMetric(summaryCards.totalCollected) ||
-    attemptsRows
-      .filter((row) => row.outcome === "Successful")
-      .reduce((sum, row) => sum + safeNum(row.amountZar), 0);
-
-  const realEstimatedFees =
-    resolveRealMetric(summaryCards.totalFees) ||
-    resolveRealMetric(summaryCards.estimatedPaystackFees) ||
-    0;
-
-  const realNetToBank =
-    resolveRealMetric(summaryCards.netToBank) ||
-    resolveRealMetric(summaryCards.estimatedMoneyToBank) ||
-    Math.max(0, safeNum(realTotalCollected) - safeNum(realEstimatedFees));
-
+  // FIX START: support alternate summary card key names already used by reports/dashboard payloads
   const realMonthlyMRR =
     resolveRealMetric(summaryCards.monthlyMRR) ||
     resolveRealMetric(summaryCards.mrr) ||
+    resolveRealMetric(summaryCards.monthlyRecurringRevenue) ||
     resolveRealMetric(summaryData.monthlyMRR) ||
-    resolveRealMetric(summaryData.mrr);
+    resolveRealMetric(summaryData.mrr) ||
+    resolveRealMetric(summaryData.monthlyRecurringRevenue);
 
   const realAnnualARR =
     resolveRealMetric(summaryCards.annualARR) ||
     resolveRealMetric(summaryCards.arr) ||
+    resolveRealMetric(summaryCards.annualRecurringRevenue) ||
     resolveRealMetric(summaryData.annualARR) ||
-    resolveRealMetric(summaryData.arr);
+    resolveRealMetric(summaryData.arr) ||
+    resolveRealMetric(summaryData.annualRecurringRevenue);
 
   const monthlyActive =
     resolveRealMetric(summaryCards.monthlyActive) ||
     resolveRealMetric(summaryData.monthlyActive) ||
     resolveRealMetric(summaryCards.activeMonthlySubscriptions) ||
+    resolveRealMetric(summaryCards.monthlySubscribers) ||
     0;
 
   const annualActive =
     resolveRealMetric(summaryCards.annualActive) ||
     resolveRealMetric(summaryData.annualActive) ||
     resolveRealMetric(summaryCards.activeAnnualSubscriptions) ||
+    resolveRealMetric(summaryCards.annualSubscribers) ||
     0;
-
-  const successRate =
-    totalAttemptsInRange > 0 ? (safeNum(successCount) / totalAttemptsInRange) * 100 : 0;
-  const failureRate =
-    totalAttemptsInRange > 0 ? (safeNum(failedCount) / totalAttemptsInRange) * 100 : 0;
-  const retryRate =
-    totalAttemptsInRange > 0 ? (safeNum(retryCount) / totalAttemptsInRange) * 100 : 0;
-
-  const recentBatches = useMemo(
-    () => buildRecentBatchesFromAttempts(attemptsRows, cronMetrics),
-    [attemptsRows, cronMetrics]
-  );
+  // FIX END
 
   const data = useMemo(() => {
     return {
       top: {
-        totalDebitOrderValue: safeNum(realTotalDebitOrderValue),
-        totalCollected: safeNum(realTotalCollected),
-        estimatedMoneyToBank: safeNum(realNetToBank),
-        estimatedPaystackFees: safeNum(realEstimatedFees),
-        retryScheduled: safeNum(retryCount),
-        suspended: safeNum(suspendedCount),
-        successRate: safeNum(successRate),
-        failureRate: safeNum(failureRate),
-        retryRate: safeNum(retryRate),
+        totalDebitOrderValue: readNumByKeys(summaryCards, [
+          "totalDebitOrderValue",
+          "totalScheduledValue",
+          "pipelineValue",
+          "scheduledValue",
+          "grossScheduled",
+          "grossValue",
+          "totalValue",
+        ]),
+        totalCollected: readNumByKeys(summaryCards, [
+          "totalCollected",
+          "collectedValue",
+          "successfulValue",
+          "paidValue",
+          "grossCollected",
+        ]),
+        estimatedMoneyToBank: readNumByKeys(summaryCards, [
+          "estimatedMoneyToBank",
+          "netCollected",
+          "actualMoneyToBank",
+          "settlementValue",
+          "netValue",
+        ]),
+        estimatedPaystackFees: readNumByKeys(summaryCards, [
+          "estimatedPaystackFees",
+          "paystackFees",
+          "fees",
+          "totalFees",
+          "feeValue",
+        ]),
+        retryScheduled: readNumByKeys(summaryCards, [
+          "retryScheduledToday",
+          "retryScheduled",
+          "retry",
+        ]),
+        suspended: readNumByKeys(summaryCards, [
+          "suspendedToday",
+          "suspended",
+        ]),
+        successRate: readNumByKeys(summaryCards, ["successRate", "successfulRate"]),
+        failureRate: readNumByKeys(summaryCards, ["failureRate", "failedRate"]),
+        retryRate: readNumByKeys(summaryCards, ["retryRate"]),
       },
       monthlyActive,
       annualActive,
       monthlyMRR: realMonthlyMRR,
       annualARR: realAnnualARR,
-      recentBatches,
+      recentBatches: summaryBatches,
     };
-  }, [
-    realTotalDebitOrderValue,
-    realTotalCollected,
-    realNetToBank,
-    realEstimatedFees,
-    retryCount,
-    suspendedCount,
-    successRate,
-    failureRate,
-    retryRate,
-    monthlyActive,
-    annualActive,
-    realMonthlyMRR,
-    realAnnualARR,
-    recentBatches,
-  ]);
+  }, [summaryBatches, summaryCards, monthlyActive, annualActive, realMonthlyMRR, realAnnualARR]);
 
   const debitPerformanceData = useMemo(() => {
-    return buildPerformanceSeriesFromAttempts(attemptsRows, appliedStartDate, appliedEndDate);
-  }, [attemptsRows, appliedStartDate, appliedEndDate]);
+    const raw = readArrayByKeys(summaryCharts, [
+      "debitPerformance",
+      "recentCyclePerformance",
+      "performanceTrend",
+      "cyclePerformance",
+      "collectionTrend",
+      "runTrend",
+    ]);
+    return raw.map(normalizeTrendPoint);
+  }, [summaryCharts]);
 
   const retryDistributionData = useMemo(() => {
-    return buildRetryDistributionFromAttempts(attemptsRows);
-  }, [attemptsRows]);
+    const raw = readArrayByKeys(summaryCharts, [
+      "retryDistribution",
+      "retryPressure",
+      "retryBreakdown",
+      "retryByCycle",
+    ]);
+    return raw.map(normalizeRetrySegmentRow);
+  }, [summaryCharts]);
 
-  const filteredBatches = useMemo(() => data.recentBatches, [data.recentBatches]);
+  const filteredBatches = useMemo(() => {
+    return data.recentBatches;
+  }, [data.recentBatches]);
 
   useEffect(() => {
     if (!filteredBatches.length) return;
@@ -1506,35 +1386,38 @@ export default function Dashboard() {
   }, [filteredBatches, selectedBatch, setSelectedBatch]);
 
   const retrySegments = useMemo(() => {
+    if (!retryDistributionData.length) {
+      return buildRetrySegmentsFromCards(summaryCards);
+    }
+
     const total = retryDistributionData.reduce((sum, item) => sum + safeNum(item.value), 0) || 1;
     return retryDistributionData.map((item) => ({
-      label: safeStr(item.name),
+      label: safeStr(item.label || item.name),
       value: safeNum(item.value),
       pct: (safeNum(item.value) / total) * 100,
       color: safeStr(item.color) || "#8b5cf6",
     }));
-  }, [retryDistributionData]);
+  }, [retryDistributionData, summaryCards]);
 
   const outcomeTotal = Math.max(
     1,
-    safeNum(successCount) +
-      safeNum(failedCount) +
+    safeNum(attemptsToday.success) +
+      safeNum(attemptsToday.failed) +
       safeNum(data.top.retryScheduled) +
-      safeNum(data.top.suspended) +
-      safeNum(pendingCount)
+      safeNum(data.top.suspended)
   );
 
   const operationalSegments = [
     {
       label: "Successful",
-      value: safeNum(successCount),
-      pct: (safeNum(successCount) / outcomeTotal) * 100,
+      value: safeNum(attemptsToday.success),
+      pct: (safeNum(attemptsToday.success) / outcomeTotal) * 100,
       color: "#22c55e",
     },
     {
       label: "Failed",
-      value: safeNum(failedCount),
-      pct: (safeNum(failedCount) / outcomeTotal) * 100,
+      value: safeNum(attemptsToday.failed),
+      pct: (safeNum(attemptsToday.failed) / outcomeTotal) * 100,
       color: "#ef4444",
     },
     {
@@ -1563,10 +1446,7 @@ export default function Dashboard() {
       date: safeStr(b.date || ""),
     }));
 
-    exportRowsToCsv(
-      `tabbytech-batches-${appliedStartDate}-${appliedEndDate}-${Date.now()}.csv`,
-      rows
-    );
+    exportRowsToCsv(`tabbytech-batches-${appliedStartDate}-${appliedEndDate}-${Date.now()}.csv`, rows);
   }
 
   const batchDropdownOptions = filteredBatches.length
@@ -1576,6 +1456,7 @@ export default function Dashboard() {
       }))
     : [{ value: "", label: "No batches" }];
 
+  // FIX START: premium apply/sync handlers
   function applyRange() {
     if (safeStr(startDate) && safeStr(endDate) && startDate > endDate) {
       setSummaryError("Start date cannot be after end date.");
@@ -1601,15 +1482,16 @@ export default function Dashboard() {
       setSummaryLoading(true);
       setSummaryError("");
 
-      const data = await fetchDashboardReportsData(nextStart, nextEnd);
+      const data = await fetchDashboardSummary(nextStart, nextEnd);
       setSummaryCache(nextStart, nextEnd, data);
-      setReportsPayload(data);
+      setDashboardSummary(data);
     } catch (e) {
       setSummaryError(String(e?.message || e));
     } finally {
       setSummaryLoading(false);
     }
   }
+  // FIX END
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
@@ -1674,15 +1556,13 @@ export default function Dashboard() {
     .ttd-headerTools {
       display: inline-flex;
       align-items: flex-end;
-      gap: 12px;
-      padding: 14px;
-      border-radius: 22px;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 18px;
       border: 1px solid rgba(255,255,255,0.08);
-      background:
-        radial-gradient(circle at top right, rgba(124,58,237,0.12), transparent 32%),
-        linear-gradient(180deg, rgba(16,18,36,0.92) 0%, rgba(10,12,24,0.92) 100%);
-      backdrop-filter: blur(16px);
-      box-shadow: 0 20px 42px rgba(0,0,0,0.24);
+      background: rgba(12, 16, 33, 0.64);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.18);
       flex-wrap: wrap;
     }
 
@@ -1698,7 +1578,7 @@ export default function Dashboard() {
       font-size: 12px;
       font-weight: 700;
       white-space: nowrap;
-      height: 42px;
+      height: 40px;
     }
 
     .ttd-liveDot {
@@ -1707,11 +1587,6 @@ export default function Dashboard() {
       border-radius: 999px;
       background: #22c55e;
       animation: ttdPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-
-    @keyframes ttdPulse {
-      0%,100% { opacity: 1; transform: scale(1); }
-      50% { opacity: .5; transform: scale(0.9); }
     }
 
     .ttd-dateGroup {
@@ -1727,40 +1602,33 @@ export default function Dashboard() {
       margin-left: 2px;
     }
 
-    .ttd-datePickerWrap {
-      position: relative;
-    }
+    .ttd-datePickerWrap { position: relative; }
 
     .ttd-dateInput {
-      height: 42px;
-      min-width: 180px;
-      border-radius: 14px;
-      border: 1px solid rgba(168,85,247,0.70);
+      height: 40px;
+      min-width: 160px;
+      border-radius: 12px;
+      border: 1px solid rgba(168,85,247,0.65);
       background:
-        linear-gradient(135deg, rgba(168,85,247,0.20), rgba(124,58,237,0.20)),
+        linear-gradient(135deg, rgba(168,85,247,0.18), rgba(124,58,237,0.18)),
         rgba(0,0,0,0.45);
       color: rgba(255,255,255,0.96);
-      padding: 0 14px;
+      padding: 0 12px;
       font-size: 13px;
-      font-weight: 900;
+      font-weight: 800;
       outline: none;
       display: inline-flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.06),
-        0 14px 30px rgba(124,58,237,0.14);
+      box-shadow: 0 10px 24px rgba(124,58,237,0.12);
       cursor: pointer;
       user-select: none;
-      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
     }
 
     .ttd-dateInput:hover {
-      border-color: rgba(168,85,247,0.95);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.06),
-        0 18px 34px rgba(124,58,237,0.22);
+      border-color: rgba(168,85,247,0.90);
+      box-shadow: 0 12px 28px rgba(124,58,237,0.22);
       transform: translateY(-1px);
     }
 
@@ -1768,24 +1636,21 @@ export default function Dashboard() {
       border-color: rgba(168,85,247,0.95);
       box-shadow:
         0 0 0 4px rgba(124,58,237,0.20),
-        0 18px 36px rgba(124,58,237,0.28);
+        0 16px 34px rgba(124,58,237,0.26);
     }
 
-    .ttd-dateCaret {
-      opacity: 0.96;
-      font-size: 12px;
-    }
+    .ttd-dateCaret { opacity: 0.96; font-size: 12px; }
 
     .ttd-datePopup {
       position: absolute;
-      top: 48px;
+      top: 46px;
       right: 0;
-      width: 300px;
-      border-radius: 18px;
+      width: 292px;
+      border-radius: 16px;
       border: 1px solid rgba(168,85,247,0.38);
-      background: linear-gradient(180deg, rgba(18,12,36,0.98) 0%, rgba(11,10,22,0.98) 100%);
+      background: linear-gradient(180deg, rgba(18,12,36,0.96) 0%, rgba(11,10,22,0.96) 100%);
       box-shadow: 0 24px 56px rgba(0,0,0,0.46);
-      backdrop-filter: blur(18px);
+      backdrop-filter: blur(16px);
       padding: 12px;
       z-index: 80;
       animation: ttdDatePopIn 140ms ease-out;
@@ -1812,8 +1677,8 @@ export default function Dashboard() {
     }
 
     .ttd-dateNavBtn {
-      width: 34px;
-      height: 34px;
+      width: 32px;
+      height: 32px;
       border-radius: 10px;
       border: 1px solid rgba(168,85,247,0.28);
       background: rgba(124,58,237,0.16);
@@ -1838,9 +1703,7 @@ export default function Dashboard() {
       gap: 6px;
     }
 
-    .ttd-dateWeekdays {
-      margin-bottom: 6px;
-    }
+    .ttd-dateWeekdays { margin-bottom: 6px; }
 
     .ttd-dateWeekday {
       height: 28px;
@@ -1889,9 +1752,9 @@ export default function Dashboard() {
     }
 
     .ttd-actionBtn {
-      min-width: 138px;
-      height: 42px;
-      padding: 0 18px;
+      min-width: 132px;
+      height: 40px;
+      padding: 0 16px;
       border-radius: 14px;
       border: 1px solid rgba(168,85,247,0.54);
       background: linear-gradient(135deg, rgba(168,85,247,0.98), rgba(124,58,237,0.98));
@@ -1940,15 +1803,20 @@ export default function Dashboard() {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 14px;
+      padding: 8px 12px;
       border-radius: 999px;
       background: rgba(18, 18, 31, 0.6);
       border: 1px solid rgba(139, 92, 246, 0.2);
-      color: #d1d5db;
+      color: #9ca3af;
       font-size: 12px;
-      font-weight: 800;
+      font-weight: 700;
       white-space: nowrap;
-      height: 42px;
+      height: 40px;
+    }
+
+    @keyframes ttdPulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(0.9); }
     }
 
     .ttd-grid4 {
@@ -2673,12 +2541,14 @@ export default function Dashboard() {
             {overallError ? " • error" : ""}
             {subView ? ` • ${String(subView)}` : ""}
             {metric ? ` • ${String(metric)}` : ""}
+            {summaryData?.asOfDate ? ` • as of ${summaryData.asOfDate}` : ""}
             {` • ${nextCycleLabel}`}
           </p>
         </div>
 
         <div className="ttd-headerRight">
           <div className="ttd-headerTools">
+            {/* FIX START: premium date controls */}
             <div className="ttd-dateGroup">
               <span className="ttd-dateGroupLabel">Start date</span>
               <PremiumDatePicker
@@ -2708,6 +2578,7 @@ export default function Dashboard() {
             <div className="ttd-dateRangePill" title="Applied dashboard range">
               {fmtDateLong(appliedStartDate)} to {fmtDateLong(appliedEndDate)}
             </div>
+            {/* FIX END */}
 
             <div className="ttd-livePill">
               <span className="ttd-liveDot" />
@@ -2737,8 +2608,8 @@ export default function Dashboard() {
         <MetricCard
           title="Latest Successful Collections"
           value={formatZAR(data.top.totalCollected)}
-          subtext={`${safeNum(successCount)} successful items in selected range`}
-          trend={safeNum(successCount) > 0 ? "Successful collections found" : "No successful collections in range"}
+          subtext={`${safeNum(attemptsToday.success)} successful items in current reporting period`}
+          trend={safeNum(attemptsToday.success) > 0 ? "Successful collections in selected range" : "No successful collections in selected range"}
           trendUp={true}
           icon={IconCheckCircle}
           color="green"
@@ -2757,8 +2628,8 @@ export default function Dashboard() {
         <MetricCard
           title="Exceptions and Fees"
           value={formatZAR2(data.top.estimatedPaystackFees)}
-          subtext={`Failed ${safeNum(failedCount)} • Retry ${safeNum(data.top.retryScheduled)}`}
-          trend={safeNum(failedCount) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
+          subtext={`Failed ${safeNum(attemptsToday.failed)} • Retry ${safeNum(data.top.retryScheduled)}`}
+          trend={safeNum(attemptsToday.failed) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
           trendUp={false}
           icon={IconRedo}
           color="orange"
@@ -2826,7 +2697,7 @@ export default function Dashboard() {
 
             <div className="ttd-donutLayout">
               <DonutChart
-                centerValue={safeNum(totalAttemptsInRange)}
+                centerValue={safeNum(attemptsToday.attempted)}
                 centerLabel="Cycle items"
                 segments={operationalSegments}
               />
@@ -2973,7 +2844,7 @@ export default function Dashboard() {
                   </div>
 
                   <div className="ttd-cronRow">
-                    <span>Last run: {job.lastRun || "Not yet run"}</span>
+                    <span>Last run: {job.lastRun}</span>
                     <span style={{ color: job.status === "ok" ? "#4ade80" : job.status === "failed" ? "#f87171" : "#9ca3af" }}>
                       {job.status === "ok" ? "Healthy" : job.status === "failed" ? "Needs fix" : "Monitoring"}
                     </span>
