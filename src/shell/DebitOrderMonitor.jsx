@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
+const ATTEMPTS_PER_PAGE = 10;
 
 let debitOrderMonitorCache = {
   summaryData: null,
   attemptsData: null,
+  cronData: null,
   error: "",
   startDate: "",
   endDate: "",
@@ -524,7 +526,6 @@ function getApiBase() {
   return envBase || "https://api.tabbytech.co.za";
 }
 
-/* FIX START: use reports endpoints, not dashboard summary */
 async function fetchJson(path) {
   const base = getApiBase().replace(/\/+$/, "");
   const url = `${base}${path}`;
@@ -546,6 +547,7 @@ async function fetchJson(path) {
   return json;
 }
 
+/* FIX START: keep reports for debit stats, add dashboard cron-metrics for cron panel */
 async function fetchDebitOrderMonitorData({ startDate, endDate }) {
   const summaryQs = new URLSearchParams({
     startDate,
@@ -559,12 +561,13 @@ async function fetchDebitOrderMonitorData({ startDate, endDate }) {
     perPage: "300",
   });
 
-  const [summaryJson, attemptsJson] = await Promise.all([
+  const [summaryJson, attemptsJson, cronJson] = await Promise.all([
     fetchJson(`/api/reports/summary?${summaryQs.toString()}`),
     fetchJson(`/api/reports/attempts?${attemptsQs.toString()}`),
+    fetchJson(`/api/dashboard/cron-metrics`),
   ]);
 
-  return { summaryJson, attemptsJson };
+  return { summaryJson, attemptsJson, cronJson };
 }
 /* FIX END */
 
@@ -575,18 +578,25 @@ export default function DebitOrderMonitor() {
   const [error, setError] = useState(() => safeStr(debitOrderMonitorCache.error));
   const [summaryData, setSummaryData] = useState(() => debitOrderMonitorCache.summaryData || null);
   const [attemptsData, setAttemptsData] = useState(() => debitOrderMonitorCache.attemptsData || null);
+  const [cronData, setCronData] = useState(() => debitOrderMonitorCache.cronData || null);
+  const [attemptsPage, setAttemptsPage] = useState(1);
 
   useEffect(() => {
     debitOrderMonitorCache = {
       ...debitOrderMonitorCache,
       summaryData,
       attemptsData,
+      cronData,
       error,
       startDate,
       endDate,
       lastLoadedAt: debitOrderMonitorCache.lastLoadedAt,
     };
-  }, [summaryData, attemptsData, error, startDate, endDate]);
+  }, [summaryData, attemptsData, cronData, error, startDate, endDate]);
+
+  useEffect(() => {
+    setAttemptsPage(1);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     let alive = true;
@@ -596,6 +606,7 @@ export default function DebitOrderMonitor() {
         if (!alive) return;
         setSummaryData(debitOrderMonitorCache.summaryData || null);
         setAttemptsData(debitOrderMonitorCache.attemptsData || null);
+        setCronData(debitOrderMonitorCache.cronData || null);
         setError(safeStr(debitOrderMonitorCache.error));
         setLoading(false);
         return;
@@ -604,16 +615,18 @@ export default function DebitOrderMonitor() {
       try {
         setLoading(true);
         setError("");
-        const { summaryJson, attemptsJson } = await fetchDebitOrderMonitorData({ startDate, endDate });
+        const { summaryJson, attemptsJson, cronJson } = await fetchDebitOrderMonitorData({ startDate, endDate });
         if (!alive) return;
 
         setSummaryData(summaryJson);
         setAttemptsData(attemptsJson);
+        setCronData(cronJson);
 
         debitOrderMonitorCache = {
           ...debitOrderMonitorCache,
           summaryData: summaryJson,
           attemptsData: attemptsJson,
+          cronData: cronJson,
           error: "",
           startDate,
           endDate,
@@ -648,15 +661,17 @@ export default function DebitOrderMonitor() {
     try {
       setLoading(true);
       setError("");
-      const { summaryJson, attemptsJson } = await fetchDebitOrderMonitorData({ startDate, endDate });
+      const { summaryJson, attemptsJson, cronJson } = await fetchDebitOrderMonitorData({ startDate, endDate });
 
       setSummaryData(summaryJson);
       setAttemptsData(attemptsJson);
+      setCronData(cronJson);
 
       debitOrderMonitorCache = {
         ...debitOrderMonitorCache,
         summaryData: summaryJson,
         attemptsData: attemptsJson,
+        cronData: cronJson,
         error: "",
         startDate,
         endDate,
@@ -686,10 +701,8 @@ export default function DebitOrderMonitor() {
     await syncNow();
   }
 
-  /* FIX START: map reports response correctly */
   const summaryPayload = summaryData?.data || {};
   const cards = summaryPayload?.cards || {};
-  const charts = summaryPayload?.charts || {};
   const filters = summaryPayload?.filters || {};
 
   const attemptsRowsRaw = Array.isArray(attemptsData?.data?.attempts?.rows)
@@ -755,26 +768,28 @@ export default function DebitOrderMonitor() {
   const retryScheduled = retryCount;
   const failed = failedCount;
 
-  const lastCronRaw = summaryPayload?.cron?.lastRun || null;
+  /* FIX START: cron panel mapped only from dashboard cron-metrics */
+  const cronPayload = cronData || {};
+  const cronLastRun = cronPayload?.lastRun || null;
   const cronRuns = useMemo(() => {
-    if (!lastCronRaw) return [];
+    if (!cronLastRun) return [];
     return [
       {
-        started_at: safeStr(lastCronRaw?.startedAt || ""),
-        ended_at: safeStr(lastCronRaw?.endedAt || ""),
-        result: safeStr(lastCronRaw?.runStatus || ""),
-        success_count: successCount,
-        fail_count: failedCount,
-        last_error: safeStr(lastCronRaw?.lastError || ""),
+        started_at: safeStr(cronLastRun?.startedAt || ""),
+        ended_at: safeStr(cronLastRun?.endedAt || ""),
+        result: safeStr(cronLastRun?.runStatus || ""),
+        success_count: safeNum(cronPayload?.attemptsToday?.success || 0),
+        fail_count: safeNum(cronPayload?.attemptsToday?.failed || 0),
+        last_error: safeStr(cronLastRun?.lastError || ""),
       },
     ];
-  }, [lastCronRaw, successCount, failedCount]);
+  }, [cronLastRun, cronPayload]);
+  /* FIX END */
 
   const recentAttempts = useMemo(() => {
     return attemptsRows
       .slice()
       .sort((a, b) => String(b.attemptedAt || "").localeCompare(String(a.attemptedAt || "")))
-      .slice(0, 10)
       .map((row) => ({
         created_at: row.attemptedAt,
         client_id: row.clientId,
@@ -784,7 +799,13 @@ export default function DebitOrderMonitor() {
         error: row.failureReason,
       }));
   }, [attemptsRows]);
-  /* FIX END */
+
+  const attemptsPageCount = Math.max(1, Math.ceil(recentAttempts.length / ATTEMPTS_PER_PAGE));
+  const currentAttemptsPage = Math.min(attemptsPage, attemptsPageCount);
+  const pagedRecentAttempts = useMemo(() => {
+    const start = (currentAttemptsPage - 1) * ATTEMPTS_PER_PAGE;
+    return recentAttempts.slice(start, start + ATTEMPTS_PER_PAGE);
+  }, [recentAttempts, currentAttemptsPage]);
 
   const kpis = {
     dueInRange,
@@ -877,7 +898,7 @@ export default function DebitOrderMonitor() {
     []
   );
 
-  const isLive = !error && (!!summaryData?.ok || !!attemptsData?.ok);
+  const isLive = !error && (!!summaryData?.ok || !!attemptsData?.ok || !!cronData?.ok);
 
   return (
     <div
@@ -1048,6 +1069,52 @@ export default function DebitOrderMonitor() {
           border-color: rgba(168,85,247,0.80);
           color: #fff;
           box-shadow: 0 10px 22px rgba(124,58,237,0.28);
+        }
+
+        .tdm-pageRow {
+          margin-top: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .tdm-pageBtn {
+          height: 34px;
+          padding: 0 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(124,58,237,0.55);
+          background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
+          color: #fff;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.2px;
+          min-width: 74px;
+          box-shadow: 0 12px 28px rgba(124,58,237,0.26);
+          transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+        }
+
+        .tdm-pageBtn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 14px 32px rgba(124,58,237,0.32);
+        }
+
+        .tdm-pageBtn:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
+        }
+
+        .tdm-pageText {
+          font-size: 12px;
+          color: rgba(255,255,255,0.58);
+          font-weight: 700;
         }
       `}</style>
 
@@ -1347,7 +1414,7 @@ export default function DebitOrderMonitor() {
               </thead>
 
               <tbody style={{ fontSize: "0.875rem" }}>
-                {recentAttempts.slice(0, 10).map((a, idx) => {
+                {pagedRecentAttempts.map((a, idx) => {
                   const st = safeStr(a?.status || "").toLowerCase();
                   let badge = "pending";
                   if (st === "successful") badge = "ok";
@@ -1369,7 +1436,7 @@ export default function DebitOrderMonitor() {
                   );
                 })}
 
-                {recentAttempts.length === 0 ? (
+                {pagedRecentAttempts.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
                       No charge attempt data in the selected range.
@@ -1378,6 +1445,30 @@ export default function DebitOrderMonitor() {
                 ) : null}
               </tbody>
             </table>
+          </div>
+
+          <div className="tdm-pageRow">
+            <button
+              type="button"
+              className="tdm-pageBtn"
+              onClick={() => setAttemptsPage((p) => Math.max(1, p - 1))}
+              disabled={currentAttemptsPage <= 1}
+            >
+              Back
+            </button>
+
+            <div className="tdm-pageText">
+              Page {currentAttemptsPage} of {attemptsPageCount} · {recentAttempts.length} records
+            </div>
+
+            <button
+              type="button"
+              className="tdm-pageBtn"
+              onClick={() => setAttemptsPage((p) => Math.min(attemptsPageCount, p + 1))}
+              disabled={currentAttemptsPage >= attemptsPageCount}
+            >
+              Next
+            </button>
           </div>
         </Card>
       </div>
