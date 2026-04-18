@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 
 let debitOrderMonitorCache = {
-  data: null,
+  summaryData: null,
+  attemptsData: null,
   error: "",
   startDate: "",
   endDate: "",
@@ -27,7 +28,8 @@ function startOfMonthYmdLocal() {
 
 function hasFreshDebitOrderMonitorCache(startDate, endDate) {
   return (
-    !!debitOrderMonitorCache.data &&
+    !!debitOrderMonitorCache.summaryData &&
+    !!debitOrderMonitorCache.attemptsData &&
     debitOrderMonitorCache.startDate === String(startDate || "") &&
     debitOrderMonitorCache.endDate === String(endDate || "") &&
     Date.now() - Number(debitOrderMonitorCache.lastLoadedAt || 0) < DEBIT_ORDER_MONITOR_CACHE_TTL_MS
@@ -59,6 +61,19 @@ function fmtDate(v) {
     year: "numeric",
     month: "short",
     day: "2-digit",
+  });
+}
+
+function fmtDateTime(v) {
+  if (!v) return "Not supplied";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -105,6 +120,17 @@ function useOnClickOutside(ref, handler) {
       window.removeEventListener("touchstart", onDown);
     };
   }, [ref, handler]);
+}
+
+function normalizeOutcome(status) {
+  const s = String(status || "").trim().toUpperCase();
+  if (s === "SUCCESS") return "Successful";
+  if (s === "FAILED") return "Failed";
+  if (s === "INITIATED") return "Pending";
+  if (s === "RETRY" || s === "RETRY SCHEDULED") return "Retry Scheduled";
+  if (s === "SUSPENDED") return "Suspended";
+  if (s === "PAID") return "Successful";
+  return s ? s[0] + s.slice(1).toLowerCase() : "Pending";
 }
 
 function PremiumDatePicker({ value, onChange, ariaLabel }) {
@@ -494,42 +520,51 @@ function PremiumButton({ children, onClick, title, disabled = false }) {
 }
 
 function getApiBase() {
-  const envBase = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
-  const winBase = String(window?.__TABBYTECH_API_BASE_URL || "").trim();
-  const hardDefault = "https://api.tabbytech.co.za";
-
-  const base = (envBase || winBase || hardDefault).replace(/\/+$/, "");
-  return base;
+  const envBase = safeStr(import.meta.env.VITE_API_BASE_URL);
+  return envBase || "https://api.tabbytech.co.za";
 }
 
-/* FIX START: switched to summary endpoint */
-async function fetchDebitOrderMonitor({ startDate, endDate }) {
-  const BASE = getApiBase();
-  const qs = new URLSearchParams();
-
-  if (safeStr(startDate)) qs.set("startDate", safeStr(startDate));
-  if (safeStr(endDate)) qs.set("endDate", safeStr(endDate));
-
-  const url = `${BASE}/api/dashboard/summary${qs.toString() ? `?${qs.toString()}` : ""}`;
-
-  const resp = await fetch(url, {
+/* FIX START: use reports endpoints, not dashboard summary */
+async function fetchJson(path) {
+  const base = getApiBase().replace(/\/+$/, "");
+  const url = `${base}${path}`;
+  const res = await fetch(url, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
   });
 
-  const ct = String(resp.headers.get("content-type") || "").toLowerCase();
+  const json = await res.json().catch(() => ({}));
 
-  if (!ct.includes("application/json")) {
-    const preview = await resp.text().catch(() => "");
-    const head = preview.slice(0, 220).replace(/\s+/g, " ").trim();
-    throw new Error(`Non-JSON response (${resp.status}). Check API base URL. Using: ${BASE}. Preview: ${head}`);
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.error || `Request failed ${res.status}`);
   }
 
-  const json = await resp.json().catch(() => ({}));
-  if (!resp.ok || !json?.ok) {
-    throw new Error(json?.error || `Request failed ${resp.status}`);
-  }
   return json;
+}
+
+async function fetchDebitOrderMonitorData({ startDate, endDate }) {
+  const summaryQs = new URLSearchParams({
+    startDate,
+    endDate,
+  });
+
+  const attemptsQs = new URLSearchParams({
+    startDate,
+    endDate,
+    page: "1",
+    perPage: "300",
+  });
+
+  const [summaryJson, attemptsJson] = await Promise.all([
+    fetchJson(`/api/reports/summary?${summaryQs.toString()}`),
+    fetchJson(`/api/reports/attempts?${attemptsQs.toString()}`),
+  ]);
+
+  return { summaryJson, attemptsJson };
 }
 /* FIX END */
 
@@ -538,18 +573,20 @@ export default function DebitOrderMonitor() {
   const [endDate, setEndDate] = useState(() => debitOrderMonitorCache.endDate || todayYmdLocal());
   const [loading, setLoading] = useState(() => !hasFreshDebitOrderMonitorCache(startOfMonthYmdLocal(), todayYmdLocal()));
   const [error, setError] = useState(() => safeStr(debitOrderMonitorCache.error));
-  const [data, setData] = useState(() => debitOrderMonitorCache.data || null);
+  const [summaryData, setSummaryData] = useState(() => debitOrderMonitorCache.summaryData || null);
+  const [attemptsData, setAttemptsData] = useState(() => debitOrderMonitorCache.attemptsData || null);
 
   useEffect(() => {
     debitOrderMonitorCache = {
       ...debitOrderMonitorCache,
-      data,
+      summaryData,
+      attemptsData,
       error,
       startDate,
       endDate,
       lastLoadedAt: debitOrderMonitorCache.lastLoadedAt,
     };
-  }, [data, error, startDate, endDate]);
+  }, [summaryData, attemptsData, error, startDate, endDate]);
 
   useEffect(() => {
     let alive = true;
@@ -557,7 +594,8 @@ export default function DebitOrderMonitor() {
     async function load({ force = false } = {}) {
       if (!force && hasFreshDebitOrderMonitorCache(startDate, endDate)) {
         if (!alive) return;
-        setData(debitOrderMonitorCache.data || null);
+        setSummaryData(debitOrderMonitorCache.summaryData || null);
+        setAttemptsData(debitOrderMonitorCache.attemptsData || null);
         setError(safeStr(debitOrderMonitorCache.error));
         setLoading(false);
         return;
@@ -566,14 +604,16 @@ export default function DebitOrderMonitor() {
       try {
         setLoading(true);
         setError("");
-        const d = await fetchDebitOrderMonitor({ startDate, endDate });
+        const { summaryJson, attemptsJson } = await fetchDebitOrderMonitorData({ startDate, endDate });
         if (!alive) return;
 
-        setData(d);
+        setSummaryData(summaryJson);
+        setAttemptsData(attemptsJson);
 
         debitOrderMonitorCache = {
           ...debitOrderMonitorCache,
-          data: d,
+          summaryData: summaryJson,
+          attemptsData: attemptsJson,
           error: "",
           startDate,
           endDate,
@@ -608,12 +648,15 @@ export default function DebitOrderMonitor() {
     try {
       setLoading(true);
       setError("");
-      const d = await fetchDebitOrderMonitor({ startDate, endDate });
-      setData(d);
+      const { summaryJson, attemptsJson } = await fetchDebitOrderMonitorData({ startDate, endDate });
+
+      setSummaryData(summaryJson);
+      setAttemptsData(attemptsJson);
 
       debitOrderMonitorCache = {
         ...debitOrderMonitorCache,
-        data: d,
+        summaryData: summaryJson,
+        attemptsData: attemptsJson,
         error: "",
         startDate,
         endDate,
@@ -643,53 +686,105 @@ export default function DebitOrderMonitor() {
     await syncNow();
   }
 
-  const api = data?.data || {};
-  const cards = api?.cards || {};
-  const cron = api?.cron || {};
-  const filters = {
-    startDate: safeStr(api?.startDate || startDate),
-    endDate: safeStr(api?.endDate || endDate),
-  };
+  /* FIX START: map reports response correctly */
+  const summaryPayload = summaryData?.data || {};
+  const cards = summaryPayload?.cards || {};
+  const charts = summaryPayload?.charts || {};
+  const filters = summaryPayload?.filters || {};
 
-  const dueInRange = safeNum(cards?.attemptedToday || 0);
-  const scheduled25th = 0;
-  const retryScheduled = safeNum(cards?.retryScheduledToday || 0);
-  const failed = safeNum(cards?.failedToday || 0);
-
-  const lastCron = cron?.lastRun || null;
-
-  const cronRuns = useMemo(() => {
-    if (!lastCron) return [];
-    return [
-      {
-        started_at: safeStr(lastCron?.startedAt || ""),
-        ended_at: safeStr(lastCron?.endedAt || ""),
-        result: safeStr(lastCron?.runStatus || ""),
-        success_count: Number(cards?.successfulToday || 0),
-        fail_count: Number(cards?.failedToday || 0),
-        last_error: safeStr(lastCron?.lastError || ""),
-      },
-    ];
-  }, [lastCron, cards?.failedToday, cards?.successfulToday]);
-
-  const attempts = Array.isArray(api?.batches)
-    ? api.batches.map((b) => ({
-        created_at: safeStr(b?.batch || ""),
-        client_id: "",
-        amount: safeNum(b?.value || 0),
-        status: safeStr(b?.status || ""),
-        attempt_key: safeStr(b?.batch || ""),
-        error: "",
-      }))
+  const attemptsRowsRaw = Array.isArray(attemptsData?.data?.attempts?.rows)
+    ? attemptsData.data.attempts.rows
+    : Array.isArray(attemptsData?.rows)
+    ? attemptsData.rows
     : [];
 
-  const successCount = safeNum(cards?.successfulToday || 0);
-  const failedCount = safeNum(cards?.failedToday || 0);
-  const retryCount = safeNum(cards?.retryScheduledToday || 0);
-  const pendingCount = Math.max(
-    0,
-    safeNum(cards?.attemptedToday || 0) - successCount - failedCount - retryCount
+  const attemptsRows = useMemo(() => {
+    return attemptsRowsRaw.map((row, index) => ({
+      id: row.rowId || `attempt-${index + 1}`,
+      clientId: safeStr(row.clientId),
+      clientName: safeStr(
+        row.clientName ||
+          row.client_name ||
+          row.name ||
+          row.client?.name ||
+          row.crmName
+      ),
+      chargeDate: safeStr(row.chargeDate),
+      chargeDay: safeNum(row.chargeDay),
+      status: safeStr(row.status),
+      outcome: normalizeOutcome(row.outcome || row.status),
+      reference: safeStr(row.reference),
+      failureReason: safeStr(row.failureReason),
+      attemptedAt: safeStr(row.attemptedAt),
+      amountZar: safeNum(row.amountZar),
+    }));
+  }, [attemptsRowsRaw]);
+
+  const successCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Successful").length,
+    [attemptsRows]
   );
+
+  const failedCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Failed").length,
+    [attemptsRows]
+  );
+
+  const retryCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Retry Scheduled").length,
+    [attemptsRows]
+  );
+
+  const suspendedCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Suspended").length,
+    [attemptsRows]
+  );
+
+  const pendingCount = useMemo(
+    () => attemptsRows.filter((row) => row.outcome === "Pending").length,
+    [attemptsRows]
+  );
+
+  const totalAttempts = safeNum(cards.processedAttempts || attemptsRows.length);
+
+  const dueInRange = totalAttempts;
+  const scheduled25th = useMemo(
+    () => attemptsRows.filter((row) => safeNum(row.chargeDay) === 25).length,
+    [attemptsRows]
+  );
+  const retryScheduled = retryCount;
+  const failed = failedCount;
+
+  const lastCronRaw = summaryPayload?.cron?.lastRun || null;
+  const cronRuns = useMemo(() => {
+    if (!lastCronRaw) return [];
+    return [
+      {
+        started_at: safeStr(lastCronRaw?.startedAt || ""),
+        ended_at: safeStr(lastCronRaw?.endedAt || ""),
+        result: safeStr(lastCronRaw?.runStatus || ""),
+        success_count: successCount,
+        fail_count: failedCount,
+        last_error: safeStr(lastCronRaw?.lastError || ""),
+      },
+    ];
+  }, [lastCronRaw, successCount, failedCount]);
+
+  const recentAttempts = useMemo(() => {
+    return attemptsRows
+      .slice()
+      .sort((a, b) => String(b.attemptedAt || "").localeCompare(String(a.attemptedAt || "")))
+      .slice(0, 10)
+      .map((row) => ({
+        created_at: row.attemptedAt,
+        client_id: row.clientId,
+        amount: row.amountZar,
+        status: row.outcome || row.status,
+        attempt_key: row.reference,
+        error: row.failureReason,
+      }));
+  }, [attemptsRows]);
+  /* FIX END */
 
   const kpis = {
     dueInRange,
@@ -699,7 +794,7 @@ export default function DebitOrderMonitor() {
   };
 
   const healthDonut = useMemo(() => {
-    const total = successCount + failedCount + retryCount + pendingCount;
+    const total = successCount + failedCount + retryCount + pendingCount + suspendedCount;
     if (total <= 0) {
       return [
         { name: "Successful", value: 0, color: "#10b981" },
@@ -713,9 +808,9 @@ export default function DebitOrderMonitor() {
       { name: "Successful", value: successCount, color: "#10b981" },
       { name: "Failed", value: failedCount, color: "#ef4444" },
       { name: "Scheduled retry queued", value: retryCount, color: "#8b5cf6" },
-      { name: "Pending", value: pendingCount, color: "#60a5fa" },
+      { name: "Pending", value: pendingCount + suspendedCount, color: "#60a5fa" },
     ];
-  }, [failedCount, pendingCount, retryCount, successCount]);
+  }, [failedCount, pendingCount, retryCount, successCount, suspendedCount]);
 
   const scheduleDonut = useMemo(() => {
     const due = kpis.dueInRange;
@@ -746,7 +841,7 @@ export default function DebitOrderMonitor() {
       success: successCount,
       failed: failedCount,
       retry: retryCount,
-      pending: pendingCount,
+      pending: pendingCount + suspendedCount,
     };
     const total = Math.max(1, by.success + by.failed + by.retry + by.pending);
 
@@ -756,7 +851,7 @@ export default function DebitOrderMonitor() {
       { label: "Scheduled retry queued", value: by.retry, pct: Math.round((by.retry / total) * 100), color: "#8b5cf6" },
       { label: "Pending", value: by.pending, pct: Math.round((by.pending / total) * 100), color: "#60a5fa" },
     ];
-  }, [failedCount, pendingCount, retryCount, successCount]);
+  }, [failedCount, pendingCount, retryCount, successCount, suspendedCount]);
 
   const cronColumns = useMemo(
     () => [
@@ -782,7 +877,7 @@ export default function DebitOrderMonitor() {
     []
   );
 
-  const isLive = !error && !!data?.ok;
+  const isLive = !error && (!!summaryData?.ok || !!attemptsData?.ok);
 
   return (
     <div
@@ -1034,7 +1129,7 @@ export default function DebitOrderMonitor() {
             }}
             title="Selected monitor range"
           >
-            {fmtDate(filters.startDate)} to {fmtDate(filters.endDate)}
+            {fmtDate(filters?.startDate || startDate)} to {fmtDate(filters?.endDate || endDate)}
           </div>
         </div>
       </header>
@@ -1105,7 +1200,7 @@ export default function DebitOrderMonitor() {
 
         <Card style={{ padding: "1.25rem" }}>
           <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Schedule distribution</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Attempts, success, retry, failed</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Attempts, 25th schedule, retry, failed</p>
 
           <div style={{ display: "flex", justifyContent: "center" }}>
             <DonutChart data={scheduleDonut} />
@@ -1231,11 +1326,11 @@ export default function DebitOrderMonitor() {
         <Card style={{ padding: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div>
-              <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Recent batches</h3>
-              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Mapped from summary batches</p>
+              <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Recent charge attempts</h3>
+              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Mapped from live reports attempts</p>
             </div>
 
-            <PremiumButton title="Export Attempts to CSV" onClick={() => exportRowsToCsv("charge_attempts_recent.csv", attempts, attemptsColumns)}>
+            <PremiumButton title="Export Attempts to CSV" onClick={() => exportRowsToCsv("charge_attempts_recent.csv", recentAttempts, attemptsColumns)}>
               Export to Excel
             </PremiumButton>
           </div>
@@ -1252,23 +1347,21 @@ export default function DebitOrderMonitor() {
               </thead>
 
               <tbody style={{ fontSize: "0.875rem" }}>
-                {attempts.slice(0, 10).map((a, idx) => {
+                {recentAttempts.slice(0, 10).map((a, idx) => {
                   const st = safeStr(a?.status || "").toLowerCase();
                   let badge = "pending";
-                  if (st === "success" || st === "successful" || st === "sent") badge = "ok";
+                  if (st === "successful") badge = "ok";
                   else if (st === "failed") badge = "failed";
-                  else if (st === "retry") badge = "retry";
-                  else if (st === "partial") badge = "partial";
-                  else if (st === "queued" || st === "pending" || st === "initiated" || st === "exported" || st === "draft") badge = "queued";
+                  else if (st === "retry scheduled") badge = "retry";
                   else if (st === "suspended") badge = "suspended";
 
                   return (
                     <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
-                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(a?.created_at)}</td>
+                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtDateTime(a?.created_at)}</td>
                       <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 600, fontSize: "0.75rem", fontFamily: "monospace" }}>
                         {safeStr(a?.client_id || "") || "N/A"}
                       </td>
-                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{safeStr(a?.amount || "0")}</td>
+                      <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{safeNum(a?.amount || 0)}</td>
                       <td style={{ padding: "0.75rem 0" }}>
                         <StatusBadge status={badge}>{st ? st.toUpperCase() : "PENDING"}</StatusBadge>
                       </td>
@@ -1276,10 +1369,10 @@ export default function DebitOrderMonitor() {
                   );
                 })}
 
-                {attempts.length === 0 ? (
+                {recentAttempts.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      No batch data in the selected range.
+                      No charge attempt data in the selected range.
                     </td>
                   </tr>
                 ) : null}
