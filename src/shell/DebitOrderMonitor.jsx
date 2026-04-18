@@ -1,4 +1,3 @@
-// src/shell/DebitOrderMonitor.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -503,6 +502,7 @@ function getApiBase() {
   return base;
 }
 
+/* FIX START: switched to summary endpoint */
 async function fetchDebitOrderMonitor({ startDate, endDate }) {
   const BASE = getApiBase();
   const qs = new URLSearchParams();
@@ -510,7 +510,7 @@ async function fetchDebitOrderMonitor({ startDate, endDate }) {
   if (safeStr(startDate)) qs.set("startDate", safeStr(startDate));
   if (safeStr(endDate)) qs.set("endDate", safeStr(endDate));
 
-  const url = `${BASE}/api/dashboard/dashboard/summary${qs.toString() ? `?${qs.toString()}` : ""}`;
+  const url = `${BASE}/api/dashboard/summary${qs.toString() ? `?${qs.toString()}` : ""}`;
 
   const resp = await fetch(url, {
     method: "GET",
@@ -531,6 +531,7 @@ async function fetchDebitOrderMonitor({ startDate, endDate }) {
   }
   return json;
 }
+/* FIX END */
 
 export default function DebitOrderMonitor() {
   const [startDate, setStartDate] = useState(() => debitOrderMonitorCache.startDate || startOfMonthYmdLocal());
@@ -643,35 +644,52 @@ export default function DebitOrderMonitor() {
   }
 
   const api = data?.data || {};
-  const period = api?.period || {};
-  const lastCron = api?.lastCron || {};
+  const cards = api?.cards || {};
+  const cron = api?.cron || {};
+  const filters = {
+    startDate: safeStr(api?.startDate || startDate),
+    endDate: safeStr(api?.endDate || endDate),
+  };
 
-  const dueInRange = safeNum(api?.kpis?.dueInRange);
-  const scheduled25th = safeNum(api?.kpis?.scheduled25th);
-  const retryScheduled = safeNum(api?.kpis?.retryScheduled);
-  const failed = safeNum(api?.kpis?.failed);
+  const dueInRange = safeNum(cards?.attemptedToday || 0);
+  const scheduled25th = 0;
+  const retryScheduled = safeNum(cards?.retryScheduledToday || 0);
+  const failed = safeNum(cards?.failedToday || 0);
+
+  const lastCron = cron?.lastRun || null;
 
   const cronRuns = useMemo(() => {
-    if (!lastCron || !lastCron.run_id) return [];
-    const summary = lastCron?.summary || {};
+    if (!lastCron) return [];
     return [
       {
-        started_at: safeStr(lastCron.started_at || ""),
-        ended_at: safeStr(lastCron.ended_at || ""),
-        result: safeStr(lastCron.run_status || ""),
-        success_count: Number(summary?.success || 0),
-        fail_count: Number(summary?.failed || 0),
-        last_error: safeStr(lastCron.last_error || ""),
+        started_at: safeStr(lastCron?.startedAt || ""),
+        ended_at: safeStr(lastCron?.endedAt || ""),
+        result: safeStr(lastCron?.runStatus || ""),
+        success_count: Number(cards?.successfulToday || 0),
+        fail_count: Number(cards?.failedToday || 0),
+        last_error: safeStr(lastCron?.lastError || ""),
       },
     ];
-  }, [lastCron]);
+  }, [lastCron, cards?.failedToday, cards?.successfulToday]);
 
-  const attempts = Array.isArray(api?.recentAttempts) ? api.recentAttempts : [];
+  const attempts = Array.isArray(api?.batches)
+    ? api.batches.map((b) => ({
+        created_at: safeStr(b?.batch || ""),
+        client_id: "",
+        amount: safeNum(b?.value || 0),
+        status: safeStr(b?.status || ""),
+        attempt_key: safeStr(b?.batch || ""),
+        error: "",
+      }))
+    : [];
 
-  const successCount = safeNum(api?.health?.successful);
-  const failedCount = safeNum(api?.health?.failed);
-  const retryCount = safeNum(api?.health?.retryScheduled);
-  const pendingCount = safeNum(api?.health?.pending);
+  const successCount = safeNum(cards?.successfulToday || 0);
+  const failedCount = safeNum(cards?.failedToday || 0);
+  const retryCount = safeNum(cards?.retryScheduledToday || 0);
+  const pendingCount = Math.max(
+    0,
+    safeNum(cards?.attemptedToday || 0) - successCount - failedCount - retryCount
+  );
 
   const kpis = {
     dueInRange,
@@ -954,7 +972,7 @@ export default function DebitOrderMonitor() {
             Debit Order Monitor
           </h2>
           <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>
-            Period-aware operational view for due, scheduled, retry, failed, cron health, and recent attempts
+            Period-aware operational view for debit activity, retry pressure, failures, and cron health
             {loading ? " • syncing..." : ""}
             {error ? " • error" : ""}
           </p>
@@ -1016,36 +1034,36 @@ export default function DebitOrderMonitor() {
             }}
             title="Selected monitor range"
           >
-            {fmtDate(period?.startDate || startDate)} to {fmtDate(period?.endDate || endDate)}
+            {fmtDate(filters.startDate)} to {fmtDate(filters.endDate)}
           </div>
         </div>
       </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
         <MetricCard
-          title="Due in range"
+          title="Attempts in range"
           value={String(kpis.dueInRange)}
-          subtext="Debit orders due in selected range"
-          trend={kpis.dueInRange > 0 ? "Action required" : "Clear"}
-          trendUp={kpis.dueInRange === 0}
+          subtext="Processed attempts in selected range"
+          trend={kpis.dueInRange > 0 ? "Active period" : "No activity"}
+          trendUp={kpis.dueInRange > 0}
           icon={<IconClock />}
           color="blue"
         />
 
         <MetricCard
-          title="Scheduled"
-          value={String(kpis.scheduled25th)}
-          subtext="Currently scheduled in range"
-          trend={kpis.scheduled25th > 0 ? "Upcoming" : ""}
+          title="Successful"
+          value={String(successCount)}
+          subtext="Successful collections"
+          trend={successCount > 0 ? "Healthy" : ""}
           trendUp={true}
           icon={<IconList />}
-          color="purple"
+          color="green"
         />
 
         <MetricCard
           title="Retry scheduled"
           value={String(kpis.retryScheduled)}
-          subtext="Retry queue in range"
+          subtext="Retry pressure in range"
           trend={kpis.retryScheduled > 0 ? "Watchlist" : "Clear"}
           trendUp={kpis.retryScheduled === 0}
           icon={<IconClock />}
@@ -1087,7 +1105,7 @@ export default function DebitOrderMonitor() {
 
         <Card style={{ padding: "1.25rem" }}>
           <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Schedule distribution</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Due, scheduled, retry, failed for selected range</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Attempts, success, retry, failed</p>
 
           <div style={{ display: "flex", justifyContent: "center" }}>
             <DonutChart data={scheduleDonut} />
@@ -1213,8 +1231,8 @@ export default function DebitOrderMonitor() {
         <Card style={{ padding: "1.25rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div>
-              <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Recent charge attempts</h3>
-              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Attempts in selected range</p>
+              <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Recent batches</h3>
+              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Mapped from summary batches</p>
             </div>
 
             <PremiumButton title="Export Attempts to CSV" onClick={() => exportRowsToCsv("charge_attempts_recent.csv", attempts, attemptsColumns)}>
@@ -1237,17 +1255,18 @@ export default function DebitOrderMonitor() {
                 {attempts.slice(0, 10).map((a, idx) => {
                   const st = safeStr(a?.status || "").toLowerCase();
                   let badge = "pending";
-                  if (st === "success" || st === "successful") badge = "ok";
+                  if (st === "success" || st === "successful" || st === "sent") badge = "ok";
                   else if (st === "failed") badge = "failed";
-                  else if (st === "retry" || st === "retry scheduled") badge = "retry";
-                  else if (st === "queued" || st === "pending" || st === "initiated") badge = "queued";
+                  else if (st === "retry") badge = "retry";
+                  else if (st === "partial") badge = "partial";
+                  else if (st === "queued" || st === "pending" || st === "initiated" || st === "exported" || st === "draft") badge = "queued";
                   else if (st === "suspended") badge = "suspended";
 
                   return (
                     <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
                       <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(a?.created_at)}</td>
                       <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 600, fontSize: "0.75rem", fontFamily: "monospace" }}>
-                        {safeStr(a?.client_id || a?.crm_client_id || "") || "N/A"}
+                        {safeStr(a?.client_id || "") || "N/A"}
                       </td>
                       <td style={{ padding: "0.75rem 0", textAlign: "right", color: "white", fontWeight: 600 }}>{safeStr(a?.amount || "0")}</td>
                       <td style={{ padding: "0.75rem 0" }}>
@@ -1260,7 +1279,7 @@ export default function DebitOrderMonitor() {
                 {attempts.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      No attempt data in the selected range.
+                      No batch data in the selected range.
                     </td>
                   </tr>
                 ) : null}
