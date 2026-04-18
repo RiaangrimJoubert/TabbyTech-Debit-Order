@@ -1,16 +1,38 @@
 // src/shell/DebitOrderMonitor.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 
 let debitOrderMonitorCache = {
   data: null,
   error: "",
+  startDate: "",
+  endDate: "",
   lastLoadedAt: 0,
 };
 
-function hasFreshDebitOrderMonitorCache() {
-  return !!debitOrderMonitorCache.data && Date.now() - Number(debitOrderMonitorCache.lastLoadedAt || 0) < DEBIT_ORDER_MONITOR_CACHE_TTL_MS;
+function todayYmdLocal() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function startOfMonthYmdLocal() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}-${mm}-01`;
+}
+
+function hasFreshDebitOrderMonitorCache(startDate, endDate) {
+  return (
+    !!debitOrderMonitorCache.data &&
+    debitOrderMonitorCache.startDate === String(startDate || "") &&
+    debitOrderMonitorCache.endDate === String(endDate || "") &&
+    Date.now() - Number(debitOrderMonitorCache.lastLoadedAt || 0) < DEBIT_ORDER_MONITOR_CACHE_TTL_MS
+  );
 }
 
 function cx(...arr) {
@@ -18,13 +40,199 @@ function cx(...arr) {
 }
 
 function safeStr(v) {
-  return String(v == null ? "" : v);
+  return String(v == null ? "" : v).trim();
+}
+
+function safeNum(v) {
+  const n = Number(v || 0);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function fmtWhen(ts) {
-  if (!ts) return "";
-  const s = String(ts).trim();
-  return s;
+  return safeStr(ts) || "N/A";
+}
+
+function fmtDate(v) {
+  if (!v) return "Not supplied";
+  const d = new Date(String(v).length <= 10 ? `${v}T00:00:00` : v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleDateString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function formatPickerMonth(date) {
+  return date.toLocaleDateString("en-ZA", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function toYmd(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseYmdLocal(value) {
+  if (!value) return null;
+  const s = String(value).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  const dt = new Date(y, mo, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) {
+    return null;
+  }
+  return dt;
+}
+
+function useOnClickOutside(ref, handler) {
+  useEffect(() => {
+    function onDown(e) {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target)) return;
+      handler();
+    }
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("touchstart", onDown);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("touchstart", onDown);
+    };
+  }, [ref, handler]);
+}
+
+function PremiumDatePicker({ value, onChange, ariaLabel }) {
+  const wrapRef = useRef(null);
+  const parsedValue = parseYmdLocal(value) || new Date();
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(
+    () => new Date(parsedValue.getFullYear(), parsedValue.getMonth(), 1)
+  );
+
+  useEffect(() => {
+    const next = parseYmdLocal(value);
+    if (!next) return;
+    setViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
+  }, [value]);
+
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const selectedYmd = value || "";
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+
+  for (let i = 0; i < startWeekday; i += 1) {
+    cells.push({ type: "empty", key: `e-${i}` });
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dt = new Date(year, month, day);
+    const ymd = toYmd(dt);
+    cells.push({
+      type: "day",
+      key: ymd,
+      ymd,
+      label: day,
+      isSelected: ymd === selectedYmd,
+      isToday: ymd === todayYmdLocal(),
+    });
+  }
+
+  function selectDate(ymd) {
+    onChange(ymd);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={wrapRef} className="tdm-datePickerWrap">
+      <button
+        type="button"
+        className={open ? "tdm-dateInput tdm-dateInputOpen" : "tdm-dateInput"}
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((x) => !x)}
+      >
+        <span>{value || "Select date"}</span>
+        <span className="tdm-dateCaret">▾</span>
+      </button>
+
+      {open && (
+        <div className="tdm-datePopup" role="dialog" aria-label={ariaLabel}>
+          <div className="tdm-datePopupHead">
+            <button
+              type="button"
+              className="tdm-dateNavBtn"
+              onClick={() => setViewDate(new Date(year, month - 1, 1))}
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+
+            <div className="tdm-dateMonthLabel">{formatPickerMonth(viewDate)}</div>
+
+            <button
+              type="button"
+              className="tdm-dateNavBtn"
+              onClick={() => setViewDate(new Date(year, month + 1, 1))}
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="tdm-dateWeekdays">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="tdm-dateWeekday">
+                {d}
+              </div>
+            ))}
+          </div>
+
+          <div className="tdm-dateGrid">
+            {cells.map((cell) => {
+              if (cell.type === "empty") {
+                return <div key={cell.key} className="tdm-dateCell tdm-dateCellEmpty" />;
+              }
+
+              const cls = [
+                "tdm-dateCell",
+                "tdm-dateCellDay",
+                cell.isSelected ? "tdm-dateCellSelected" : "",
+                cell.isToday ? "tdm-dateCellToday" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+              return (
+                <button
+                  key={cell.key}
+                  type="button"
+                  className={cls}
+                  onClick={() => selectDate(cell.ymd)}
+                >
+                  {cell.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function exportRowsToCsv(filename, rows, columns) {
@@ -111,6 +319,7 @@ function StatusBadge({ status, children }) {
     ok: { background: "rgba(34, 197, 94, 0.1)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.2)" },
     retry: { background: "rgba(139, 92, 246, 0.1)", color: "#a78bfa", border: "1px solid rgba(139, 92, 246, 0.2)" },
     pending: { background: "rgba(59, 130, 246, 0.1)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.2)" },
+    suspended: { background: "rgba(107, 114, 128, 0.14)", color: "#d1d5db", border: "1px solid rgba(107, 114, 128, 0.2)" },
   };
 
   const badgeStyle = styles[status] || styles.pending;
@@ -285,11 +494,6 @@ function PremiumButton({ children, onClick, title, disabled = false }) {
   );
 }
 
-/**
- * IMPORTANT FIX
- * Your Slate build is sometimes not injecting VITE_API_BASE_URL at runtime even if .env.production exists.
- * To reduce break risk, we fallback to the known API domain if the env var is missing.
- */
 function getApiBase() {
   const envBase = String(import.meta?.env?.VITE_API_BASE_URL || "").trim();
   const winBase = String(window?.__TABBYTECH_API_BASE_URL || "").trim();
@@ -299,9 +503,14 @@ function getApiBase() {
   return base;
 }
 
-async function fetchDebitOrderMonitor() {
+async function fetchDebitOrderMonitor({ startDate, endDate }) {
   const BASE = getApiBase();
-  const url = `${BASE}/api/dashboard/debit-order-monitor`;
+  const qs = new URLSearchParams();
+
+  if (safeStr(startDate)) qs.set("startDate", safeStr(startDate));
+  if (safeStr(endDate)) qs.set("endDate", safeStr(endDate));
+
+  const url = `${BASE}/api/dashboard/debit-order-monitor${qs.toString() ? `?${qs.toString()}` : ""}`;
 
   const resp = await fetch(url, {
     method: "GET",
@@ -324,7 +533,9 @@ async function fetchDebitOrderMonitor() {
 }
 
 export default function DebitOrderMonitor() {
-  const [loading, setLoading] = useState(() => !hasFreshDebitOrderMonitorCache());
+  const [startDate, setStartDate] = useState(() => debitOrderMonitorCache.startDate || startOfMonthYmdLocal());
+  const [endDate, setEndDate] = useState(() => debitOrderMonitorCache.endDate || todayYmdLocal());
+  const [loading, setLoading] = useState(() => !hasFreshDebitOrderMonitorCache(startOfMonthYmdLocal(), todayYmdLocal()));
   const [error, setError] = useState(() => safeStr(debitOrderMonitorCache.error));
   const [data, setData] = useState(() => debitOrderMonitorCache.data || null);
 
@@ -333,15 +544,17 @@ export default function DebitOrderMonitor() {
       ...debitOrderMonitorCache,
       data,
       error,
+      startDate,
+      endDate,
       lastLoadedAt: debitOrderMonitorCache.lastLoadedAt,
     };
-  }, [data, error]);
+  }, [data, error, startDate, endDate]);
 
   useEffect(() => {
     let alive = true;
 
     async function load({ force = false } = {}) {
-      if (!force && hasFreshDebitOrderMonitorCache()) {
+      if (!force && hasFreshDebitOrderMonitorCache(startDate, endDate)) {
         if (!alive) return;
         setData(debitOrderMonitorCache.data || null);
         setError(safeStr(debitOrderMonitorCache.error));
@@ -352,7 +565,7 @@ export default function DebitOrderMonitor() {
       try {
         setLoading(true);
         setError("");
-        const d = await fetchDebitOrderMonitor();
+        const d = await fetchDebitOrderMonitor({ startDate, endDate });
         if (!alive) return;
 
         setData(d);
@@ -361,6 +574,8 @@ export default function DebitOrderMonitor() {
           ...debitOrderMonitorCache,
           data: d,
           error: "",
+          startDate,
+          endDate,
           lastLoadedAt: Date.now(),
         };
       } catch (e) {
@@ -371,6 +586,8 @@ export default function DebitOrderMonitor() {
         debitOrderMonitorCache = {
           ...debitOrderMonitorCache,
           error: nextError,
+          startDate,
+          endDate,
           lastLoadedAt: 0,
         };
       } finally {
@@ -381,27 +598,24 @@ export default function DebitOrderMonitor() {
 
     load({ force: false });
 
-    const t = setInterval(() => {
-      load({ force: true });
-    }, 30000);
-
     return () => {
       alive = false;
-      clearInterval(t);
     };
-  }, []);
+  }, [startDate, endDate]);
 
   async function syncNow() {
     try {
       setLoading(true);
       setError("");
-      const d = await fetchDebitOrderMonitor();
+      const d = await fetchDebitOrderMonitor({ startDate, endDate });
       setData(d);
 
       debitOrderMonitorCache = {
         ...debitOrderMonitorCache,
         data: d,
         error: "",
+        startDate,
+        endDate,
         lastLoadedAt: Date.now(),
       };
     } catch (e) {
@@ -411,6 +625,8 @@ export default function DebitOrderMonitor() {
       debitOrderMonitorCache = {
         ...debitOrderMonitorCache,
         error: nextError,
+        startDate,
+        endDate,
         lastLoadedAt: 0,
       };
     } finally {
@@ -418,17 +634,22 @@ export default function DebitOrderMonitor() {
     }
   }
 
-  const api = data?.data || {};
-  const today = api?.today || "";
+  async function applyRange() {
+    if (safeStr(startDate) && safeStr(endDate) && startDate > endDate) {
+      setError("Start date cannot be after end date.");
+      return;
+    }
+    await syncNow();
+  }
 
-  const crm = api?.crm || {};
-  const statusMap = crm?.status || {};
+  const api = data?.data || {};
+  const period = api?.period || {};
   const lastCron = api?.lastCron || {};
 
-  const dueToday = Number(crm?.dueTodayTotal || 0);
-  const scheduled25th = Number(statusMap?.Scheduled || 0);
-  const retryScheduled1st = Number(statusMap?.["Retry Scheduled"] || 0);
-  const failed = Number(statusMap?.Failed || 0);
+  const dueInRange = safeNum(api?.kpis?.dueInRange);
+  const scheduled25th = safeNum(api?.kpis?.scheduled25th);
+  const retryScheduled = safeNum(api?.kpis?.retryScheduled);
+  const failed = safeNum(api?.kpis?.failed);
 
   const cronRuns = useMemo(() => {
     if (!lastCron || !lastCron.run_id) return [];
@@ -445,71 +666,69 @@ export default function DebitOrderMonitor() {
     ];
   }, [lastCron]);
 
-  const attempts = [];
+  const attempts = Array.isArray(api?.recentAttempts) ? api.recentAttempts : [];
 
-  const successToday = Number(lastCron?.summary?.success || 0);
-  const failedToday = Number(lastCron?.summary?.failed || 0);
-  const retryToday = 0;
-  const pendingToday = Math.max(0, Number(lastCron?.summary?.attempted || 0) - successToday - failedToday);
+  const successCount = safeNum(api?.health?.successful);
+  const failedCount = safeNum(api?.health?.failed);
+  const retryCount = safeNum(api?.health?.retryScheduled);
+  const pendingCount = safeNum(api?.health?.pending);
 
   const kpis = {
-    dueToday,
+    dueInRange,
     scheduled25th,
-    retryScheduled1st,
+    retryScheduled,
     failed,
   };
 
   const healthDonut = useMemo(() => {
-    const ok = Number(successToday || 0);
-    const failedN = Number(failedToday || 0);
-    const retryN = Number(retryToday || 0);
-
-    const total = ok + failedN + retryN;
+    const total = successCount + failedCount + retryCount + pendingCount;
     if (total <= 0) {
       return [
         { name: "Successful", value: 0, color: "#10b981" },
         { name: "Failed", value: 0, color: "#ef4444" },
         { name: "Scheduled retry queued", value: 0, color: "#8b5cf6" },
+        { name: "Pending", value: 0, color: "#60a5fa" },
       ];
     }
 
     return [
-      { name: "Successful", value: ok, color: "#10b981" },
-      { name: "Failed", value: failedN, color: "#ef4444" },
-      { name: "Scheduled retry queued", value: retryN, color: "#8b5cf6" },
+      { name: "Successful", value: successCount, color: "#10b981" },
+      { name: "Failed", value: failedCount, color: "#ef4444" },
+      { name: "Scheduled retry queued", value: retryCount, color: "#8b5cf6" },
+      { name: "Pending", value: pendingCount, color: "#60a5fa" },
     ];
-  }, [failedToday, retryToday, successToday]);
+  }, [failedCount, pendingCount, retryCount, successCount]);
 
   const scheduleDonut = useMemo(() => {
-    const due = kpis.dueToday;
+    const due = kpis.dueInRange;
     const s25 = kpis.scheduled25th;
-    const r1 = kpis.retryScheduled1st;
+    const r1 = kpis.retryScheduled;
     const f = kpis.failed;
 
     const total = due + s25 + r1 + f;
     if (total <= 0) {
       return [
-        { name: "Due today", value: 0, color: "#60a5fa" },
+        { name: "Due in range", value: 0, color: "#60a5fa" },
         { name: "25th scheduled", value: 0, color: "#a78bfa" },
-        { name: "Retry 1st", value: 0, color: "#f59e0b" },
+        { name: "Retry scheduled", value: 0, color: "#f59e0b" },
         { name: "Failed", value: 0, color: "#ef4444" },
       ];
     }
 
     return [
-      { name: "Due today", value: due, color: "#60a5fa" },
+      { name: "Due in range", value: due, color: "#60a5fa" },
       { name: "25th scheduled", value: s25, color: "#a78bfa" },
-      { name: "Retry 1st", value: r1, color: "#f59e0b" },
+      { name: "Retry scheduled", value: r1, color: "#f59e0b" },
       { name: "Failed", value: f, color: "#ef4444" },
     ];
-  }, [kpis.dueToday, kpis.failed, kpis.retryScheduled1st, kpis.scheduled25th]);
+  }, [kpis.dueInRange, kpis.failed, kpis.retryScheduled, kpis.scheduled25th]);
 
   const attemptStatusMini = useMemo(() => {
     const by = {
-      success: Number(successToday || 0),
-      failed: Number(failedToday || 0),
-      retry: Number(retryToday || 0),
-      pending: Number(pendingToday || 0),
+      success: successCount,
+      failed: failedCount,
+      retry: retryCount,
+      pending: pendingCount,
     };
     const total = Math.max(1, by.success + by.failed + by.retry + by.pending);
 
@@ -519,7 +738,7 @@ export default function DebitOrderMonitor() {
       { label: "Scheduled retry queued", value: by.retry, pct: Math.round((by.retry / total) * 100), color: "#8b5cf6" },
       { label: "Pending", value: by.pending, pct: Math.round((by.pending / total) * 100), color: "#60a5fa" },
     ];
-  }, [failedToday, pendingToday, retryToday, successToday]);
+  }, [failedCount, pendingCount, retryCount, successCount]);
 
   const cronColumns = useMemo(
     () => [
@@ -568,15 +787,166 @@ export default function DebitOrderMonitor() {
           0%, 100% { opacity: 1; }
           50% { opacity: .5; }
         }
+
+        .tdm-datePickerWrap { position: relative; }
+
+        .tdm-dateInput {
+          height: 40px;
+          min-width: 160px;
+          border-radius: 12px;
+          border: 1px solid rgba(168,85,247,0.65);
+          background:
+            linear-gradient(135deg, rgba(168,85,247,0.18), rgba(124,58,237,0.18)),
+            rgba(0,0,0,0.45);
+          color: rgba(255,255,255,0.96);
+          padding: 0 12px;
+          font-size: 13px;
+          font-weight: 800;
+          outline: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          box-shadow: 0 10px 24px rgba(124,58,237,0.12);
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .tdm-dateInput:hover {
+          border-color: rgba(168,85,247,0.90);
+          box-shadow: 0 12px 28px rgba(124,58,237,0.22);
+          transform: translateY(-1px);
+        }
+
+        .tdm-dateInputOpen {
+          border-color: rgba(168,85,247,0.95);
+          box-shadow:
+            0 0 0 4px rgba(124,58,237,0.20),
+            0 16px 34px rgba(124,58,237,0.26);
+        }
+
+        .tdm-dateCaret { opacity: 0.96; font-size: 12px; }
+
+        .tdm-datePopup {
+          position: absolute;
+          top: 46px;
+          right: 0;
+          width: 292px;
+          border-radius: 16px;
+          border: 1px solid rgba(168,85,247,0.38);
+          background: linear-gradient(180deg, rgba(18,12,36,0.96) 0%, rgba(11,10,22,0.96) 100%);
+          box-shadow: 0 24px 56px rgba(0,0,0,0.46);
+          backdrop-filter: blur(16px);
+          padding: 12px;
+          z-index: 80;
+          animation: tdmDatePopIn 140ms ease-out;
+        }
+
+        @keyframes tdmDatePopIn {
+          from { opacity: 0; transform: translateY(6px) scale(0.985); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .tdm-datePopupHead {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+
+        .tdm-dateMonthLabel {
+          font-size: 13px;
+          font-weight: 900;
+          color: rgba(255,255,255,0.94);
+          letter-spacing: 0.15px;
+        }
+
+        .tdm-dateNavBtn {
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          border: 1px solid rgba(168,85,247,0.28);
+          background: rgba(124,58,237,0.16);
+          color: rgba(255,255,255,0.96);
+          font-size: 18px;
+          font-weight: 900;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+
+        .tdm-dateNavBtn:hover {
+          background: rgba(168,85,247,0.26);
+          border-color: rgba(168,85,247,0.50);
+        }
+
+        .tdm-dateWeekdays,
+        .tdm-dateGrid {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(0, 1fr));
+          gap: 6px;
+        }
+
+        .tdm-dateWeekdays { margin-bottom: 6px; }
+
+        .tdm-dateWeekday {
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 800;
+          color: rgba(255,255,255,0.50);
+        }
+
+        .tdm-dateCell {
+          min-height: 34px;
+          border-radius: 10px;
+          border: 1px solid transparent;
+          background: transparent;
+        }
+
+        .tdm-dateCellEmpty {
+          pointer-events: none;
+          opacity: 0;
+        }
+
+        .tdm-dateCellDay {
+          color: rgba(255,255,255,0.90);
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .tdm-dateCellDay:hover {
+          background: rgba(168,85,247,0.18);
+          border-color: rgba(168,85,247,0.26);
+        }
+
+        .tdm-dateCellToday {
+          border-color: rgba(168,85,247,0.42);
+          box-shadow: inset 0 0 0 1px rgba(168,85,247,0.12);
+        }
+
+        .tdm-dateCellSelected {
+          background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
+          border-color: rgba(168,85,247,0.80);
+          color: #fff;
+          box-shadow: 0 10px 22px rgba(124,58,237,0.28);
+        }
       `}</style>
 
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-start",
           marginBottom: "1.5rem",
           padding: "0 0.5rem",
+          gap: "1rem",
+          flexWrap: "wrap",
         }}
       >
         <div>
@@ -584,13 +954,27 @@ export default function DebitOrderMonitor() {
             Debit Order Monitor
           </h2>
           <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>
-            Live operational view for due, scheduled, retry, and failed
+            Period-aware operational view for due, scheduled, retry, failed, cron health, and recent attempts
             {loading ? " • syncing..." : ""}
             {error ? " • error" : ""}
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div style={{ display: "flex", alignItems: "end", gap: "0.75rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 800, color: "rgba(255,255,255,0.62)" }}>Start date</span>
+            <PremiumDatePicker value={startDate} onChange={setStartDate} ariaLabel="Start date" />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 800, color: "rgba(255,255,255,0.62)" }}>End date</span>
+            <PremiumDatePicker value={endDate} onChange={setEndDate} ariaLabel="End date" />
+          </div>
+
+          <PremiumButton title="Apply date range to debit order monitor" onClick={applyRange} disabled={loading}>
+            Apply range
+          </PremiumButton>
+
           <PremiumButton title="Refresh debit order monitor" onClick={syncNow} disabled={loading}>
             {loading ? "Syncing..." : "Sync now"}
           </PremiumButton>
@@ -630,20 +1014,20 @@ export default function DebitOrderMonitor() {
               fontSize: "0.75rem",
               fontFamily: "monospace",
             }}
-            title="Monitor date from API"
+            title="Selected monitor range"
           >
-            {today || "date unknown"}
+            {fmtDate(period?.startDate || startDate)} to {fmtDate(period?.endDate || endDate)}
           </div>
         </div>
       </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
         <MetricCard
-          title="Due today"
-          value={String(kpis.dueToday)}
-          subtext="Debit orders due for charge"
-          trend={kpis.dueToday > 0 ? "Action required" : "Clear"}
-          trendUp={kpis.dueToday === 0}
+          title="Due in range"
+          value={String(kpis.dueInRange)}
+          subtext="Debit orders due in selected range"
+          trend={kpis.dueInRange > 0 ? "Action required" : "Clear"}
+          trendUp={kpis.dueInRange === 0}
           icon={<IconClock />}
           color="blue"
         />
@@ -651,7 +1035,7 @@ export default function DebitOrderMonitor() {
         <MetricCard
           title="Scheduled"
           value={String(kpis.scheduled25th)}
-          subtext="Currently scheduled"
+          subtext="Currently scheduled in range"
           trend={kpis.scheduled25th > 0 ? "Upcoming" : ""}
           trendUp={true}
           icon={<IconList />}
@@ -660,10 +1044,10 @@ export default function DebitOrderMonitor() {
 
         <MetricCard
           title="Retry scheduled"
-          value={String(kpis.retryScheduled1st)}
-          subtext="Retry queue"
-          trend={kpis.retryScheduled1st > 0 ? "Watchlist" : "Clear"}
-          trendUp={kpis.retryScheduled1st === 0}
+          value={String(kpis.retryScheduled)}
+          subtext="Retry queue in range"
+          trend={kpis.retryScheduled > 0 ? "Watchlist" : "Clear"}
+          trendUp={kpis.retryScheduled === 0}
           icon={<IconClock />}
           color="orange"
         />
@@ -681,8 +1065,8 @@ export default function DebitOrderMonitor() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1.25fr 1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
         <Card style={{ padding: "1.25rem" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Today health</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Successful vs failed vs scheduled retry</p>
+          <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Range health</h3>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Successful vs failed vs scheduled retry vs pending</p>
 
           <div style={{ display: "flex", justifyContent: "center" }}>
             <DonutChart data={healthDonut} />
@@ -703,7 +1087,7 @@ export default function DebitOrderMonitor() {
 
         <Card style={{ padding: "1.25rem" }}>
           <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Schedule distribution</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Due, scheduled, retry, failed</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Due, scheduled, retry, failed for selected range</p>
 
           <div style={{ display: "flex", justifyContent: "center" }}>
             <DonutChart data={scheduleDonut} />
@@ -724,7 +1108,7 @@ export default function DebitOrderMonitor() {
 
         <Card style={{ padding: "1.25rem" }}>
           <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Mini status list</h3>
-          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Snapshot from last cron summary</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: "1rem" }}>Snapshot for selected range</p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {attemptStatusMini.map((s) => (
@@ -757,7 +1141,7 @@ export default function DebitOrderMonitor() {
                   ></div>
                 </div>
 
-                <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#6b7280" }}>{s.pct}% of last cron activity</div>
+                <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#6b7280" }}>{s.pct}% of selected range activity</div>
               </div>
             ))}
           </div>
@@ -770,7 +1154,7 @@ export default function DebitOrderMonitor() {
             <div>
               <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Last Cron run</h3>
               <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                From API lastCron
+                Latest cron status
                 {error ? ` • API error: ${error}` : ""}
               </p>
             </div>
@@ -803,8 +1187,8 @@ export default function DebitOrderMonitor() {
 
                   return (
                     <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
-                      <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 500, fontSize: "0.75rem" }}>{fmtWhen(r?.started_at) || "N/A"}</td>
-                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(r?.ended_at) || "N/A"}</td>
+                      <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 500, fontSize: "0.75rem" }}>{fmtWhen(r?.started_at)}</td>
+                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(r?.ended_at)}</td>
                       <td style={{ padding: "0.75rem 0" }}>
                         <StatusBadge status={badge}>{result || "QUEUED"}</StatusBadge>
                       </td>
@@ -830,7 +1214,7 @@ export default function DebitOrderMonitor() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div>
               <h3 style={{ fontSize: "1rem", fontWeight: "bold", color: "white", marginBottom: "0.25rem" }}>Recent charge attempts</h3>
-              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Not wired in current API response</p>
+              <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Attempts in selected range</p>
             </div>
 
             <PremiumButton title="Export Attempts to CSV" onClick={() => exportRowsToCsv("charge_attempts_recent.csv", attempts, attemptsColumns)}>
@@ -855,12 +1239,13 @@ export default function DebitOrderMonitor() {
                   let badge = "pending";
                   if (st === "success" || st === "successful") badge = "ok";
                   else if (st === "failed") badge = "failed";
-                  else if (st === "retry") badge = "retry";
-                  else if (st === "queued" || st === "pending") badge = "queued";
+                  else if (st === "retry" || st === "retry scheduled") badge = "retry";
+                  else if (st === "queued" || st === "pending" || st === "initiated") badge = "queued";
+                  else if (st === "suspended") badge = "suspended";
 
                   return (
                     <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
-                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(a?.created_at) || "N/A"}</td>
+                      <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{fmtWhen(a?.created_at)}</td>
                       <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 600, fontSize: "0.75rem", fontFamily: "monospace" }}>
                         {safeStr(a?.client_id || a?.crm_client_id || "") || "N/A"}
                       </td>
@@ -875,7 +1260,7 @@ export default function DebitOrderMonitor() {
                 {attempts.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      No data yet. Once we add attempts to the API response, this will populate.
+                      No attempt data in the selected range.
                     </td>
                   </tr>
                 ) : null}
