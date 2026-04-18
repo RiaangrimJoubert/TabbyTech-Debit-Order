@@ -510,7 +510,7 @@ async function fetchDebitOrderMonitor({ startDate, endDate }) {
   if (safeStr(startDate)) qs.set("startDate", safeStr(startDate));
   if (safeStr(endDate)) qs.set("endDate", safeStr(endDate));
 
-  const url = `${BASE}/api/dashboard/debit-order-monitor${qs.toString() ? `?${qs.toString()}` : ""}`;
+  const url = `${BASE}/api/dashboard/dashboard/summary${qs.toString() ? `?${qs.toString()}` : ""}`;
 
   const resp = await fetch(url, {
     method: "GET",
