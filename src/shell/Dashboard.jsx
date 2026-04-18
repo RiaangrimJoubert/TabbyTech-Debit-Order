@@ -544,7 +544,7 @@ function MetricCard({ title, value, subtext, trend, trendUp, icon: Icon, color =
       </div>
 
       <div className="ttd-metricLabel">{title}</div>
-      <div className="ttd-metricValue">{value}</div>
+      <div className={cx("ttd-metricValue", (!value || value === "Awaiting data" || value === "—") && "ttd-metricValueMuted")}>{value}</div>
       <div className="ttd-metricSub">{subtext}</div>
 
       {trend ? (
@@ -790,6 +790,9 @@ function DonutChart({ size = 190, strokeWidth = 18, centerValue, centerLabel, se
   const cx = size / 2;
   const cy = size / 2;
   let angleCursor = 0;
+  const hasData = Array.isArray(segments) && segments.some((segment) => safeNum(segment?.value) > 0);
+  const displayedCenterValue = hasNonZeroValue(centerValue) ? centerValue : "—";
+  const displayedCenterLabel = hasData ? centerLabel : "No live data";
 
   return (
     <div className="ttd-donutWrap">
@@ -833,8 +836,8 @@ function DonutChart({ size = 190, strokeWidth = 18, centerValue, centerLabel, se
       </svg>
 
       <div className="ttd-donutCenter">
-        <div className="ttd-donutCenterValue">{centerValue}</div>
-        <div className="ttd-donutCenterLabel">{centerLabel}</div>
+        <div className="ttd-donutCenterValue">{displayedCenterValue}</div>
+        <div className="ttd-donutCenterLabel">{displayedCenterLabel}</div>
       </div>
     </div>
   );
@@ -853,6 +856,7 @@ function LineTrendChart({ data }) {
 
   const allValues = rows.flatMap((d) => [safeNum(d.successful), safeNum(d.failed), safeNum(d.retry)]);
   const maxY = Math.max(1, ...allValues);
+  const hasChartData = allValues.some((value) => value > 0);
 
   function buildSeries(key) {
     return rows.map((item, idx) => ({
@@ -874,7 +878,7 @@ function LineTrendChart({ data }) {
       <div className="ttd-chartHeaderMeta">
         <div>
           <div className="ttd-chartValue">
-            {rows.length ? safeNum(rows[rows.length - 1].successful) : 0}
+            {rows.length && hasChartData ? safeNum(rows[rows.length - 1].successful) : "—"}
           </div>
           <div className="ttd-chartSub">Latest successful count</div>
         </div>
@@ -895,6 +899,7 @@ function LineTrendChart({ data }) {
       </div>
 
       <div className="ttd-lineChartArea">
+        {!hasChartData ? <div className="ttd-emptyStateNote">No live performance data in the selected range</div> : null}
         <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none">
           <defs>
             <linearGradient id="ttd-success-fill" x1="0" y1="0" x2="0" y2="1">
@@ -979,6 +984,28 @@ async function fetchDashboardSummary(startDate, endDate) {
 function resolveRealMetric(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function hasNonZeroValue(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0;
+}
+
+function formatCurrencyOrText(value, formatter = formatZAR, emptyText = "Awaiting data") {
+  return hasNonZeroValue(value) ? formatter(value) : emptyText;
+}
+
+function formatCountOrText(value, emptyText = "—") {
+  return hasNonZeroValue(value) ? String(safeNum(value)) : emptyText;
+}
+
+function formatPercentOrText(value, emptyText = "—") {
+  return hasNonZeroValue(value) ? `${safeNum(value).toFixed(0)}%` : emptyText;
+}
+
+function formatRunStatusOrText(value, emptyText = "Awaiting data") {
+  const s = safeStr(value);
+  return s || emptyText;
 }
 
 
@@ -1522,6 +1549,8 @@ export default function Dashboard() {
     }
 
     .ttd-header {
+      position: relative;
+      z-index: 120;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -1546,6 +1575,8 @@ export default function Dashboard() {
     }
 
     .ttd-headerRight {
+      position: relative;
+      z-index: 121;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -1554,6 +1585,8 @@ export default function Dashboard() {
     }
 
     .ttd-headerTools {
+      position: relative;
+      z-index: 122;
       display: inline-flex;
       align-items: flex-end;
       gap: 10px;
@@ -1602,7 +1635,7 @@ export default function Dashboard() {
       margin-left: 2px;
     }
 
-    .ttd-datePickerWrap { position: relative; }
+    .ttd-datePickerWrap { position: relative; z-index: 130; }
 
     .ttd-dateInput {
       height: 40px;
@@ -1652,7 +1685,7 @@ export default function Dashboard() {
       box-shadow: 0 24px 56px rgba(0,0,0,0.46);
       backdrop-filter: blur(16px);
       padding: 12px;
-      z-index: 80;
+      z-index: 9999;
       animation: ttdDatePopIn 140ms ease-out;
     }
 
@@ -2004,6 +2037,7 @@ export default function Dashboard() {
     }
 
     .ttd-lineChartArea {
+      position: relative;
       height: 230px;
       width: 100%;
     }
@@ -2492,6 +2526,24 @@ export default function Dashboard() {
         inset 0 1px 0 rgba(255,255,255,0.10);
     }
 
+    
+    .ttd-emptyStateNote {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(12, 16, 33, 0.86);
+      border: 1px solid rgba(168,85,247,0.22);
+      color: rgba(255,255,255,0.72);
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
     @media (max-width: 1500px) {
       .ttd-grid4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2591,7 +2643,7 @@ export default function Dashboard() {
       <div className="ttd-grid4">
         <MetricCard
           title="Cycle Pipeline Value"
-          value={formatZAR(data.top.totalDebitOrderValue)}
+          value={formatCurrencyOrText(data.top.totalDebitOrderValue, formatZAR)}
           subtext={collectionScheduleText}
           trend={
             overallError
@@ -2607,8 +2659,8 @@ export default function Dashboard() {
 
         <MetricCard
           title="Latest Successful Collections"
-          value={formatZAR(data.top.totalCollected)}
-          subtext={`${safeNum(attemptsToday.success)} successful items in current reporting period`}
+          value={formatCurrencyOrText(data.top.totalCollected, formatZAR)}
+          subtext={`${formatCountOrText(attemptsToday.success, "No live data")} successful items in current reporting period`}
           trend={safeNum(attemptsToday.success) > 0 ? "Successful collections in selected range" : "No successful collections in selected range"}
           trendUp={true}
           icon={IconCheckCircle}
@@ -2617,7 +2669,7 @@ export default function Dashboard() {
 
         <MetricCard
           title="Net Collected (Actual)"
-          value={formatZAR2(data.top.estimatedMoneyToBank)}
+          value={formatCurrencyOrText(data.top.estimatedMoneyToBank, formatZAR2)}
           subtext="Actual collected value less actual fees"
           trend={safeNum(data.top.estimatedMoneyToBank) > 0 ? "Real settlement value available" : "No collected value in selected range"}
           trendUp={true}
@@ -2627,8 +2679,8 @@ export default function Dashboard() {
 
         <MetricCard
           title="Exceptions and Fees"
-          value={formatZAR2(data.top.estimatedPaystackFees)}
-          subtext={`Failed ${safeNum(attemptsToday.failed)} • Retry ${safeNum(data.top.retryScheduled)}`}
+          value={formatCurrencyOrText(data.top.estimatedPaystackFees, formatZAR2)}
+          subtext={`Failed ${formatCountOrText(attemptsToday.failed)} • Retry ${formatCountOrText(data.top.retryScheduled)}`}
           trend={safeNum(attemptsToday.failed) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
           trendUp={false}
           icon={IconRedo}
@@ -2661,7 +2713,7 @@ export default function Dashboard() {
 
             <div className="ttd-donutLayout">
               <DonutChart
-                centerValue={safeNum(data.top.retryScheduled)}
+                centerValue={formatCountOrText(data.top.retryScheduled)}
                 centerLabel="Retry queue"
                 segments={retrySegments}
               />
@@ -2673,10 +2725,10 @@ export default function Dashboard() {
                       <span className="ttd-legendSwatch" style={{ background: item.color }} />
                       <div>
                         <div className="ttd-legendLabel">{item.label}</div>
-                        <div className="ttd-legendSub">{safeNum(item.value)} scheduled</div>
+                        <div className="ttd-legendSub">{formatCountOrText(item.value, "No live data")} scheduled</div>
                       </div>
                     </div>
-                    <div className="ttd-legendPct">{safeNum(item.pct).toFixed(0)}%</div>
+                    <div className="ttd-legendPct">{formatPercentOrText(item.pct)}</div>
                   </div>
                 ))}
               </div>
@@ -2697,7 +2749,7 @@ export default function Dashboard() {
 
             <div className="ttd-donutLayout">
               <DonutChart
-                centerValue={safeNum(attemptsToday.attempted)}
+                centerValue={formatCountOrText(attemptsToday.attempted)}
                 centerLabel="Cycle items"
                 segments={operationalSegments}
               />
@@ -2709,10 +2761,10 @@ export default function Dashboard() {
                       <span className="ttd-legendSwatch" style={{ background: segment.color }} />
                       <div>
                         <div className="ttd-legendLabel">{segment.label}</div>
-                        <div className="ttd-legendSub">{safeNum(segment.value)} items</div>
+                        <div className="ttd-legendSub">{formatCountOrText(segment.value, "No live data")} items</div>
                       </div>
                     </div>
-                    <div className="ttd-legendPct">{safeNum(segment.pct).toFixed(0)}%</div>
+                    <div className="ttd-legendPct">{formatPercentOrText(segment.pct)}</div>
                   </div>
                 ))}
               </div>
@@ -2735,7 +2787,7 @@ export default function Dashboard() {
                   <span className="ttd-miniDot" style={{ background: "#22c55e" }} />
                   Success rate
                 </div>
-                <div className="ttd-opValue">{safeNum(data.top.successRate).toFixed(0)}%</div>
+                <div className="ttd-opValue">{formatPercentOrText(data.top.successRate, "Awaiting data")}</div>
                 <div className="ttd-opSub">Based on the selected dashboard summary window</div>
               </div>
 
@@ -2744,7 +2796,7 @@ export default function Dashboard() {
                   <span className="ttd-miniDot" style={{ background: "#ef4444" }} />
                   Failure rate
                 </div>
-                <div className="ttd-opValue">{safeNum(data.top.failureRate).toFixed(0)}%</div>
+                <div className="ttd-opValue">{formatPercentOrText(data.top.failureRate, "Awaiting data")}</div>
                 <div className="ttd-opSub">Tracks failed collection pressure</div>
               </div>
 
@@ -2753,7 +2805,7 @@ export default function Dashboard() {
                   <span className="ttd-miniDot" style={{ background: "#8b5cf6" }} />
                   Retry rate
                 </div>
-                <div className="ttd-opValue">{safeNum(data.top.retryRate).toFixed(0)}%</div>
+                <div className="ttd-opValue">{formatPercentOrText(data.top.retryRate, "Awaiting data")}</div>
                 <div className="ttd-opSub">Indicates follow-up load between collection windows</div>
               </div>
 
@@ -2763,7 +2815,7 @@ export default function Dashboard() {
                   Last run result
                 </div>
                 <div className="ttd-opValue">
-                  {safeStr(lastRun?.runStatus || lastRun?.result || "N/A") || "N/A"}
+                  {formatRunStatusOrText(lastRun?.runStatus || lastRun?.result)}
                 </div>
                 <div className="ttd-opSub">
                   {lastRun?.startedAt
@@ -2888,7 +2940,7 @@ export default function Dashboard() {
               </div>
 
               <div className={cx("ttd-financeValue", !data.monthlyMRR && "ttd-financeValueMuted")}>
-                {data.monthlyMRR ? formatZAR(data.monthlyMRR) : "Awaiting source"}
+                {formatCurrencyOrText(data.monthlyMRR, formatZAR, "Awaiting source")}
               </div>
 
               <div className="ttd-financeSub">
@@ -2911,7 +2963,7 @@ export default function Dashboard() {
               </div>
 
               <div className={cx("ttd-financeValue", !data.annualARR && "ttd-financeValueMuted")}>
-                {data.annualARR ? formatZAR(data.annualARR) : "Awaiting source"}
+                {formatCurrencyOrText(data.annualARR, formatZAR, "Awaiting source")}
               </div>
 
               <div className="ttd-financeSub">
@@ -2953,6 +3005,13 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
+                  {!filteredBatches.length ? (
+                    <tr>
+                      <td className="ttd-td" colSpan={4} style={{ textAlign: "center", color: "rgba(255,255,255,0.62)" }}>
+                        No recent runs available for the selected range
+                      </td>
+                    </tr>
+                  ) : null}
                   {filteredBatches.map((b) => (
                     <tr
                       key={b.key}
