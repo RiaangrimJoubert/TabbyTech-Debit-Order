@@ -979,6 +979,124 @@ async function fetchDashboardSummary(startDate, endDate) {
   });
   return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
 }
+
+// FIX START: real frontend fallback when summary route returns empty range data
+function enumerateYmdRange(startDate, endDate) {
+  const start = parseYmdLocal(startDate);
+  const end = parseYmdLocal(endDate);
+  if (!start || !end || start > end) return [];
+
+  const days = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const endAt = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+
+  while (cursor <= endAt) {
+    days.push(toYmd(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+    if (days.length > 120) break;
+  }
+
+  return days;
+}
+
+function hasUsableSummaryData(resp) {
+  const data = resp?.data || {};
+  const cards = data?.cards || {};
+  const charts = data?.charts || {};
+  const batches = Array.isArray(data?.batches) ? data.batches : [];
+
+  const cardHasValue = Object.values(cards).some((v) => Number.isFinite(Number(v)) && Number(v) > 0);
+  const chartHasRows = Object.values(charts).some((v) => Array.isArray(v) && v.length > 0);
+
+  return cardHasValue || chartHasRows || batches.length > 0;
+}
+
+async function fetchChargeMetricsByDate(date) {
+  const qs = new URLSearchParams({ date: safeStr(date) });
+  return fetchJson(`/api/dashboard/charge-metrics?${qs.toString()}`);
+}
+
+async function fetchDashboardSummaryWithFallback(startDate, endDate, cronMetricsSnapshot = null) {
+  try {
+    const direct = await fetchDashboardSummary(startDate, endDate);
+    if (hasUsableSummaryData(direct)) return direct;
+  } catch (e) {
+    // continue to fallback below
+  }
+
+  const days = enumerateYmdRange(startDate, endDate);
+  const responses = await Promise.all(
+    days.map(async (date) => {
+      try {
+        const resp = await fetchChargeMetricsByDate(date);
+        return resp?.data ? { ...resp.data, date } : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  const valid = responses.filter(Boolean);
+  const totalScheduledValue = valid.reduce((sum, row) => sum + safeNum(row.scheduledToday), 0);
+  const totalCollectedValue = valid.reduce((sum, row) => sum + safeNum(row.paidToday), 0);
+  const totalRetryValue = valid.reduce((sum, row) => sum + safeNum(row.retryScheduledToday), 0);
+  const latestFailedThisMonth = valid.length ? safeNum(valid[valid.length - 1].failedThisMonth) : 0;
+  const totalAttempted = totalScheduledValue;
+  const successRate = totalAttempted > 0 ? (totalCollectedValue / totalAttempted) * 100 : 0;
+  const retryRate = totalAttempted > 0 ? (totalRetryValue / totalAttempted) * 100 : 0;
+  const failureRate = totalAttempted > 0 && latestFailedThisMonth > 0 ? Math.min(100, (latestFailedThisMonth / totalAttempted) * 100) : 0;
+
+  const trend = valid.map((row) => ({
+    date: row.date,
+    time: fmtDateShort(row.date),
+    successful: safeNum(row.paidToday),
+    retry: safeNum(row.retryScheduledToday),
+  }));
+
+  const retryDistribution = [
+    { label: '25th Cycle', value: 0, color: '#22c55e' },
+    { label: '1st Retry', value: totalRetryValue, color: '#fbbf24' },
+    { label: 'Other Retry', value: 0, color: '#ef4444' },
+  ];
+
+  const latestRuns = Array.isArray(cronMetricsSnapshot?.latestRuns) ? cronMetricsSnapshot.latestRuns : [];
+  const batches = latestRuns.map((run, index) => ({
+    batchId: safeStr(run.runId || run.run_id || `run-${index + 1}`),
+    batch: safeStr(run.runDate || run.startedAt || run.started_at || `Run ${index + 1}`),
+    status: safeStr(run.runStatus || run.run_status || run.result || 'Pending'),
+    date: safeStr(run.runDate || run.startedAt || run.started_at),
+    items: null,
+    value: null,
+  }));
+
+  return {
+    ok: true,
+    data: {
+      cards: {
+        totalDebitOrderValue: totalScheduledValue,
+        totalCollected: totalCollectedValue,
+        retryScheduled: totalRetryValue,
+        retryScheduledToday: totalRetryValue,
+        attemptedToday: totalAttempted,
+        successfulToday: totalCollectedValue,
+        failedToday: latestFailedThisMonth,
+        successRate,
+        retryRate,
+        failureRate,
+      },
+      charts: {
+        debitPerformance: trend,
+        retryDistribution,
+      },
+      batches,
+      cron: {
+        latestRuns,
+        lastRun: latestRuns[0] || null,
+      },
+      asOfDate: endDate,
+    },
+  };
+}
 // FIX END
 
 function resolveRealMetric(value) {
@@ -1214,7 +1332,7 @@ export default function Dashboard() {
       try {
         if (!cached) setSummaryLoading(true);
         setSummaryError("");
-        const data = await fetchDashboardSummary(appliedStartDate, appliedEndDate);
+        const data = await fetchDashboardSummaryWithFallback(appliedStartDate, appliedEndDate, cronMetrics);
         setSummaryCache(appliedStartDate, appliedEndDate, data);
         if (alive) setDashboardSummary(data);
       } catch (e) {
@@ -1229,13 +1347,17 @@ export default function Dashboard() {
     return () => {
       alive = false;
     };
-  }, [appliedStartDate, appliedEndDate]);
+  }, [appliedStartDate, appliedEndDate, cronMetrics]);
   // FIX END
 
   const summaryData = dashboardSummary?.data || {};
   const summaryCards = summaryData?.cards || {};
   const summaryCharts = summaryData?.charts || {};
-  const rawSummaryBatches = Array.isArray(summaryData?.batches) ? summaryData.batches : [];
+  const rawSummaryBatches = Array.isArray(summaryData?.batches)
+    ? summaryData.batches
+    : Array.isArray(cronMetrics?.latestRuns)
+    ? cronMetrics.latestRuns
+    : [];
 
   const summaryBatches = useMemo(() => {
     return rawSummaryBatches.map((row, index) => normalizeDashboardBatchRow(row, index));
@@ -1509,7 +1631,7 @@ export default function Dashboard() {
       setSummaryLoading(true);
       setSummaryError("");
 
-      const data = await fetchDashboardSummary(nextStart, nextEnd);
+      const data = await fetchDashboardSummaryWithFallback(nextStart, nextEnd, cronMetrics);
       setSummaryCache(nextStart, nextEnd, data);
       setDashboardSummary(data);
     } catch (e) {
@@ -3027,8 +3149,8 @@ export default function Dashboard() {
                           {safeStr(b.status) || "Pending"}
                         </StatusBadge>
                       </td>
-                      <td className="ttd-td" style={{ textAlign: "right" }}>{safeNum(b.items)}</td>
-                      <td className="ttd-td" style={{ textAlign: "right" }}>{formatZAR(b.value)}</td>
+                      <td className="ttd-td" style={{ textAlign: "right" }}>{hasNonZeroValue(b.items) ? safeNum(b.items) : "—"}</td>
+                      <td className="ttd-td" style={{ textAlign: "right" }}>{hasNonZeroValue(b.value) ? formatZAR(b.value) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
