@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const LS = {
   search: "tabbytech.dashboard.search",
-  range: "tabbytech.dashboard.range",
+  startDate: "tabbytech.dashboard.startDate",
+  endDate: "tabbytech.dashboard.endDate",
   subView: "tabbytech.dashboard.subView",
   metric: "tabbytech.dashboard.metric",
   batch: "tabbytech.dashboard.batch",
@@ -75,6 +76,65 @@ function fmtDateShort(value) {
   return d.toLocaleDateString("en-ZA", {
     month: "short",
     day: "2-digit",
+  });
+}
+
+function fmtDateLong(value) {
+  if (!value) return "";
+  const d = new Date(String(value).length <= 10 ? `${value}T00:00:00` : value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function todayYmdLocal() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function startOfMonthYmdLocal() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}-${mm}-01`;
+}
+
+function parseYmdLocal(value) {
+  if (!value) return null;
+  const s = String(value).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  const dt = new Date(y, mo, d);
+  if (
+    dt.getFullYear() !== y ||
+    dt.getMonth() !== mo ||
+    dt.getDate() !== d
+  ) {
+    return null;
+  }
+  return dt;
+}
+
+function toYmd(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatPickerMonth(date) {
+  return date.toLocaleDateString("en-ZA", {
+    month: "long",
+    year: "numeric",
   });
 }
 
@@ -151,17 +211,21 @@ function setCachedObject(key, value) {
   } catch {}
 }
 
-function getSummaryCache(range) {
+function makeSummaryCacheKey(startDate, endDate) {
+  return `${safeStr(startDate)}__${safeStr(endDate)}`;
+}
+
+function getSummaryCache(startDate, endDate) {
   const cache = getCachedObject(LS.summaryCache);
   if (!cache) return null;
-  if (cache.range !== range) return null;
+  if (cache.key !== makeSummaryCacheKey(startDate, endDate)) return null;
   if (!cache.ts || Date.now() - cache.ts > SUMMARY_CACHE_MS) return null;
   return cache.data || null;
 }
 
-function setSummaryCache(range, data) {
+function setSummaryCache(startDate, endDate, data) {
   setCachedObject(LS.summaryCache, {
-    range,
+    key: makeSummaryCacheKey(startDate, endDate),
     ts: Date.now(),
     data,
   });
@@ -574,6 +638,153 @@ function PremiumBatchDropdown({ value, options, onChange }) {
   );
 }
 
+function PremiumDatePicker({ value, onChange, ariaLabel }) {
+  const wrapRef = useRef(null);
+  const parsedValue = parseYmdLocal(value) || new Date();
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(
+    () => new Date(parsedValue.getFullYear(), parsedValue.getMonth(), 1)
+  );
+
+  useEffect(() => {
+    const next = parseYmdLocal(value);
+    if (!next) return;
+    setViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
+  }, [value]);
+
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const selectedYmd = value || "";
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+
+  for (let i = 0; i < startWeekday; i += 1) {
+    cells.push({ type: "empty", key: `e-${i}` });
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dt = new Date(year, month, day);
+    const ymd = toYmd(dt);
+    cells.push({
+      type: "day",
+      key: ymd,
+      ymd,
+      label: day,
+      isSelected: ymd === selectedYmd,
+      isToday: ymd === todayYmdLocal(),
+    });
+  }
+
+  function selectDate(ymd) {
+    onChange(ymd);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={wrapRef} className="ttd-datePickerWrap">
+      <button
+        type="button"
+        className={cx("ttd-dateInput", open && "ttd-dateInputOpen")}
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((x) => !x)}
+      >
+        <span>{value || "Select date"}</span>
+        <span className="ttd-dateCaret">▾</span>
+      </button>
+
+      {open && (
+        <div className="ttd-datePopup" role="dialog" aria-label={ariaLabel}>
+          <div className="ttd-datePopupHead">
+            <button
+              type="button"
+              className="ttd-dateNavBtn"
+              onClick={() => setViewDate(new Date(year, month - 1, 1))}
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+
+            <div className="ttd-dateMonthLabel">
+              {formatPickerMonth(viewDate)}
+            </div>
+
+            <button
+              type="button"
+              className="ttd-dateNavBtn"
+              onClick={() => setViewDate(new Date(year, month + 1, 1))}
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="ttd-dateWeekdays">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="ttd-dateWeekday">
+                {d}
+              </div>
+            ))}
+          </div>
+
+          <div className="ttd-dateGrid">
+            {cells.map((cell) => {
+              if (cell.type === "empty") {
+                return (
+                  <div
+                    key={cell.key}
+                    className="ttd-dateCell ttd-dateCellEmpty"
+                  />
+                );
+              }
+
+              const cls = [
+                "ttd-dateCell",
+                "ttd-dateCellDay",
+                cell.isSelected ? "ttd-dateCellSelected" : "",
+                cell.isToday ? "ttd-dateCellToday" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+              return (
+                <button
+                  key={cell.key}
+                  type="button"
+                  className={cls}
+                  onClick={() => selectDate(cell.ymd)}
+                >
+                  {cell.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PremiumActionButton({ children, onClick, disabled = false, variant = "primary" }) {
+  return (
+    <button
+      type="button"
+      className={cx("ttd-actionBtn", variant === "secondary" && "ttd-actionBtnSecondary")}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
+}
+
 function DonutChart({ size = 190, strokeWidth = 18, centerValue, centerLabel, segments }) {
   const radius = (size - strokeWidth) / 2;
   const cx = size / 2;
@@ -645,7 +856,7 @@ function LineTrendChart({ data }) {
 
   function buildSeries(key) {
     return rows.map((item, idx) => ({
-      x: leftPad + (rows.length === 1 ? innerW / 2 : (idx / (rows.length - 1)) * innerW),
+      x: leftPad + (rows.length === 1 ? innerW / 2 : (idx / Math.max(1, rows.length - 1)) * innerW),
       y: topPad + innerH - (safeNum(item[key]) / maxY) * innerH,
       label: item.time,
       value: safeNum(item[key]),
@@ -755,12 +966,15 @@ async function fetchCronMetrics() {
   return fetchJson("/api/dashboard/cron-metrics");
 }
 
-async function fetchDashboardSummary(range) {
+// FIX START: switched dashboard summary to explicit date range
+async function fetchDashboardSummary(startDate, endDate) {
   const qs = new URLSearchParams({
-    range: String(range || "24h").toLowerCase(),
+    startDate: safeStr(startDate),
+    endDate: safeStr(endDate),
   });
   return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
 }
+// FIX END
 
 function resolveRealMetric(value) {
   const n = Number(value);
@@ -768,7 +982,13 @@ function resolveRealMetric(value) {
 }
 
 export default function Dashboard() {
-  const [range, setRange] = useLocalStorageState(LS.range, "24h");
+  // FIX START: replace range state with premium date state
+  const [startDate, setStartDate] = useLocalStorageState(LS.startDate, startOfMonthYmdLocal());
+  const [endDate, setEndDate] = useLocalStorageState(LS.endDate, todayYmdLocal());
+  const [appliedStartDate, setAppliedStartDate] = useState(() => safeStr(startDate) || startOfMonthYmdLocal());
+  const [appliedEndDate, setAppliedEndDate] = useState(() => safeStr(endDate) || todayYmdLocal());
+  // FIX END
+
   const [subView] = useLocalStorageState(LS.subView, "monthly");
   const [metric] = useLocalStorageState(LS.metric, "revenue");
   const [selectedBatch, setSelectedBatch] = useLocalStorageState(LS.batch, "");
@@ -777,8 +997,14 @@ export default function Dashboard() {
   const [cronLoading, setCronLoading] = useState(() => !getCronCache());
   const [cronError, setCronError] = useState("");
 
-  const [dashboardSummary, setDashboardSummary] = useState(() => getSummaryCache("24h"));
-  const [summaryLoading, setSummaryLoading] = useState(() => !getSummaryCache("24h"));
+  // FIX START: summary cache is now keyed by applied date range
+  const [dashboardSummary, setDashboardSummary] = useState(
+    () => getSummaryCache(appliedStartDate, appliedEndDate)
+  );
+  const [summaryLoading, setSummaryLoading] = useState(
+    () => !getSummaryCache(appliedStartDate, appliedEndDate)
+  );
+  // FIX END
   const [summaryError, setSummaryError] = useState("");
 
   useEffect(() => {
@@ -813,9 +1039,10 @@ export default function Dashboard() {
     };
   }, []);
 
+  // FIX START: summary loading is driven by appliedStartDate + appliedEndDate
   useEffect(() => {
     let alive = true;
-    const cached = getSummaryCache(range);
+    const cached = getSummaryCache(appliedStartDate, appliedEndDate);
 
     if (cached) {
       setDashboardSummary(cached);
@@ -826,8 +1053,8 @@ export default function Dashboard() {
       try {
         if (!cached) setSummaryLoading(true);
         setSummaryError("");
-        const data = await fetchDashboardSummary(range);
-        setSummaryCache(range, data);
+        const data = await fetchDashboardSummary(appliedStartDate, appliedEndDate);
+        setSummaryCache(appliedStartDate, appliedEndDate, data);
         if (alive) setDashboardSummary(data);
       } catch (e) {
         if (alive) setSummaryError(String(e?.message || e));
@@ -841,7 +1068,8 @@ export default function Dashboard() {
     return () => {
       alive = false;
     };
-  }, [range]);
+  }, [appliedStartDate, appliedEndDate]);
+  // FIX END
 
   const summaryData = dashboardSummary?.data || {};
   const summaryCards = summaryData?.cards || {};
@@ -1027,7 +1255,7 @@ export default function Dashboard() {
       date: safeStr(b.date || ""),
     }));
 
-    exportRowsToCsv(`tabbytech-batches-${range}-${Date.now()}.csv`, rows);
+    exportRowsToCsv(`tabbytech-batches-${appliedStartDate}-${appliedEndDate}-${Date.now()}.csv`, rows);
   }
 
   const batchDropdownOptions = filteredBatches.length
@@ -1036,6 +1264,43 @@ export default function Dashboard() {
         label: b.batch,
       }))
     : [{ value: "", label: "No batches" }];
+
+  // FIX START: premium apply/sync handlers
+  function applyRange() {
+    if (safeStr(startDate) && safeStr(endDate) && startDate > endDate) {
+      setSummaryError("Start date cannot be after end date.");
+      return;
+    }
+    setAppliedStartDate(safeStr(startDate) || startOfMonthYmdLocal());
+    setAppliedEndDate(safeStr(endDate) || todayYmdLocal());
+  }
+
+  async function syncNow() {
+    try {
+      if (safeStr(startDate) && safeStr(endDate) && startDate > endDate) {
+        setSummaryError("Start date cannot be after end date.");
+        return;
+      }
+
+      const nextStart = safeStr(startDate) || startOfMonthYmdLocal();
+      const nextEnd = safeStr(endDate) || todayYmdLocal();
+
+      setAppliedStartDate(nextStart);
+      setAppliedEndDate(nextEnd);
+
+      setSummaryLoading(true);
+      setSummaryError("");
+
+      const data = await fetchDashboardSummary(nextStart, nextEnd);
+      setSummaryCache(nextStart, nextEnd, data);
+      setDashboardSummary(data);
+    } catch (e) {
+      setSummaryError(String(e?.message || e));
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+  // FIX END
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
@@ -1099,10 +1364,10 @@ export default function Dashboard() {
 
     .ttd-headerTools {
       display: inline-flex;
-      align-items: center;
+      align-items: flex-end;
       gap: 10px;
-      padding: 8px 10px;
-      border-radius: 999px;
+      padding: 10px 12px;
+      border-radius: 18px;
       border: 1px solid rgba(255,255,255,0.08);
       background: rgba(12, 16, 33, 0.64);
       backdrop-filter: blur(12px);
@@ -1122,6 +1387,7 @@ export default function Dashboard() {
       font-size: 12px;
       font-weight: 700;
       white-space: nowrap;
+      height: 40px;
     }
 
     .ttd-liveDot {
@@ -1130,6 +1396,231 @@ export default function Dashboard() {
       border-radius: 999px;
       background: #22c55e;
       animation: ttdPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .ttd-dateGroup {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ttd-dateGroupLabel {
+      font-size: 11px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.62);
+      margin-left: 2px;
+    }
+
+    .ttd-datePickerWrap { position: relative; }
+
+    .ttd-dateInput {
+      height: 40px;
+      min-width: 160px;
+      border-radius: 12px;
+      border: 1px solid rgba(168,85,247,0.65);
+      background:
+        linear-gradient(135deg, rgba(168,85,247,0.18), rgba(124,58,237,0.18)),
+        rgba(0,0,0,0.45);
+      color: rgba(255,255,255,0.96);
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 800;
+      outline: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: 0 10px 24px rgba(124,58,237,0.12);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .ttd-dateInput:hover {
+      border-color: rgba(168,85,247,0.90);
+      box-shadow: 0 12px 28px rgba(124,58,237,0.22);
+      transform: translateY(-1px);
+    }
+
+    .ttd-dateInputOpen {
+      border-color: rgba(168,85,247,0.95);
+      box-shadow:
+        0 0 0 4px rgba(124,58,237,0.20),
+        0 16px 34px rgba(124,58,237,0.26);
+    }
+
+    .ttd-dateCaret { opacity: 0.96; font-size: 12px; }
+
+    .ttd-datePopup {
+      position: absolute;
+      top: 46px;
+      right: 0;
+      width: 292px;
+      border-radius: 16px;
+      border: 1px solid rgba(168,85,247,0.38);
+      background: linear-gradient(180deg, rgba(18,12,36,0.96) 0%, rgba(11,10,22,0.96) 100%);
+      box-shadow: 0 24px 56px rgba(0,0,0,0.46);
+      backdrop-filter: blur(16px);
+      padding: 12px;
+      z-index: 80;
+      animation: ttdDatePopIn 140ms ease-out;
+    }
+
+    @keyframes ttdDatePopIn {
+      from { opacity: 0; transform: translateY(6px) scale(0.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .ttd-datePopupHead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .ttd-dateMonthLabel {
+      font-size: 13px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.94);
+      letter-spacing: 0.15px;
+    }
+
+    .ttd-dateNavBtn {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      border: 1px solid rgba(168,85,247,0.28);
+      background: rgba(124,58,237,0.16);
+      color: rgba(255,255,255,0.96);
+      font-size: 18px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .ttd-dateNavBtn:hover {
+      background: rgba(168,85,247,0.26);
+      border-color: rgba(168,85,247,0.50);
+    }
+
+    .ttd-dateWeekdays,
+    .ttd-dateGrid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .ttd-dateWeekdays { margin-bottom: 6px; }
+
+    .ttd-dateWeekday {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.50);
+    }
+
+    .ttd-dateCell {
+      min-height: 34px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: transparent;
+    }
+
+    .ttd-dateCellEmpty {
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .ttd-dateCellDay {
+      color: rgba(255,255,255,0.90);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .ttd-dateCellDay:hover {
+      background: rgba(168,85,247,0.18);
+      border-color: rgba(168,85,247,0.26);
+    }
+
+    .ttd-dateCellToday {
+      border-color: rgba(168,85,247,0.42);
+      box-shadow: inset 0 0 0 1px rgba(168,85,247,0.12);
+    }
+
+    .ttd-dateCellSelected {
+      background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
+      border-color: rgba(168,85,247,0.80);
+      color: #fff;
+      box-shadow: 0 10px 22px rgba(124,58,237,0.28);
+    }
+
+    .ttd-actionBtn {
+      min-width: 132px;
+      height: 40px;
+      padding: 0 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(168,85,247,0.54);
+      background: linear-gradient(135deg, rgba(168,85,247,0.98), rgba(124,58,237,0.98));
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 16px 34px rgba(124,58,237,0.28),
+        inset 0 1px 0 rgba(255,255,255,0.14);
+      transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease, opacity 180ms ease;
+    }
+
+    .ttd-actionBtn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.03);
+      box-shadow:
+        0 20px 40px rgba(124,58,237,0.32),
+        inset 0 1px 0 rgba(255,255,255,0.18);
+    }
+
+    .ttd-actionBtn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+      box-shadow:
+        0 8px 18px rgba(124,58,237,0.18),
+        inset 0 1px 0 rgba(255,255,255,0.10);
+    }
+
+    .ttd-actionBtnSecondary {
+      background:
+        linear-gradient(180deg, rgba(22,18,45,0.96) 0%, rgba(12,10,28,0.96) 100%);
+      border: 1px solid rgba(168,85,247,0.38);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 0 0 1px rgba(168,85,247,0.05);
+    }
+
+    .ttd-dateRangePill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(18, 18, 31, 0.6);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      color: #9ca3af;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      height: 40px;
     }
 
     @keyframes ttdPulse {
@@ -1269,33 +1760,6 @@ export default function Dashboard() {
       font-size: 12px;
       color: #9ca3af;
       margin: 0;
-    }
-
-    .ttd-rangeGroup {
-      display: inline-flex;
-      gap: 6px;
-      background: rgba(0,0,0,0.18);
-      padding: 4px;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .ttd-rangeBtn {
-      padding: 7px 10px;
-      border-radius: 10px;
-      font-size: 11px;
-      font-weight: 800;
-      border: none;
-      cursor: pointer;
-      background: transparent;
-      color: #9ca3af;
-      transition: all 0.2s ease;
-    }
-
-    .ttd-rangeBtnActive {
-      background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
-      color: white;
-      box-shadow: 0 12px 28px rgba(124,58,237,0.20);
     }
 
     .ttd-chartHeaderMeta {
@@ -1865,6 +2329,11 @@ export default function Dashboard() {
         min-width: 100%;
         max-width: 100%;
       }
+      .ttd-dateInput,
+      .ttd-actionBtn {
+        min-width: 100%;
+        width: 100%;
+      }
     }
   `;
 
@@ -1888,6 +2357,38 @@ export default function Dashboard() {
 
         <div className="ttd-headerRight">
           <div className="ttd-headerTools">
+            {/* FIX START: premium date controls */}
+            <div className="ttd-dateGroup">
+              <span className="ttd-dateGroupLabel">Start date</span>
+              <PremiumDatePicker
+                value={startDate}
+                onChange={setStartDate}
+                ariaLabel="Dashboard start date"
+              />
+            </div>
+
+            <div className="ttd-dateGroup">
+              <span className="ttd-dateGroupLabel">End date</span>
+              <PremiumDatePicker
+                value={endDate}
+                onChange={setEndDate}
+                ariaLabel="Dashboard end date"
+              />
+            </div>
+
+            <PremiumActionButton onClick={applyRange} disabled={overallLoading}>
+              Apply range
+            </PremiumActionButton>
+
+            <PremiumActionButton onClick={syncNow} disabled={overallLoading} variant="secondary">
+              {overallLoading ? "Syncing..." : "Sync now"}
+            </PremiumActionButton>
+
+            <div className="ttd-dateRangePill" title="Applied dashboard range">
+              {fmtDateLong(appliedStartDate)} to {fmtDateLong(appliedEndDate)}
+            </div>
+            {/* FIX END */}
+
             <div className="ttd-livePill">
               <span className="ttd-liveDot" />
               Cycle view
@@ -1906,7 +2407,7 @@ export default function Dashboard() {
               ? "API Error"
               : overallLoading
               ? "Syncing"
-              : nextCycleLabel
+              : `${fmtDateShort(appliedStartDate)} to ${fmtDateShort(appliedEndDate)}`
           }
           trendUp={!overallError}
           icon={IconFileInvoice}
@@ -1916,18 +2417,18 @@ export default function Dashboard() {
         <MetricCard
           title="Latest Successful Collections"
           value={formatZAR(data.top.totalCollected)}
-          subtext={`${safeNum(summaryCards.successfulToday)} successful items in current summary window`}
-          trend={safeNum(summaryCards.successfulToday) > 0 ? "Latest run has successful collections" : "Awaiting next collection run"}
+          subtext={`${safeNum(summaryCards.successfulToday)} successful items in current reporting period`}
+          trend={safeNum(summaryCards.successfulToday) > 0 ? "Successful collections in selected range" : "No successful collections in selected range"}
           trendUp={true}
           icon={IconCheckCircle}
           color="green"
         />
 
         <MetricCard
-          title="Projected Settlement"
+          title="Net Collected (Actual)"
           value={formatZAR2(data.top.estimatedMoneyToBank)}
-          subtext="Estimated money to bank after fees"
-          trend={safeNum(data.top.estimatedMoneyToBank) > 0 ? "Settlement projection available" : "Projection updates after live collection runs"}
+          subtext="Actual collected value less actual fees"
+          trend={safeNum(data.top.estimatedMoneyToBank) > 0 ? "Real settlement value available" : "No collected value in selected range"}
           trendUp={true}
           icon={IconWallet}
           color="blue"
@@ -1950,22 +2451,7 @@ export default function Dashboard() {
             <div className="ttd-panelHeader">
               <div>
                 <h3 className="ttd-panelTitle">Recent cycle performance</h3>
-                <p className="ttd-panelSub">Use this to track the latest successful, failed, and retry movement across the selected cycle window</p>
-              </div>
-
-              <div className="ttd-rangeGroup">
-                {["24H", "7D", "30D"].map((r) => {
-                  const val = r.toLowerCase();
-                  return (
-                    <button
-                      key={r}
-                      onClick={() => setRange(val)}
-                      className={cx("ttd-rangeBtn", range === val && "ttd-rangeBtnActive")}
-                    >
-                      {r}
-                    </button>
-                  );
-                })}
+                <p className="ttd-panelSub">Tracks successful, failed, and retry movement across the selected date range</p>
               </div>
             </div>
 
@@ -2014,7 +2500,7 @@ export default function Dashboard() {
             <div className="ttd-panelHeader">
               <div>
                 <h3 className="ttd-panelTitle">Current cycle activity</h3>
-                <p className="ttd-panelSub">Snapshot of successful, failed, retry, and suspended activity inside the selected dashboard window</p>
+                <p className="ttd-panelSub">Snapshot of successful, failed, retry, and suspended activity inside the selected dashboard range</p>
               </div>
             </div>
 
@@ -2048,7 +2534,7 @@ export default function Dashboard() {
             <div className="ttd-panelHeader">
               <div>
                 <h3 className="ttd-panelTitle">Cycle health and pressure</h3>
-                <p className="ttd-panelSub">Fast finance view for latest run health, exception pressure, and collection quality</p>
+                <p className="ttd-panelSub">Fast finance view for selected range health, exception pressure, and collection quality</p>
               </div>
             </div>
 
