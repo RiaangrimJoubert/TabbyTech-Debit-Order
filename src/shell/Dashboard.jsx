@@ -977,18 +977,7 @@ async function fetchDashboardSummary(startDate, endDate) {
     startDate: safeStr(startDate),
     endDate: safeStr(endDate),
   });
-  return fetchJson(`/api/reports/summary?${qs.toString()}`);
-}
-
-// NEW: Fetch attempts data like Debit Order Monitor does
-async function fetchDashboardAttempts(startDate, endDate) {
-  const qs = new URLSearchParams({
-    startDate: safeStr(startDate),
-    endDate: safeStr(endDate),
-    page: "1",
-    perPage: "300",
-  });
-  return fetchJson(`/api/reports/attempts?${qs.toString()}`);
+  return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
 }
 
 // FIX START: real frontend fallback when summary route returns empty range data
@@ -1029,73 +1018,7 @@ async function fetchChargeMetricsByDate(date) {
 
 async function fetchDashboardSummaryWithFallback(startDate, endDate, cronMetricsSnapshot = null) {
   try {
-    const [direct, attemptsData] = await Promise.all([
-      fetchDashboardSummary(startDate, endDate),
-      fetchDashboardAttempts(startDate, endDate).catch(() => null)
-    ]);
-
-    // Merge attempts data into summary if available
-    if (attemptsData?.data && direct?.data) {
-      const attempts = Array.isArray(attemptsData.data.rows) 
-        ? attemptsData.data.rows 
-        : Array.isArray(attemptsData.data.attempts?.rows)
-          ? attemptsData.data.attempts.rows
-          : [];
-
-      if (attempts.length > 0) {
-        // Calculate card values from attempts
-        const successful = attempts.filter(r => 
-          String(r.status || r.outcome || '').toUpperCase() === 'SUCCESS' ||
-          String(r.status || r.outcome || '').toUpperCase() === 'PAID'
-        ).length;
-        const failed = attempts.filter(r => 
-          String(r.status || r.outcome || '').toUpperCase() === 'FAILED'
-        ).length;
-        const retry = attempts.filter(r => 
-          String(r.status || r.outcome || '').toUpperCase().includes('RETRY')
-        ).length;
-        const suspended = attempts.filter(r => 
-          String(r.status || r.outcome || '').toUpperCase() === 'SUSPENDED'
-        ).length;
-        const totalAmount = attempts.reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
-
-        // Ensure cards object exists with calculated values
-        direct.data.cards = direct.data.cards || {};
-        direct.data.cards.successfulToday = direct.data.cards.successfulToday || successful;
-        direct.data.cards.failedToday = direct.data.cards.failedToday || failed;
-        direct.data.cards.retryScheduledToday = direct.data.cards.retryScheduledToday || retry;
-        direct.data.cards.suspendedToday = direct.data.cards.suspendedToday || suspended;
-        direct.data.cards.totalDebitOrderValue = direct.data.cards.totalDebitOrderValue || totalAmount;
-        direct.data.cards.totalCollected = direct.data.cards.totalCollected || 
-          attempts.filter(r => String(r.status || '').toUpperCase() === 'SUCCESS')
-            .reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
-
-        // Add attempts as batches if no batches exist
-        if (!direct.data.batches || direct.data.batches.length === 0) {
-          const byDate = {};
-          attempts.forEach(r => {
-            const date = r.chargeDate || r.date || 'Unknown';
-            if (!byDate[date]) {
-              byDate[date] = { items: 0, value: 0, success: 0, failed: 0 };
-            }
-            byDate[date].items++;
-            byDate[date].value += Number(r.amountZar || r.amount || 0) || 0;
-            if (String(r.status || '').toUpperCase() === 'SUCCESS') byDate[date].success++;
-            if (String(r.status || '').toUpperCase() === 'FAILED') byDate[date].failed++;
-          });
-
-          direct.data.batches = Object.entries(byDate).map(([date, stats]) => ({
-            batch: date,
-            batchId: date,
-            date: date,
-            items: stats.items,
-            value: stats.value,
-            status: stats.failed === 0 ? 'Successful' : stats.success === 0 ? 'Failed' : 'Partial'
-          }));
-        }
-      }
-    }
-
+    const direct = await fetchDashboardSummary(startDate, endDate);
     if (hasUsableSummaryData(direct)) return direct;
   } catch (e) {
     // continue to fallback below
@@ -1363,6 +1286,9 @@ export default function Dashboard() {
   // FIX END
   const [summaryError, setSummaryError] = useState("");
 
+  // NEW: State for attempts data from /api/reports/attempts
+  const [attemptsData, setAttemptsData] = useState(null);
+
   useEffect(() => {
     try {
       localStorage.removeItem(LS.search);
@@ -1409,9 +1335,18 @@ export default function Dashboard() {
       try {
         if (!cached) setSummaryLoading(true);
         setSummaryError("");
-        const data = await fetchDashboardSummaryWithFallback(appliedStartDate, appliedEndDate, cronMetrics);
-        setSummaryCache(appliedStartDate, appliedEndDate, data);
-        if (alive) setDashboardSummary(data);
+
+        // NEW: Fetch both summary and attempts in parallel
+        const [summaryData, attemptsResult] = await Promise.all([
+          fetchDashboardSummaryWithFallback(appliedStartDate, appliedEndDate, cronMetrics),
+          fetchDashboardAttempts(appliedStartDate, appliedEndDate).catch(() => null)
+        ]);
+
+        setSummaryCache(appliedStartDate, appliedEndDate, summaryData);
+        if (alive) {
+          setDashboardSummary(summaryData);
+          setAttemptsData(attemptsResult);
+        }
       } catch (e) {
         if (alive) setSummaryError(String(e?.message || e));
       } finally {
@@ -1441,10 +1376,19 @@ export default function Dashboard() {
   }, [rawSummaryBatches]);
 
   // FIX START: normalize cron metrics and last run across current endpoint shapes
-  const attemptsToday = useMemo(
-    () => normalizeAttemptsMetrics(cronMetrics, summaryCards),
-    [cronMetrics, summaryCards]
-  );
+  const attemptsToday = useMemo(() => {
+    // Priority: 1) attemptsMetrics from /api/reports/attempts, 2) cronMetrics, 3) summaryCards
+    if (attemptsMetrics && attemptsMetrics.totalAttempts > 0) {
+      return {
+        attempted: attemptsMetrics.totalAttempts,
+        success: attemptsMetrics.successfulCount,
+        failed: attemptsMetrics.failedCount,
+        retry: attemptsMetrics.retryCount,
+        suspended: attemptsMetrics.suspendedCount,
+      };
+    }
+    return normalizeAttemptsMetrics(cronMetrics, summaryCards);
+  }, [cronMetrics, summaryCards, attemptsMetrics]);
 
   const lastRun = useMemo(
     () => normalizeLastRun(cronMetrics, summaryData),
@@ -1525,10 +1469,65 @@ export default function Dashboard() {
     0;
   // FIX END
 
+  // NEW: Calculate dashboard metrics from attempts data when cards are empty
+  const attemptsMetrics = useMemo(() => {
+    const rows = attemptsData?.data?.rows || attemptsData?.data?.attempts?.rows || [];
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+
+    const totalValue = rows.reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
+    const successful = rows.filter(r => 
+      String(r.status || r.outcome || '').toUpperCase() === 'SUCCESS' ||
+      String(r.status || r.outcome || '').toUpperCase() === 'PAID'
+    );
+    const failed = rows.filter(r => 
+      String(r.status || r.outcome || '').toUpperCase() === 'FAILED'
+    );
+    const retry = rows.filter(r => 
+      String(r.status || r.outcome || '').toUpperCase().includes('RETRY')
+    );
+    const suspended = rows.filter(r => 
+      String(r.status || r.outcome || '').toUpperCase() === 'SUSPENDED'
+    );
+
+    const successfulValue = successful.reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
+    const failedValue = failed.reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
+    const totalAttempts = rows.length;
+
+    // Estimate Paystack fees: 2.9% + R1 for amounts >= R10
+    const estimatedFees = successful.reduce((sum, r) => {
+      const amt = Number(r.amountZar || r.amount || 0) || 0;
+      return sum + (amt > 0 ? (amt * 0.029) + (amt >= 10 ? 1 : 0) : 0);
+    }, 0);
+
+    return {
+      totalDebitOrderValue: totalValue,
+      totalCollected: successfulValue,
+      estimatedMoneyToBank: Math.max(0, successfulValue - estimatedFees),
+      estimatedPaystackFees: estimatedFees,
+      retryScheduled: retry.length,
+      suspended: suspended.length,
+      successRate: totalAttempts > 0 ? (successful.length / totalAttempts) * 100 : 0,
+      failureRate: totalAttempts > 0 ? (failed.length / totalAttempts) * 100 : 0,
+      retryRate: totalAttempts > 0 ? (retry.length / totalAttempts) * 100 : 0,
+      successfulCount: successful.length,
+      failedCount: failed.length,
+      retryCount: retry.length,
+      suspendedCount: suspended.length,
+      totalAttempts: totalAttempts,
+    };
+  }, [attemptsData]);
+
   const data = useMemo(() => {
+    // Use attempts metrics if cards are empty (0 or null)
+    const getValue = (cardKeys, attemptsKey, fallback = 0) => {
+      const cardValue = readNumByKeys(summaryCards, cardKeys);
+      if (cardValue > 0) return cardValue;
+      return attemptsMetrics?.[attemptsKey] ?? fallback;
+    };
+
     return {
       top: {
-        totalDebitOrderValue: readNumByKeys(summaryCards, [
+        totalDebitOrderValue: getValue([
           "totalDebitOrderValue",
           "totalScheduledValue",
           "pipelineValue",
@@ -1536,40 +1535,40 @@ export default function Dashboard() {
           "grossScheduled",
           "grossValue",
           "totalValue",
-        ]),
-        totalCollected: readNumByKeys(summaryCards, [
+        ], 'totalDebitOrderValue'),
+        totalCollected: getValue([
           "totalCollected",
           "collectedValue",
           "successfulValue",
           "paidValue",
           "grossCollected",
-        ]),
-        estimatedMoneyToBank: readNumByKeys(summaryCards, [
+        ], 'totalCollected'),
+        estimatedMoneyToBank: getValue([
           "estimatedMoneyToBank",
           "netCollected",
           "actualMoneyToBank",
           "settlementValue",
           "netValue",
-        ]),
-        estimatedPaystackFees: readNumByKeys(summaryCards, [
+        ], 'estimatedMoneyToBank'),
+        estimatedPaystackFees: getValue([
           "estimatedPaystackFees",
           "paystackFees",
           "fees",
           "totalFees",
           "feeValue",
-        ]),
-        retryScheduled: readNumByKeys(summaryCards, [
+        ], 'estimatedPaystackFees'),
+        retryScheduled: getValue([
           "retryScheduledToday",
           "retryScheduled",
           "retry",
-        ]),
-        suspended: readNumByKeys(summaryCards, [
+        ], 'retryScheduled'),
+        suspended: getValue([
           "suspendedToday",
           "suspended",
-        ]),
-        successRate: readNumByKeys(summaryCards, ["successRate", "successfulRate"]),
-        failureRate: readNumByKeys(summaryCards, ["failureRate", "failedRate"]),
-        retryRate: readNumByKeys(summaryCards, ["retryRate"]),
+        ], 'suspended'),
+        successRate: getValue(["successRate", "successfulRate"], 'successRate'),
+        failureRate: getValue(["failureRate", "failedRate"], 'failureRate'),
+        retryRate: getValue(["retryRate"], 'retryRate'),
       },
       monthlyActive,
       annualActive,
@@ -1577,7 +1576,7 @@ export default function Dashboard() {
       annualARR: realAnnualARR,
       recentBatches: summaryBatches,
     };
-  }, [summaryBatches, summaryCards, monthlyActive, annualActive, realMonthlyMRR, realAnnualARR]);
+  }, [summaryBatches, summaryCards, monthlyActive, annualActive, realMonthlyMRR, realAnnualARR, attemptsMetrics]);
 
   const debitPerformanceData = useMemo(() => {
     const raw = readArrayByKeys(summaryCharts, [
