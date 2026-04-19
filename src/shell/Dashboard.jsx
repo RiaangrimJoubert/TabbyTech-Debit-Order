@@ -977,7 +977,22 @@ async function fetchDashboardSummary(startDate, endDate) {
     startDate: safeStr(startDate),
     endDate: safeStr(endDate),
   });
-  return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
+  return fetchJson(`/api/reports/summary?${qs.toString()}`);
+}
+
+// NEW: Fetch attempts data like Debit Order Monitor
+async function fetchDashboardAttempts(startDate, endDate) {
+  const qs = new URLSearchParams({
+    startDate: safeStr(startDate),
+    endDate: safeStr(endDate),
+    page: "1",
+    perPage: "300",
+  });
+  try {
+    return await fetchJson(`/api/reports/attempts?${qs.toString()}`);
+  } catch (e) {
+    return null;
+  }
 }
 
 // FIX START: real frontend fallback when summary route returns empty range data
@@ -1109,11 +1124,13 @@ function hasNonZeroValue(value) {
   return Number.isFinite(n) && n > 0;
 }
 
-function formatCurrencyOrText(value, formatter = formatZAR, emptyText = "Awaiting data") {
+function formatCurrencyOrText(value, formatter = formatZAR, emptyText = "Awaiting data", forceShow = false) {
+  if (forceShow) return formatter(value);
   return hasNonZeroValue(value) ? formatter(value) : emptyText;
 }
 
-function formatCountOrText(value, emptyText = "—") {
+function formatCountOrText(value, emptyText = "—", forceShow = false) {
+  if (forceShow) return String(safeNum(value));
   return hasNonZeroValue(value) ? String(safeNum(value)) : emptyText;
 }
 
@@ -1285,8 +1302,6 @@ export default function Dashboard() {
   );
   // FIX END
   const [summaryError, setSummaryError] = useState("");
-
-  // NEW: State for attempts data from /api/reports/attempts
   const [attemptsData, setAttemptsData] = useState(null);
 
   useEffect(() => {
@@ -1335,13 +1350,10 @@ export default function Dashboard() {
       try {
         if (!cached) setSummaryLoading(true);
         setSummaryError("");
-
-        // NEW: Fetch both summary and attempts in parallel
         const [summaryData, attemptsResult] = await Promise.all([
           fetchDashboardSummaryWithFallback(appliedStartDate, appliedEndDate, cronMetrics),
-          fetchDashboardAttempts(appliedStartDate, appliedEndDate).catch(() => null)
+          fetchDashboardAttempts(appliedStartDate, appliedEndDate)
         ]);
-
         setSummaryCache(appliedStartDate, appliedEndDate, summaryData);
         if (alive) {
           setDashboardSummary(summaryData);
@@ -1377,7 +1389,6 @@ export default function Dashboard() {
 
   // FIX START: normalize cron metrics and last run across current endpoint shapes
   const attemptsToday = useMemo(() => {
-    // Priority: 1) attemptsMetrics from /api/reports/attempts, 2) cronMetrics, 3) summaryCards
     if (attemptsMetrics && attemptsMetrics.totalAttempts > 0) {
       return {
         attempted: attemptsMetrics.totalAttempts,
@@ -1469,60 +1480,65 @@ export default function Dashboard() {
     0;
   // FIX END
 
-  // NEW: Calculate dashboard metrics from attempts data when cards are empty
+  // NEW: Calculate metrics from attempts data when cards are empty
   const attemptsMetrics = useMemo(() => {
     const rows = attemptsData?.data?.rows || attemptsData?.data?.attempts?.rows || [];
     if (!Array.isArray(rows) || rows.length === 0) return null;
 
-    const totalValue = rows.reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
-    const successful = rows.filter(r => 
-      String(r.status || r.outcome || '').toUpperCase() === 'SUCCESS' ||
-      String(r.status || r.outcome || '').toUpperCase() === 'PAID'
-    );
-    const failed = rows.filter(r => 
-      String(r.status || r.outcome || '').toUpperCase() === 'FAILED'
-    );
-    const retry = rows.filter(r => 
-      String(r.status || r.outcome || '').toUpperCase().includes('RETRY')
-    );
-    const suspended = rows.filter(r => 
-      String(r.status || r.outcome || '').toUpperCase() === 'SUSPENDED'
-    );
+    let totalValue = 0;
+    let successfulValue = 0;
+    let successfulCount = 0;
+    let failedCount = 0;
+    let retryCount = 0;
+    let suspendedCount = 0;
+    let estimatedFees = 0;
 
-    const successfulValue = successful.reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
-    const failedValue = failed.reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
+    for (const row of rows) {
+      const amt = Number(row.amountZar || row.amount || 0) || 0;
+      const status = String(row.status || row.outcome || '').toUpperCase();
+
+      totalValue += amt;
+
+      if (status === 'SUCCESS' || status === 'PAID') {
+        successfulValue += amt;
+        successfulCount++;
+        // Estimate Paystack fee: 2.9% + R1 for amounts >= R10
+        estimatedFees += (amt * 0.029) + (amt >= 10 ? 1 : 0);
+      } else if (status === 'FAILED') {
+        failedCount++;
+      } else if (status.includes('RETRY')) {
+        retryCount++;
+      } else if (status === 'SUSPENDED') {
+        suspendedCount++;
+      }
+    }
+
     const totalAttempts = rows.length;
-
-    // Estimate Paystack fees: 2.9% + R1 for amounts >= R10
-    const estimatedFees = successful.reduce((sum, r) => {
-      const amt = Number(r.amountZar || r.amount || 0) || 0;
-      return sum + (amt > 0 ? (amt * 0.029) + (amt >= 10 ? 1 : 0) : 0);
-    }, 0);
 
     return {
       totalDebitOrderValue: totalValue,
       totalCollected: successfulValue,
       estimatedMoneyToBank: Math.max(0, successfulValue - estimatedFees),
       estimatedPaystackFees: estimatedFees,
-      retryScheduled: retry.length,
-      suspended: suspended.length,
-      successRate: totalAttempts > 0 ? (successful.length / totalAttempts) * 100 : 0,
-      failureRate: totalAttempts > 0 ? (failed.length / totalAttempts) * 100 : 0,
-      retryRate: totalAttempts > 0 ? (retry.length / totalAttempts) * 100 : 0,
-      successfulCount: successful.length,
-      failedCount: failed.length,
-      retryCount: retry.length,
-      suspendedCount: suspended.length,
-      totalAttempts: totalAttempts,
+      retryScheduled: retryCount,
+      suspended: suspendedCount,
+      successRate: totalAttempts > 0 ? (successfulCount / totalAttempts) * 100 : 0,
+      failureRate: totalAttempts > 0 ? (failedCount / totalAttempts) * 100 : 0,
+      retryRate: totalAttempts > 0 ? (retryCount / totalAttempts) * 100 : 0,
+      successfulCount,
+      failedCount,
+      retryCount,
+      suspendedCount,
+      totalAttempts,
     };
   }, [attemptsData]);
 
   const data = useMemo(() => {
-    // Use attempts metrics if cards are empty (0 or null)
-    const getValue = (cardKeys, attemptsKey, fallback = 0) => {
+    // Helper to get value from cards or attempts
+    const getValue = (cardKeys, attemptsKey) => {
       const cardValue = readNumByKeys(summaryCards, cardKeys);
       if (cardValue > 0) return cardValue;
-      return attemptsMetrics?.[attemptsKey] ?? fallback;
+      return attemptsMetrics?.[attemptsKey] || 0;
     };
 
     return {
@@ -1535,40 +1551,40 @@ export default function Dashboard() {
           "grossScheduled",
           "grossValue",
           "totalValue",
-        ], 'totalDebitOrderValue'),
-        totalCollected: getValue([
+        ]),
+        totalCollected: readNumByKeys(summaryCards, [
           "totalCollected",
           "collectedValue",
           "successfulValue",
           "paidValue",
           "grossCollected",
-        ], 'totalCollected'),
-        estimatedMoneyToBank: getValue([
+        ]),
+        estimatedMoneyToBank: readNumByKeys(summaryCards, [
           "estimatedMoneyToBank",
           "netCollected",
           "actualMoneyToBank",
           "settlementValue",
           "netValue",
-        ], 'estimatedMoneyToBank'),
-        estimatedPaystackFees: getValue([
+        ]),
+        estimatedPaystackFees: readNumByKeys(summaryCards, [
           "estimatedPaystackFees",
           "paystackFees",
           "fees",
           "totalFees",
           "feeValue",
-        ], 'estimatedPaystackFees'),
-        retryScheduled: getValue([
+        ]),
+        retryScheduled: readNumByKeys(summaryCards, [
           "retryScheduledToday",
           "retryScheduled",
           "retry",
-        ], 'retryScheduled'),
-        suspended: getValue([
+        ]),
+        suspended: readNumByKeys(summaryCards, [
           "suspendedToday",
           "suspended",
-        ], 'suspended'),
-        successRate: getValue(["successRate", "successfulRate"], 'successRate'),
-        failureRate: getValue(["failureRate", "failedRate"], 'failureRate'),
-        retryRate: getValue(["retryRate"], 'retryRate'),
+        ]),
+        successRate: readNumByKeys(summaryCards, ["successRate", "successfulRate"]),
+        failureRate: readNumByKeys(summaryCards, ["failureRate", "failedRate"]),
+        retryRate: readNumByKeys(summaryCards, ["retryRate"]),
       },
       monthlyActive,
       annualActive,
@@ -2841,7 +2857,7 @@ export default function Dashboard() {
       <div className="ttd-grid4">
         <MetricCard
           title="Cycle Pipeline Value"
-          value={formatCurrencyOrText(data.top.totalDebitOrderValue, formatZAR)}
+          value={formatCurrencyOrText(data.top.totalDebitOrderValue, formatZAR, "Awaiting data", !!attemptsMetrics)}
           subtext={collectionScheduleText}
           trend={
             overallError
@@ -2857,8 +2873,8 @@ export default function Dashboard() {
 
         <MetricCard
           title="Latest Successful Collections"
-          value={formatCurrencyOrText(data.top.totalCollected, formatZAR)}
-          subtext={`${formatCountOrText(attemptsToday.success, "No live data")} successful items in current reporting period`}
+          value={formatCurrencyOrText(data.top.totalCollected, formatZAR, "Awaiting data", !!attemptsMetrics)}
+          subtext={`${formatCountOrText(attemptsToday.success, "No live data", !!attemptsMetrics)} successful items in current reporting period`}
           trend={safeNum(attemptsToday.success) > 0 ? "Successful collections in selected range" : "No successful collections in selected range"}
           trendUp={true}
           icon={IconCheckCircle}
@@ -2867,7 +2883,7 @@ export default function Dashboard() {
 
         <MetricCard
           title="Net Collected (Actual)"
-          value={formatCurrencyOrText(data.top.estimatedMoneyToBank, formatZAR2)}
+          value={formatCurrencyOrText(data.top.estimatedMoneyToBank, formatZAR2, "Awaiting data", !!attemptsMetrics)}
           subtext="Actual collected value less actual fees"
           trend={safeNum(data.top.estimatedMoneyToBank) > 0 ? "Real settlement value available" : "No collected value in selected range"}
           trendUp={true}
@@ -2877,8 +2893,8 @@ export default function Dashboard() {
 
         <MetricCard
           title="Exceptions and Fees"
-          value={formatCurrencyOrText(data.top.estimatedPaystackFees, formatZAR2)}
-          subtext={`Failed ${formatCountOrText(attemptsToday.failed)} • Retry ${formatCountOrText(data.top.retryScheduled)}`}
+          value={formatCurrencyOrText(data.top.estimatedPaystackFees, formatZAR2, "Awaiting data", !!attemptsMetrics)}
+          subtext={`Failed ${formatCountOrText(attemptsToday.failed, "—", !!attemptsMetrics)} • Retry ${formatCountOrText(data.top.retryScheduled, "—", !!attemptsMetrics)}`}
           trend={safeNum(attemptsToday.failed) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
           trendUp={false}
           icon={IconRedo}
@@ -3137,8 +3153,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className={cx("ttd-financeValue", !data.monthlyMRR && "ttd-financeValueMuted")}>
-                {formatCurrencyOrText(data.monthlyMRR, formatZAR, "Awaiting source")}
+              <div className={cx("ttd-financeValue", !data.monthlyMRR && !attemptsMetrics && "ttd-financeValueMuted")}>
+                {formatCurrencyOrText(data.monthlyMRR, formatZAR, "Awaiting source", !!attemptsMetrics)}
               </div>
 
               <div className="ttd-financeSub">
@@ -3160,8 +3176,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className={cx("ttd-financeValue", !data.annualARR && "ttd-financeValueMuted")}>
-                {formatCurrencyOrText(data.annualARR, formatZAR, "Awaiting source")}
+              <div className={cx("ttd-financeValue", !data.annualARR && !attemptsMetrics && "ttd-financeValueMuted")}>
+                {formatCurrencyOrText(data.annualARR, formatZAR, "Awaiting source", !!attemptsMetrics)}
               </div>
 
               <div className="ttd-financeSub">
