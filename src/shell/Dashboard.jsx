@@ -977,7 +977,18 @@ async function fetchDashboardSummary(startDate, endDate) {
     startDate: safeStr(startDate),
     endDate: safeStr(endDate),
   });
-  return fetchJson(`/api/dashboard/summary?${qs.toString()}`);
+  return fetchJson(`/api/reports/summary?${qs.toString()}`);
+}
+
+// NEW: Fetch attempts data like Debit Order Monitor does
+async function fetchDashboardAttempts(startDate, endDate) {
+  const qs = new URLSearchParams({
+    startDate: safeStr(startDate),
+    endDate: safeStr(endDate),
+    page: "1",
+    perPage: "300",
+  });
+  return fetchJson(`/api/reports/attempts?${qs.toString()}`);
 }
 
 // FIX START: real frontend fallback when summary route returns empty range data
@@ -1018,7 +1029,73 @@ async function fetchChargeMetricsByDate(date) {
 
 async function fetchDashboardSummaryWithFallback(startDate, endDate, cronMetricsSnapshot = null) {
   try {
-    const direct = await fetchDashboardSummary(startDate, endDate);
+    const [direct, attemptsData] = await Promise.all([
+      fetchDashboardSummary(startDate, endDate),
+      fetchDashboardAttempts(startDate, endDate).catch(() => null)
+    ]);
+
+    // Merge attempts data into summary if available
+    if (attemptsData?.data && direct?.data) {
+      const attempts = Array.isArray(attemptsData.data.rows) 
+        ? attemptsData.data.rows 
+        : Array.isArray(attemptsData.data.attempts?.rows)
+          ? attemptsData.data.attempts.rows
+          : [];
+
+      if (attempts.length > 0) {
+        // Calculate card values from attempts
+        const successful = attempts.filter(r => 
+          String(r.status || r.outcome || '').toUpperCase() === 'SUCCESS' ||
+          String(r.status || r.outcome || '').toUpperCase() === 'PAID'
+        ).length;
+        const failed = attempts.filter(r => 
+          String(r.status || r.outcome || '').toUpperCase() === 'FAILED'
+        ).length;
+        const retry = attempts.filter(r => 
+          String(r.status || r.outcome || '').toUpperCase().includes('RETRY')
+        ).length;
+        const suspended = attempts.filter(r => 
+          String(r.status || r.outcome || '').toUpperCase() === 'SUSPENDED'
+        ).length;
+        const totalAmount = attempts.reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
+
+        // Ensure cards object exists with calculated values
+        direct.data.cards = direct.data.cards || {};
+        direct.data.cards.successfulToday = direct.data.cards.successfulToday || successful;
+        direct.data.cards.failedToday = direct.data.cards.failedToday || failed;
+        direct.data.cards.retryScheduledToday = direct.data.cards.retryScheduledToday || retry;
+        direct.data.cards.suspendedToday = direct.data.cards.suspendedToday || suspended;
+        direct.data.cards.totalDebitOrderValue = direct.data.cards.totalDebitOrderValue || totalAmount;
+        direct.data.cards.totalCollected = direct.data.cards.totalCollected || 
+          attempts.filter(r => String(r.status || '').toUpperCase() === 'SUCCESS')
+            .reduce((sum, r) => sum + (Number(r.amountZar || r.amount || 0) || 0), 0);
+
+        // Add attempts as batches if no batches exist
+        if (!direct.data.batches || direct.data.batches.length === 0) {
+          const byDate = {};
+          attempts.forEach(r => {
+            const date = r.chargeDate || r.date || 'Unknown';
+            if (!byDate[date]) {
+              byDate[date] = { items: 0, value: 0, success: 0, failed: 0 };
+            }
+            byDate[date].items++;
+            byDate[date].value += Number(r.amountZar || r.amount || 0) || 0;
+            if (String(r.status || '').toUpperCase() === 'SUCCESS') byDate[date].success++;
+            if (String(r.status || '').toUpperCase() === 'FAILED') byDate[date].failed++;
+          });
+
+          direct.data.batches = Object.entries(byDate).map(([date, stats]) => ({
+            batch: date,
+            batchId: date,
+            date: date,
+            items: stats.items,
+            value: stats.value,
+            status: stats.failed === 0 ? 'Successful' : stats.success === 0 ? 'Failed' : 'Partial'
+          }));
+        }
+      }
+    }
+
     if (hasUsableSummaryData(direct)) return direct;
   } catch (e) {
     // continue to fallback below
