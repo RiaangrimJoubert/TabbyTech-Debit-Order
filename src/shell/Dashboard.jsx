@@ -971,6 +971,18 @@ async function fetchCronMetrics() {
   return fetchJson("/api/dashboard/cron-metrics");
 }
 
+async function fetchNotificationStats(startDate, endDate) {
+  const qs = new URLSearchParams({
+    startDate: safeStr(startDate),
+    endDate: safeStr(endDate),
+  });
+  try {
+    return await fetchJson(`/api/dashboard/notification-stats?${qs.toString()}`);
+  } catch (e) {
+    return null;
+  }
+}
+
 // FIX START: switched dashboard summary to explicit date range
 async function fetchDashboardSummary(startDate, endDate) {
   const qs = new URLSearchParams({
@@ -1279,9 +1291,9 @@ function buildRetrySegmentsFromCards(summaryCards) {
 
 export default function Dashboard() {
   // FIX START: replace range state with premium date state
-  const [startDate, setStartDate] = useLocalStorageState(LS.startDate, startOfMonthYmdLocal());
+  const [startDate, setStartDate] = useLocalStorageState(LS.startDate, todayYmdLocal());
   const [endDate, setEndDate] = useLocalStorageState(LS.endDate, todayYmdLocal());
-  const [appliedStartDate, setAppliedStartDate] = useState(() => safeStr(startDate) || startOfMonthYmdLocal());
+  const [appliedStartDate, setAppliedStartDate] = useState(() => safeStr(startDate) || todayYmdLocal());
   const [appliedEndDate, setAppliedEndDate] = useState(() => safeStr(endDate) || todayYmdLocal());
   // FIX END
 
@@ -1303,6 +1315,7 @@ export default function Dashboard() {
   // FIX END
   const [summaryError, setSummaryError] = useState("");
   const [attemptsData, setAttemptsData] = useState(null);
+  const [notificationStats, setNotificationStats] = useState(null);
 
   useEffect(() => {
     try {
@@ -1350,14 +1363,16 @@ export default function Dashboard() {
       try {
         if (!cached) setSummaryLoading(true);
         setSummaryError("");
-        const [summaryData, attemptsResult] = await Promise.all([
+        const [summaryData, attemptsResult, notifStats] = await Promise.all([
           fetchDashboardSummaryWithFallback(appliedStartDate, appliedEndDate, cronMetrics),
-          fetchDashboardAttempts(appliedStartDate, appliedEndDate)
+          fetchDashboardAttempts(appliedStartDate, appliedEndDate),
+          fetchNotificationStats(appliedStartDate, appliedEndDate),
         ]);
         setSummaryCache(appliedStartDate, appliedEndDate, summaryData);
         if (alive) {
           setDashboardSummary(summaryData);
           setAttemptsData(attemptsResult);
+          setNotificationStats(notifStats);
         }
       } catch (e) {
         if (alive) setSummaryError(String(e?.message || e));
@@ -1386,6 +1401,59 @@ export default function Dashboard() {
   const summaryBatches = useMemo(() => {
     return rawSummaryBatches.map((row, index) => normalizeDashboardBatchRow(row, index));
   }, [rawSummaryBatches]);
+
+  // NEW: Calculate metrics from attempts data when cards are empty
+  const attemptsMetrics = useMemo(() => {
+    const rows = attemptsData?.data?.rows || attemptsData?.data?.attempts?.rows || [];
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+
+    let totalValue = 0;
+    let successfulValue = 0;
+    let successfulCount = 0;
+    let failedCount = 0;
+    let retryCount = 0;
+    let suspendedCount = 0;
+    let estimatedFees = 0;
+
+    for (const row of rows) {
+      const amt = Number(row.amountZar || row.amount || 0) || 0;
+      const status = String(row.status || row.outcome || '').toUpperCase();
+
+      totalValue += amt;
+
+      if (status === 'SUCCESS' || status === 'PAID') {
+        successfulValue += amt;
+        successfulCount++;
+        // Estimate Paystack fee: 2.9% + R1 for amounts >= R10
+        estimatedFees += (amt * 0.029) + (amt >= 10 ? 1 : 0);
+      } else if (status === 'FAILED') {
+        failedCount++;
+      } else if (status.includes('RETRY')) {
+        retryCount++;
+      } else if (status === 'SUSPENDED') {
+        suspendedCount++;
+      }
+    }
+
+    const totalAttempts = rows.length;
+
+    return {
+      totalDebitOrderValue: totalValue,
+      totalCollected: successfulValue,
+      estimatedMoneyToBank: Math.max(0, successfulValue - estimatedFees),
+      estimatedPaystackFees: estimatedFees,
+      retryScheduled: retryCount,
+      suspended: suspendedCount,
+      successRate: totalAttempts > 0 ? (successfulCount / totalAttempts) * 100 : 0,
+      failureRate: totalAttempts > 0 ? (failedCount / totalAttempts) * 100 : 0,
+      retryRate: totalAttempts > 0 ? (retryCount / totalAttempts) * 100 : 0,
+      successfulCount,
+      failedCount,
+      retryCount,
+      suspendedCount,
+      totalAttempts,
+    };
+  }, [attemptsData]);
 
   // FIX START: normalize cron metrics and last run across current endpoint shapes
   const attemptsToday = useMemo(() => {
@@ -1479,59 +1547,6 @@ export default function Dashboard() {
     resolveRealMetric(summaryCards.annualSubscribers) ||
     0;
   // FIX END
-
-  // NEW: Calculate metrics from attempts data when cards are empty
-  const attemptsMetrics = useMemo(() => {
-    const rows = attemptsData?.data?.rows || attemptsData?.data?.attempts?.rows || [];
-    if (!Array.isArray(rows) || rows.length === 0) return null;
-
-    let totalValue = 0;
-    let successfulValue = 0;
-    let successfulCount = 0;
-    let failedCount = 0;
-    let retryCount = 0;
-    let suspendedCount = 0;
-    let estimatedFees = 0;
-
-    for (const row of rows) {
-      const amt = Number(row.amountZar || row.amount || 0) || 0;
-      const status = String(row.status || row.outcome || '').toUpperCase();
-
-      totalValue += amt;
-
-      if (status === 'SUCCESS' || status === 'PAID') {
-        successfulValue += amt;
-        successfulCount++;
-        // Estimate Paystack fee: 2.9% + R1 for amounts >= R10
-        estimatedFees += (amt * 0.029) + (amt >= 10 ? 1 : 0);
-      } else if (status === 'FAILED') {
-        failedCount++;
-      } else if (status.includes('RETRY')) {
-        retryCount++;
-      } else if (status === 'SUSPENDED') {
-        suspendedCount++;
-      }
-    }
-
-    const totalAttempts = rows.length;
-
-    return {
-      totalDebitOrderValue: totalValue,
-      totalCollected: successfulValue,
-      estimatedMoneyToBank: Math.max(0, successfulValue - estimatedFees),
-      estimatedPaystackFees: estimatedFees,
-      retryScheduled: retryCount,
-      suspended: suspendedCount,
-      successRate: totalAttempts > 0 ? (successfulCount / totalAttempts) * 100 : 0,
-      failureRate: totalAttempts > 0 ? (failedCount / totalAttempts) * 100 : 0,
-      retryRate: totalAttempts > 0 ? (retryCount / totalAttempts) * 100 : 0,
-      successfulCount,
-      failedCount,
-      retryCount,
-      suspendedCount,
-      totalAttempts,
-    };
-  }, [attemptsData]);
 
   const data = useMemo(() => {
     // Helper to get value from cards or attempts
@@ -2983,6 +2998,124 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
+
+            {notificationStats?.data ? (
+              <div
+                style={{
+                  marginTop: 16,
+                  paddingTop: 16,
+                  borderTop: "1px solid rgba(148,163,184,0.18)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>
+                      Zepto mail activity
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.75 }}>
+                      {notificationStats.data.total} notifications in selected range
+                      {notificationStats.data.zepto?.total
+                        ? ` • ${notificationStats.data.zepto.total} via Zepto`
+                        : ""}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: notificationStats.data.healthy
+                        ? "rgba(34,197,94,0.12)"
+                        : "rgba(239,68,68,0.14)",
+                      color: notificationStats.data.healthy ? "#22c55e" : "#ef4444",
+                    }}
+                  >
+                    {notificationStats.data.healthy ? "Healthy" : "Pressure"}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                    gap: 8,
+                  }}
+                >
+                  {[
+                    {
+                      label: "Sent",
+                      value:
+                        (notificationStats.data.counts?.SENT || 0) +
+                        (notificationStats.data.counts?.DELIVERED || 0),
+                      color: "#22c55e",
+                    },
+                    {
+                      label: "Failed",
+                      value: notificationStats.data.counts?.FAILED || 0,
+                      color: "#ef4444",
+                    },
+                    {
+                      label: "Queued",
+                      value: notificationStats.data.counts?.QUEUED || 0,
+                      color: "#f59e0b",
+                    },
+                    {
+                      label: "Bounced",
+                      value: notificationStats.data.counts?.BOUNCED || 0,
+                      color: "#8b5cf6",
+                    },
+                  ].map((s) => (
+                    <div
+                      key={s.label}
+                      style={{
+                        padding: 10,
+                        borderRadius: 10,
+                        background: "rgba(15,23,42,0.4)",
+                        border: "1px solid rgba(148,163,184,0.14)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.5,
+                          opacity: 0.7,
+                        }}
+                      >
+                        {s.label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 18,
+                          fontWeight: 700,
+                          color: s.color,
+                          marginTop: 2,
+                        }}
+                      >
+                        {s.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontSize: 12,
+                    opacity: 0.78,
+                  }}
+                >
+                  Success rate:{" "}
+                  <strong>{notificationStats.data.successRate}%</strong>
+                </div>
+              </div>
+            ) : null}
           </div>
         </Card>
 
