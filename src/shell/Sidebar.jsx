@@ -10,7 +10,26 @@ const nav = [
   { key: "batches", label: "Batches", icon: "⧉" },
   { key: "invoices", label: "Invoices", icon: "🧾" },
   { key: "reports", label: "Reports", icon: "📈" },
+  { key: "tenants", label: "Tenants", icon: "🏢", adminOnly: true },
 ];
+
+function getCurrentUserRole() {
+  if (typeof window === "undefined") return "admin";
+  try {
+    const raw = window.localStorage.getItem("tt_user");
+    if (!raw) return "admin";
+    const parsed = JSON.parse(raw);
+    const role = String(
+      parsed?.role ||
+      parsed?.role_name ||
+      parsed?.role_details?.role_name ||
+      ""
+    ).trim().toLowerCase();
+    return role === "tenant" ? "tenant" : "admin";
+  } catch {
+    return "admin";
+  }
+}
 
 const SIDEBAR_LOGO_URL =
   "https://raw.githubusercontent.com/RiaangrimJoubert/TabbyTech-Debit-Order/refs/heads/main/public/WP%20LOGO%20(1).png";
@@ -49,6 +68,10 @@ function ClientsIcon({ size = 18 }) {
 }
 
 export default function Sidebar({ activeKey, onNavigate, onLogout }) {
+  const role = getCurrentUserRole();
+  const visibleNav = nav.filter((item) => !(item.adminOnly && role !== "admin"));
+  const showSettings = role === "admin";
+
   return (
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
@@ -122,7 +145,7 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
         <div className="tt-sidedivider" />
 
         <nav className="tt-sidenav" aria-label="Sidebar navigation">
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const isActive = item.key === activeKey;
 
             return (
@@ -148,18 +171,20 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
 
         <div className="tt-sidedivider" />
 
-        <button
-          type="button"
-          className={`tt-sidenav-item ${activeKey === "settings" ? "is-active" : ""}`}
-          onClick={() => onNavigate?.("settings")}
-          aria-current={activeKey === "settings" ? "page" : undefined}
-        >
-          <span className="tt-sidenav-icon" aria-hidden="true">
-            ⚙
-          </span>
-          <span className="tt-sidenav-label">Settings</span>
-          <span className="tt-sidenav-pill" aria-hidden="true" />
-        </button>
+        {showSettings && (
+          <button
+            type="button"
+            className={`tt-sidenav-item ${activeKey === "settings" ? "is-active" : ""}`}
+            onClick={() => onNavigate?.("settings")}
+            aria-current={activeKey === "settings" ? "page" : undefined}
+          >
+            <span className="tt-sidenav-icon" aria-hidden="true">
+              ⚙
+            </span>
+            <span className="tt-sidenav-label">Settings</span>
+            <span className="tt-sidenav-pill" aria-hidden="true" />
+          </button>
+        )}
 
         <button
           type="button"
