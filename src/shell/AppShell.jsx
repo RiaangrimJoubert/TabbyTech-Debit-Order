@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "./Sidebar";
+import { request } from "../api";
 
 import Dashboard from "./Dashboard";
 import DebitOrderMonitor from "./DebitOrderMonitor";
@@ -10,6 +11,7 @@ import Batches from "./Batches";
 import Invoices from "../screens/Invoices";
 import Reports from "./Reports";
 import Settings from "../screens/Settings";
+import Tenants from "../screens/Tenants";
 
 const TITLES = {
   dashboard: "Dashboard",
@@ -21,6 +23,7 @@ const TITLES = {
   invoices: "Invoices",
   reports: "Reports",
   settings: "Settings",
+  tenants: "Tenants",
 };
 
 const FAILED_DEBITS_STORAGE_KEY = "tabbypay_failed_debit_orders";
@@ -195,7 +198,7 @@ function AlertDrawer({
                   color: "rgba(210, 214, 235, 0.78)",
                 }}
               >
-                Live operational visibility for debit order failures requiring follow-up.
+                Clients that failed to pay in the current debit order cycle.
               </div>
             </div>
 
@@ -565,7 +568,59 @@ function AlertDrawer({
   );
 }
 
+function getCurrentUserRole() {
+  if (typeof window === "undefined") return "admin";
+  try {
+    const raw = window.localStorage.getItem("tt_user");
+    if (!raw) return "admin";
+    const parsed = JSON.parse(raw);
+    const role = String(
+      parsed?.role ||
+      parsed?.role_name ||
+      parsed?.role_details?.role_name ||
+      ""
+    ).trim().toLowerCase();
+    return role === "tenant" ? "tenant" : "admin";
+  } catch {
+    return "admin";
+  }
+}
+
+const ADMIN_ONLY_KEYS = new Set(["settings", "tenants"]);
+
+function AccessDenied() {
+  return (
+    <div
+      style={{
+        display: "grid",
+        placeItems: "center",
+        padding: 48,
+        color: "rgba(255,255,255,0.82)",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 520,
+          background: "rgba(17,24,39,0.7)",
+          border: "1px solid rgba(148,163,184,0.18)",
+          borderRadius: 16,
+          padding: 24,
+        }}
+      >
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+          Access denied
+        </div>
+        <div style={{ color: "rgba(148,163,184,0.85)", lineHeight: 1.55 }}>
+          This section is only available to administrators. Please contact your
+          account administrator if you believe you should have access.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AppShell({ onLogout }) {
+  const currentRole = getCurrentUserRole();
   const [activeKey, setActiveKey] = useState("dashboard");
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const [failedDebits, setFailedDebits] = useState(() => readFailedDebitsFromStorage());
@@ -611,7 +666,93 @@ export default function AppShell({ onLogout }) {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    function getCurrentCycleBounds() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = now.getMonth();
+      const monthStart = new Date(y, m, 1);
+      const nextMonthStart = new Date(y, m + 1, 1);
+      return { monthStart, nextMonthStart };
+    }
+
+    function isInCurrentCycle(row) {
+      const { monthStart, nextMonthStart } = getCurrentCycleBounds();
+      const candidates = [
+        row?.lastAttemptDate,
+        row?.last_attempt_date,
+        row?.nextChargeDate,
+        row?.next_charge_date,
+        row?.updatedAt,
+        row?.updated_at,
+        row?.modified_time,
+        row?.Modified_Time,
+      ];
+
+      for (const raw of candidates) {
+        const s = String(raw || "").trim();
+        if (!s) continue;
+        const d = new Date(s);
+        if (!Number.isNaN(d.getTime())) {
+          return d >= monthStart && d < nextMonthStart;
+        }
+      }
+
+      return true;
+    }
+
+    async function loadFailedDebitsFromApi() {
+      try {
+        const json = await request("/api/debit-orders", { method: "GET" });
+        if (!active) return;
+        if (!json || json.ok !== true || !Array.isArray(json.data)) return;
+
+        const failedRaw = json.data.filter((row) => {
+          const status = String(row?.status || "").trim().toLowerCase();
+          const isFailedLike =
+            status === "failed" ||
+            status === "cancelled" ||
+            status === "canceled" ||
+            status === "unpaid";
+
+          const reason =
+            row?.failureReason ||
+            row?.failure_reason ||
+            row?.statusReason ||
+            row?.reason;
+          const hasReason = !!String(reason || "").trim();
+
+          if (!isFailedLike && !hasReason) return false;
+
+          return isInCurrentCycle(row);
+        });
+
+        setFailedDebits(failedRaw.map((item, index) => normalizeFailedDebit(item, index)));
+
+        try {
+          window.localStorage.setItem(FAILED_DEBITS_STORAGE_KEY, JSON.stringify(failedRaw));
+        } catch {
+          // ignore safely
+        }
+      } catch {
+        // ignore safely
+      }
+    }
+
+    loadFailedDebitsFromApi();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function onNavigate(key) {
+    if (ADMIN_ONLY_KEYS.has(key) && currentRole !== "admin") {
+      return;
+    }
+
     setActiveKey(key);
     setIsAlertsOpen(false);
 
@@ -627,6 +768,10 @@ export default function AppShell({ onLogout }) {
   }
 
   const content = useMemo(() => {
+    if (ADMIN_ONLY_KEYS.has(activeKey) && currentRole !== "admin") {
+      return <AccessDenied />;
+    }
+
     if (activeKey === "clients") {
       return (
         <Clients
@@ -674,10 +819,12 @@ export default function AppShell({ onLogout }) {
     if (activeKey === "invoices") return <Invoices />;
     if (activeKey === "reports") return <Reports />;
     if (activeKey === "settings") return <Settings />;
+    if (activeKey === "tenants") return <Tenants />;
 
     return <Dashboard />;
   }, [
     activeKey,
+    currentRole,
     debitOrdersPresetSearch,
     debitOrdersPresetFocusClientId,
     batchesPresetClientId,
