@@ -489,8 +489,50 @@ function MetricCard({ label, value, sub }) {
   );
 }
 
+function normalizeInvoiceStatKey(value) {
+  return safeText(value).toLowerCase();
+}
+
+function buildInvoiceStatsLookup(statsRows) {
+  const lookup = new Map();
+  for (const s of Array.isArray(statsRows) ? statsRows : []) {
+    const keys = [
+      normalizeInvoiceStatKey(s?.customerId),
+      normalizeInvoiceStatKey(s?.customerEmail),
+      normalizeInvoiceStatKey(s?.customerName),
+    ].filter(Boolean);
+    for (const k of keys) {
+      if (!lookup.has(k)) lookup.set(k, s);
+    }
+  }
+  return lookup;
+}
+
+function matchInvoiceStatsForGroup(group, lookup) {
+  if (!lookup || lookup.size === 0) return null;
+
+  const candidateKeys = [
+    group?.clientId,
+    group?.latest?.paystackCustomerCode,
+    group?.latest?.primaryEmail,
+    group?.latest?.email,
+    group?.latest?.Email,
+    group?.clientName,
+    group?.latest?.booksInvoiceId,
+  ]
+    .map(normalizeInvoiceStatKey)
+    .filter(Boolean);
+
+  for (const key of candidateKeys) {
+    const hit = lookup.get(key);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 export default function DebitOrders({ presetSearch = "", presetFocusClientId = "" }) {
   const [rows, setRows] = useState(() => (Array.isArray(debitOrdersProfileCache.rows) ? debitOrdersProfileCache.rows : []));
+  const [invoiceStats, setInvoiceStats] = useState([]);
   const [query, setQuery] = useState(() => safeText(presetSearch || debitOrdersProfileCache.query));
   const [selectedClientKey, setSelectedClientKey] = useState(() =>
     safeText(presetFocusClientId || debitOrdersProfileCache.selectedClientKey)
@@ -553,13 +595,17 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     setErrorText("");
 
     try {
-      const json = await request("/api/debit-orders", { method: "GET" });
+      const [json, statsJson] = await Promise.all([
+        request("/api/debit-orders", { method: "GET" }),
+        request("/api/invoice-stats-by-client", { method: "GET" }).catch(() => null),
+      ]);
 
       if (!json || json.ok !== true || !Array.isArray(json.data)) {
         throw new Error("Unexpected response from /api/debit-orders");
       }
 
       setRows(json.data);
+      setInvoiceStats(Array.isArray(statsJson?.data) ? statsJson.data : []);
 
       debitOrdersProfileCache = {
         ...debitOrdersProfileCache,
@@ -604,7 +650,70 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     setHistoryPage(1);
   }, [presetFocusClientId, presetSearch]);
 
-  const clientGroups = useMemo(() => buildClientGroups(rows), [rows]);
+  const invoiceStatsLookup = useMemo(
+    () => buildInvoiceStatsLookup(invoiceStats),
+    [invoiceStats]
+  );
+
+  const clientGroups = useMemo(() => {
+    const baseGroups = buildClientGroups(rows);
+
+    return baseGroups.map((group) => {
+      const invoiceMatch = matchInvoiceStatsForGroup(group, invoiceStatsLookup);
+      if (!invoiceMatch) return group;
+
+      const invoiceCount = Number(invoiceMatch.invoiceCount || 0);
+      const invoicePaidRatio = invoiceCount > 0 ? invoiceMatch.paid / invoiceCount : 0;
+      const invoiceOverdueRatio = invoiceCount > 0 ? invoiceMatch.overdue / invoiceCount : 0;
+
+      const originalHealth = group.health || {};
+      const invoiceComponent = Math.round(invoicePaidRatio * 100 - invoiceOverdueRatio * 40);
+
+      const blendedScore = Math.round(
+        (Number(originalHealth.score || 0) + Math.max(0, invoiceComponent)) / 2
+      );
+
+      let label = originalHealth.label || "Healthy";
+      let tone = originalHealth.tone || "good";
+
+      if (invoiceMatch.overdue >= 2 || blendedScore <= 45) {
+        label = "Critical";
+        tone = "critical";
+      } else if (invoiceMatch.overdue >= 1 || blendedScore <= 60) {
+        label = "At Risk";
+        tone = "risk";
+      } else if (invoiceMatch.unpaid >= 2 || blendedScore <= 75) {
+        label = "Watchlist";
+        tone = "watch";
+      } else {
+        label = "Healthy";
+        tone = "good";
+      }
+
+      return {
+        ...group,
+        invoiceStats: invoiceMatch,
+        expectedDebitRecords: invoiceCount,
+        health: {
+          ...originalHealth,
+          score: blendedScore,
+          label,
+          tone,
+          invoicesTotal: invoiceCount,
+          invoicesPaid: invoiceMatch.paid,
+          invoicesOverdue: invoiceMatch.overdue,
+          invoicesUnpaid: invoiceMatch.unpaid,
+          outstandingAmount: invoiceMatch.outstandingAmount,
+          note:
+            invoiceMatch.overdue > 0
+              ? `${invoiceMatch.overdue} overdue invoice(s) detected. Debit coverage at risk.`
+              : invoiceMatch.unpaid > 0
+                ? `${invoiceMatch.unpaid} unpaid invoice(s) outstanding. Monitor collection.`
+                : originalHealth.note || "Invoices are current; client paying consistently.",
+        },
+      };
+    });
+  }, [rows, invoiceStatsLookup]);
 
   const filteredGroups = useMemo(() => {
     const q = safeText(query).toLowerCase();
@@ -1830,6 +1939,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                       <tr>
                         <th className="tt-do-selectorTh">Client</th>
                         <th className="tt-do-selectorTh">Client ID</th>
+                        <th className="tt-do-selectorTh">Invoices</th>
                         <th className="tt-do-selectorTh">Records</th>
                         <th className="tt-do-selectorTh">Health</th>
                         <th className="tt-do-selectorTh">Latest Status</th>
@@ -1853,10 +1963,16 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                               {group.clientName || "Unknown client"}
                             </td>
                             <td className="tt-do-selectorTd">{displayClientId}</td>
+                            <td className="tt-do-selectorTd">
+                              {group.invoiceStats
+                                ? group.invoiceStats.invoiceCount
+                                : "—"}
+                            </td>
                             <td className="tt-do-selectorTd">{group.totalRecords}</td>
                             <td className="tt-do-selectorTd">
                               <span className={`tt-do-miniBadge tt-do-miniBadge-${group.health.tone}`}>
                                 {group.health.label}
+                                {group.health.score != null ? ` · ${group.health.score}` : ""}
                               </span>
                             </td>
                             <td className="tt-do-selectorTd">
@@ -1868,7 +1984,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
                       {!loading && pagedClientGroups.length === 0 ? (
                         <tr>
-                          <td className="tt-do-selectorTd" colSpan={5} style={{ whiteSpace: "normal", padding: 18 }}>
+                          <td className="tt-do-selectorTd" colSpan={6} style={{ whiteSpace: "normal", padding: 18 }}>
                             No clients found for the current search.
                           </td>
                         </tr>
@@ -1931,15 +2047,37 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
             <div className="tt-do-rightHero">
               <MetricCard
+                label="Invoices"
+                value={
+                  selectedGroup?.invoiceStats
+                    ? String(selectedGroup.invoiceStats.invoiceCount)
+                    : "0"
+                }
+                sub={
+                  selectedGroup?.invoiceStats
+                    ? `${selectedGroup.invoiceStats.paid} paid • ${selectedGroup.invoiceStats.overdue} overdue • ${selectedGroup.invoiceStats.unpaid} unpaid`
+                    : "No Zoho Books invoices linked."
+                }
+              />
+
+              <MetricCard
                 label="History records"
                 value={selectedGroup ? String(selectedGroup.totalRecords) : "0"}
-                sub="Debit-order rows available for this client."
+                sub={
+                  selectedGroup?.expectedDebitRecords
+                    ? `Expected from invoices: ${selectedGroup.expectedDebitRecords}`
+                    : "Debit-order rows available for this client."
+                }
               />
 
               <MetricCard
                 label="Tracked value"
                 value={selectedGroup ? currencyZar(selectedGroup.totalValue) : currencyZar(0)}
-                sub="Combined amount across the rows currently loaded."
+                sub={
+                  selectedGroup?.invoiceStats?.outstandingAmount
+                    ? `Outstanding: ${currencyZar(selectedGroup.invoiceStats.outstandingAmount)}`
+                    : "Combined amount across the rows currently loaded."
+                }
               />
 
               <MetricCard
@@ -1947,23 +2085,9 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                 value={selectedGroup ? normalizeStatus(selectedGroup.latest?.status) : "Draft"}
                 sub={
                   selectedGroup?.latest
-                    ? `Updated ${formatDateTime(
-                        firstNonEmpty(
-                          selectedGroup.latest.updatedAt,
-                          selectedGroup.latest.updated_at,
-                          selectedGroup.latest.Updated_Time,
-                          selectedGroup.latest.Modified_Time,
-                          selectedGroup.latest.Last_Updated
-                        )
-                      )}`
+                    ? `Next charge ${formatDate(selectedGroup.latest?.nextChargeDate)}`
                     : "No update yet"
                 }
-              />
-
-              <MetricCard
-                label="Latest next charge"
-                value={selectedGroup ? formatDate(selectedGroup.latest?.nextChargeDate) : "Not set"}
-                sub={selectedGroup?.latest?.billingCycle ? selectedGroup.latest.billingCycle : "Billing cycle not set"}
               />
             </div>
           </div>
