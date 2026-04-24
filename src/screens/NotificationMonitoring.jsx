@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const NOTIFICATION_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -33,6 +33,219 @@ function cx(...arr) {
 
 function safeStr(v) {
   return String(v == null ? "" : v);
+}
+
+function todayYmdLocal() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function startOfMonthYmdLocal() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}-${mm}-01`;
+}
+
+function formatPickerMonth(date) {
+  return date.toLocaleDateString("en-ZA", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function toYmd(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseYmdLocal(value) {
+  if (!value) return null;
+  const s = String(value).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  const dt = new Date(y, mo, d);
+  if (
+    dt.getFullYear() !== y ||
+    dt.getMonth() !== mo ||
+    dt.getDate() !== d
+  ) {
+    return null;
+  }
+  return dt;
+}
+
+function useOnClickOutside(ref, handler) {
+  useEffect(() => {
+    function onDown(e) {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target)) return;
+      handler();
+    }
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("touchstart", onDown);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("touchstart", onDown);
+    };
+  }, [ref, handler]);
+}
+
+function PremiumDatePicker({ value, onChange, ariaLabel }) {
+  const wrapRef = useRef(null);
+  const parsedValue = parseYmdLocal(value) || new Date();
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(
+    () => new Date(parsedValue.getFullYear(), parsedValue.getMonth(), 1)
+  );
+
+  useEffect(() => {
+    const next = parseYmdLocal(value);
+    if (!next) return;
+    setViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
+  }, [value]);
+
+  useOnClickOutside(wrapRef, () => setOpen(false));
+
+  const selectedYmd = value || "";
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+
+  for (let i = 0; i < startWeekday; i += 1) {
+    cells.push({ type: "empty", key: `e-${i}` });
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dt = new Date(year, month, day);
+    const ymd = toYmd(dt);
+    cells.push({
+      type: "day",
+      key: ymd,
+      ymd,
+      label: day,
+      isSelected: ymd === selectedYmd,
+      isToday: ymd === todayYmdLocal(),
+    });
+  }
+
+  function selectDate(ymd) {
+    onChange(ymd);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={wrapRef} className="tdm-datePickerWrap">
+      <button
+        type="button"
+        className={open ? "tdm-dateInput tdm-dateInputOpen" : "tdm-dateInput"}
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((x) => !x)}
+      >
+        <span>{value || "Select date"}</span>
+        <span className="tdm-dateCaret">▾</span>
+      </button>
+
+      {open && (
+        <div className="tdm-datePopup" role="dialog" aria-label={ariaLabel}>
+          <div className="tdm-datePopupHead">
+            <button
+              type="button"
+              className="tdm-dateNavBtn"
+              onClick={() => setViewDate(new Date(year, month - 1, 1))}
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+
+            <div className="tdm-dateMonthLabel">
+              {formatPickerMonth(viewDate)}
+            </div>
+
+            <button
+              type="button"
+              className="tdm-dateNavBtn"
+              onClick={() => setViewDate(new Date(year, month + 1, 1))}
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="tdm-dateWeekdays">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="tdm-dateWeekday">
+                {d}
+              </div>
+            ))}
+          </div>
+
+          <div className="tdm-dateGrid">
+            {cells.map((cell) => {
+              if (cell.type === "empty") {
+                return (
+                  <div
+                    key={cell.key}
+                    className="tdm-dateCell tdm-dateCellEmpty"
+                  />
+                );
+              }
+
+              const cls = [
+                "tdm-dateCell",
+                "tdm-dateCellDay",
+                cell.isSelected ? "tdm-dateCellSelected" : "",
+                cell.isToday ? "tdm-dateCellToday" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+              return (
+                <button
+                  key={cell.key}
+                  type="button"
+                  className={cls}
+                  onClick={() => selectDate(cell.ymd)}
+                >
+                  {cell.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function filterRowsByDateRange(rows, startDate, endDate) {
+  const startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
+  const endMs = endDate ? new Date(`${endDate}T23:59:59`).getTime() : null;
+  if (startMs === null && endMs === null) return rows;
+  return rows.filter((row) => {
+    const raw = row?.created_at;
+    if (!raw) return true;
+    const t = new Date(raw).getTime();
+    if (Number.isNaN(t)) return true;
+    if (startMs !== null && t < startMs) return false;
+    if (endMs !== null && t > endMs) return false;
+    return true;
+  });
 }
 
 function exportRowsToCsv(filename, rows, columns) {
@@ -368,6 +581,19 @@ export default function NotificationMonitoring() {
     Array.isArray(notificationMonitorCache.byTemplate) ? notificationMonitorCache.byTemplate : []
   );
 
+  const [startDate, setStartDate] = useState(() => startOfMonthYmdLocal());
+  const [endDate, setEndDate] = useState(() => todayYmdLocal());
+
+  const filteredNotificationRows = useMemo(
+    () => filterRowsByDateRange(notificationRows, startDate, endDate),
+    [notificationRows, startDate, endDate]
+  );
+
+  const filteredFailedRows = useMemo(
+    () => filterRowsByDateRange(failedRows, startDate, endDate),
+    [failedRows, startDate, endDate]
+  );
+
   useEffect(() => {
     notificationMonitorCache = {
       ...notificationMonitorCache,
@@ -484,6 +710,14 @@ export default function NotificationMonitoring() {
       active = false;
     };
   }, []);
+
+  async function applyRange() {
+    if (safeStr(startDate) && safeStr(endDate) && startDate > endDate) {
+      setError("Start date cannot be after end date.");
+      return;
+    }
+    await syncNow();
+  }
 
   async function syncNow() {
     setLoading(true);
@@ -636,6 +870,155 @@ export default function NotificationMonitoring() {
           0%, 100% { opacity: 1; }
           50% { opacity: .5; }
         }
+
+        .tdm-datePickerWrap { position: relative; }
+
+        .tdm-dateInput {
+          height: 40px;
+          min-width: 160px;
+          border-radius: 12px;
+          border: 1px solid rgba(168,85,247,0.65);
+          background:
+            linear-gradient(135deg, rgba(168,85,247,0.18), rgba(124,58,237,0.18)),
+            rgba(0,0,0,0.45);
+          color: rgba(255,255,255,0.96);
+          padding: 0 12px;
+          font-size: 13px;
+          font-weight: 800;
+          outline: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          box-shadow: 0 10px 24px rgba(124,58,237,0.12);
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .tdm-dateInput:hover {
+          border-color: rgba(168,85,247,0.90);
+          box-shadow: 0 12px 28px rgba(124,58,237,0.22);
+          transform: translateY(-1px);
+        }
+
+        .tdm-dateInputOpen {
+          border-color: rgba(168,85,247,0.95);
+          box-shadow:
+            0 0 0 4px rgba(124,58,237,0.20),
+            0 16px 34px rgba(124,58,237,0.26);
+        }
+
+        .tdm-dateCaret { opacity: 0.96; font-size: 12px; }
+
+        .tdm-datePopup {
+          position: absolute;
+          top: 46px;
+          right: 0;
+          width: 292px;
+          border-radius: 16px;
+          border: 1px solid rgba(168,85,247,0.38);
+          background: linear-gradient(180deg, rgba(18,12,36,0.96) 0%, rgba(11,10,22,0.96) 100%);
+          box-shadow: 0 24px 56px rgba(0,0,0,0.46);
+          backdrop-filter: blur(16px);
+          padding: 12px;
+          z-index: 80;
+          animation: tdmDatePopIn 140ms ease-out;
+        }
+
+        @keyframes tdmDatePopIn {
+          from { opacity: 0; transform: translateY(6px) scale(0.985); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .tdm-datePopupHead {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+
+        .tdm-dateMonthLabel {
+          font-size: 13px;
+          font-weight: 900;
+          color: rgba(255,255,255,0.94);
+          letter-spacing: 0.15px;
+        }
+
+        .tdm-dateNavBtn {
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          border: 1px solid rgba(168,85,247,0.28);
+          background: rgba(124,58,237,0.16);
+          color: rgba(255,255,255,0.96);
+          font-size: 18px;
+          font-weight: 900;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+
+        .tdm-dateNavBtn:hover {
+          background: rgba(168,85,247,0.26);
+          border-color: rgba(168,85,247,0.50);
+        }
+
+        .tdm-dateWeekdays,
+        .tdm-dateGrid {
+          display: grid;
+          grid-template-columns: repeat(7, minmax(0, 1fr));
+          gap: 6px;
+        }
+
+        .tdm-dateWeekdays { margin-bottom: 6px; }
+
+        .tdm-dateWeekday {
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 800;
+          color: rgba(255,255,255,0.50);
+        }
+
+        .tdm-dateCell {
+          min-height: 34px;
+          border-radius: 10px;
+          border: 1px solid transparent;
+          background: transparent;
+        }
+
+        .tdm-dateCellEmpty {
+          pointer-events: none;
+          opacity: 0;
+        }
+
+        .tdm-dateCellDay {
+          color: rgba(255,255,255,0.90);
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .tdm-dateCellDay:hover {
+          background: rgba(168,85,247,0.18);
+          border-color: rgba(168,85,247,0.26);
+        }
+
+        .tdm-dateCellToday {
+          border-color: rgba(168,85,247,0.42);
+          box-shadow: inset 0 0 0 1px rgba(168,85,247,0.12);
+        }
+
+        .tdm-dateCellSelected {
+          background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(124,58,237,0.95));
+          border-color: rgba(168,85,247,0.80);
+          color: #fff;
+          box-shadow: 0 10px 22px rgba(124,58,237,0.28);
+        }
       `}</style>
 
       <header
@@ -656,7 +1039,49 @@ export default function NotificationMonitoring() {
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 800,
+                color: "rgba(255,255,255,0.62)",
+              }}
+            >
+              Start date
+            </span>
+            <PremiumDatePicker
+              value={startDate}
+              onChange={setStartDate}
+              ariaLabel="Start date"
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 800,
+                color: "rgba(255,255,255,0.62)",
+              }}
+            >
+              End date
+            </span>
+            <PremiumDatePicker
+              value={endDate}
+              onChange={setEndDate}
+              ariaLabel="End date"
+            />
+          </div>
+
+          <PremiumButton
+            title="Apply date range to notification monitoring"
+            onClick={applyRange}
+            disabled={loading}
+          >
+            Apply range
+          </PremiumButton>
+
           <PremiumButton title="Refresh notification monitor" onClick={syncNow} disabled={loading}>
             {loading ? "Syncing..." : "Sync now"}
           </PremiumButton>
@@ -856,8 +1281,8 @@ export default function NotificationMonitoring() {
 
             <PremiumButton
               title="Export notification log to CSV"
-              onClick={() => exportRowsToCsv("notification_log.csv", notificationRows, notificationColumns)}
-              disabled={notificationRows.length === 0}
+              onClick={() => exportRowsToCsv("notification_log.csv", filteredNotificationRows, notificationColumns)}
+              disabled={filteredNotificationRows.length === 0}
             >
               Export to Excel
             </PremiumButton>
@@ -876,7 +1301,7 @@ export default function NotificationMonitoring() {
               </thead>
 
               <tbody style={{ fontSize: "0.875rem" }}>
-                {notificationRows.slice(0, 10).map((row, idx) => {
+                {filteredNotificationRows.slice(0, 10).map((row, idx) => {
                   const st = safeStr(row?.status || "").toLowerCase();
                   let badge = "pending";
                   if (st === "sent") badge = "sent";
@@ -899,7 +1324,7 @@ export default function NotificationMonitoring() {
                   );
                 })}
 
-                {notificationRows.length === 0 ? (
+                {filteredNotificationRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
                       {loading ? "Loading notification log..." : "No notification log data yet."}
@@ -920,8 +1345,8 @@ export default function NotificationMonitoring() {
 
             <PremiumButton
               title="Export failed notifications to CSV"
-              onClick={() => exportRowsToCsv("failed_notifications.csv", failedRows, failedColumns)}
-              disabled={failedRows.length === 0}
+              onClick={() => exportRowsToCsv("failed_notifications.csv", filteredFailedRows, failedColumns)}
+              disabled={filteredFailedRows.length === 0}
             >
               Export to Excel
             </PremiumButton>
@@ -940,7 +1365,7 @@ export default function NotificationMonitoring() {
               </thead>
 
               <tbody style={{ fontSize: "0.875rem" }}>
-                {failedRows.slice(0, 10).map((row, idx) => (
+                {filteredFailedRows.slice(0, 10).map((row, idx) => (
                   <tr key={idx} style={{ borderBottom: "1px solid rgba(139, 92, 246, 0.05)" }}>
                     <td style={{ padding: "0.75rem 0", color: "#9ca3af", fontSize: "0.75rem" }}>{safeStr(row?.created_at || "") || "N/A"}</td>
                     <td style={{ padding: "0.75rem 0", color: "white", fontWeight: 600, fontSize: "0.75rem", fontFamily: "monospace" }}>
@@ -952,7 +1377,7 @@ export default function NotificationMonitoring() {
                   </tr>
                 ))}
 
-                {failedRows.length === 0 ? (
+                {filteredFailedRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
                       {loading ? "Loading failed notifications..." : "No failed notifications yet."}
