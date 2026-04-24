@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchZohoClients } from "../api/crm";
+import { request } from "../api";
 
 const CLIENTS_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -309,7 +310,7 @@ function EditDrawer({ editDraft, onCloseEdit, updateDraft, onSaveEdit }) {
           <div>
             <h2 className="tt-editTitle">Edit client</h2>
             <p className="tt-editSub">
-              Premium edit view for filling in missing client data before go-live. This currently updates the UI state only.
+              Premium edit view for filling in missing client data. Changes are saved to Zoho CRM on Save.
             </p>
           </div>
 
@@ -891,18 +892,101 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     });
   }
 
-  function onSaveEdit() {
+  async function onSaveEdit() {
     if (!editDraft?.id) return;
 
-    const nextUpdated = {
-      ...editDraft,
-      updatedAt: new Date().toISOString(),
+    const clientPayload = {
+      name: editDraft.name,
+      primaryEmail: editDraft.primaryEmail,
+      secondaryEmail: editDraft.secondaryEmail,
+      phone: editDraft.phone,
+      industry: editDraft.industry,
+      risk: editDraft.risk,
+      status: editDraft.status,
+      notes: editDraft.notes,
+      emailOptOut: !!editDraft.emailOptOut,
     };
 
-    setClients((prev) => prev.map((item) => (item.id === nextUpdated.id ? nextUpdated : item)));
-    setSelectedId(nextUpdated.id);
-    onCloseEdit();
-    showToast("Client details updated in UI.");
+    const debitOrderId = safeText(editDraft.zohoDebitOrderId);
+    const hasDebitChanges =
+      editDraft.debit &&
+      (editDraft.debit.billingCycle !== undefined ||
+        editDraft.debit.debitStatus !== undefined ||
+        editDraft.debit.nextChargeDate !== undefined ||
+        editDraft.debit.amountZar !== undefined ||
+        editDraft.debit.booksInvoiceId !== undefined ||
+        editDraft.debit.retryCount !== undefined ||
+        editDraft.debit.paystackCustomerCode !== undefined ||
+        editDraft.debit.paystackAuthorizationCode !== undefined ||
+        editDraft.debit.failureReason !== undefined);
+
+    try {
+      const clientResp = await request(
+        `/api/clients/${encodeURIComponent(editDraft.id)}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(clientPayload),
+        }
+      );
+      const serverClient = clientResp?.data || null;
+
+      let serverDebit = null;
+      if (debitOrderId && hasDebitChanges) {
+        const debitResp = await request(
+          `/api/debit-orders/${encodeURIComponent(debitOrderId)}`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              debit: {
+                billingCycle: editDraft.debit?.billingCycle,
+                debitStatus: editDraft.debit?.debitStatus,
+                nextChargeDate: editDraft.debit?.nextChargeDate,
+                amountZar: editDraft.debit?.amountZar,
+                booksInvoiceId: editDraft.debit?.booksInvoiceId,
+                retryCount: editDraft.debit?.retryCount,
+                paystackCustomerCode: editDraft.debit?.paystackCustomerCode,
+                paystackAuthorizationCode:
+                  editDraft.debit?.paystackAuthorizationCode,
+                failureReason: editDraft.debit?.failureReason,
+              },
+            }),
+          }
+        );
+        serverDebit = debitResp?.data || null;
+      }
+
+      const nextUpdated = {
+        ...editDraft,
+        ...(serverClient || {}),
+        debit: serverDebit
+          ? {
+              ...editDraft.debit,
+              billingCycle: serverDebit.billingCycle,
+              debitStatus: serverDebit.status || serverDebit.debitStatus,
+              nextChargeDate: serverDebit.nextChargeDate,
+              amountZar: Number(serverDebit.amount ?? editDraft.debit?.amountZar ?? 0),
+              booksInvoiceId: serverDebit.booksInvoiceId,
+              retryCount: serverDebit.retryCount,
+              paystackCustomerCode: serverDebit.paystackCustomerCode,
+              paystackAuthorizationCode: serverDebit.paystackAuthorizationCode,
+              failureReason: serverDebit.failureReason,
+            }
+          : editDraft.debit,
+        updatedAt:
+          serverClient?.updatedAt ||
+          serverDebit?.updatedAt ||
+          new Date().toISOString(),
+      };
+
+      setClients((prev) =>
+        prev.map((item) => (item.id === nextUpdated.id ? nextUpdated : item))
+      );
+      setSelectedId(nextUpdated.id);
+      onCloseEdit();
+      showToast("Client details saved.");
+    } catch (e) {
+      showToast(`Failed to save client: ${String(e?.message || e)}`);
+    }
   }
 
   const css = `
