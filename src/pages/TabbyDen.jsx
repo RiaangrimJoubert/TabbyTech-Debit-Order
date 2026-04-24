@@ -145,87 +145,36 @@ export default function TabbyDen() {
   };
 
   const printHtmlAsPdf = async (invoiceId) => {
-    const url = getInvoiceHtmlUrl(apiBase, token, invoiceId);
     const id = safeStr(invoiceId);
-
-    if (!url || !id) return;
+    if (!apiBase || !token || !id) return;
 
     setBusyId(id);
 
     try {
+      const url = `${joinUrl(apiBase, `api/tabbyden/invoice-pdf/${encodeURIComponent(id)}`)}?token=${encodeURIComponent(token)}`;
+
       const resp = await fetch(url, {
         method: "GET",
-        headers: { Accept: "text/html" },
+        headers: { Accept: "application/pdf" },
       });
 
-      const html = await resp.text();
-
       if (!resp.ok) {
-        throw new Error(`Failed to load printable invoice (${resp.status})`);
+        throw new Error(`Failed to load invoice PDF (${resp.status})`);
       }
 
-      if (!html || html.trim().length === 0) {
-        throw new Error("Printable invoice HTML was empty.");
-      }
+      const blob = await resp.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
 
-      const iframe = document.createElement("iframe");
-      iframe.style.position = "fixed";
-      iframe.style.right = "0";
-      iframe.style.bottom = "0";
-      iframe.style.width = "0";
-      iframe.style.height = "0";
-      iframe.style.border = "0";
-      iframe.setAttribute("aria-hidden", "true");
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `invoice-${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
 
-      document.body.appendChild(iframe);
-
-      const cleanup = () => {
-        setTimeout(() => {
-          try {
-            iframe.remove();
-          } catch {
-            // ignore
-          }
-        }, 1500);
-      };
-
-      const doc = iframe.contentWindow?.document;
-      if (!doc || !iframe.contentWindow) {
-        cleanup();
-        throw new Error("Unable to open print frame.");
-      }
-
-      doc.open();
-      doc.write(html);
-      doc.close();
-
-      iframe.onload = () => {
-        try {
-          setTimeout(() => {
-            try {
-              iframe.contentWindow.focus();
-              iframe.contentWindow.print();
-            } finally {
-              cleanup();
-            }
-          }, 300);
-        } catch {
-          cleanup();
-        }
-      };
-
-      if (doc.readyState === "complete") {
-        setTimeout(() => {
-          try {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-          } finally {
-            cleanup();
-          }
-        }, 300);
-      }
+      window.URL.revokeObjectURL(objectUrl);
     } catch (e) {
-      alert(safeStr(e?.message || e) || "Failed to prepare PDF download.");
+      alert(safeStr(e?.message || e) || "Failed to download PDF.");
     } finally {
       setBusyId("");
     }
