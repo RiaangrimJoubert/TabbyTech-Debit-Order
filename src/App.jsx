@@ -8,6 +8,7 @@ import AppShell from "./shell/AppShell";
 import ClientPortal from "./pages/ClientPortal";
 import InvoiceHtml from "./pages/InvoiceHtml";
 import TabbyDen from "./pages/TabbyDen";
+import ResetPassword from "./pages/ResetPassword";
 
 function PublicNotFound() {
   return (
@@ -64,13 +65,14 @@ export default function App() {
   const [authed, setAuthed] = useState(() => hasStoredAdminSession());
   const [bootChecked, setBootChecked] = useState(false);
 
-  // Anything under /portal or /invoice or /tabbyden is PUBLIC.
+  // Anything under /portal or /invoice or /tabbyden or /reset-password is PUBLIC.
   const isPublicRoute = useMemo(() => {
     const p = String(location.pathname || "/").toLowerCase();
     return (
       p.startsWith("/portal") ||
       p.startsWith("/invoice") ||
-      p.startsWith("/tabbyden")
+      p.startsWith("/tabbyden") ||
+      p.startsWith("/reset-password")
     );
   }, [location.pathname]);
 
@@ -99,6 +101,7 @@ export default function App() {
         <Route path="/portal/:customerKey" element={<ClientPortal />} />
         <Route path="/invoice/:invoiceId" element={<InvoiceHtml />} />
         <Route path="/tabbyden" element={<TabbyDen />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* IMPORTANT: Never send public users to "/" because that is your admin login */}
         <Route path="*" element={<PublicNotFound />} />
