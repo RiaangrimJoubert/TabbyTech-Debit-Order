@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { API_BASE } from "../api";
 
-const API_BASE =
-  "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
+const AUTH_API_BASE = String(
+  import.meta.env.VITE_SERVERLESS_API_BASE ||
+    API_BASE ||
+    ""
+).trim();
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -25,7 +29,7 @@ export default function Login({ onLogin }) {
     setError("");
 
     try {
-      const resp = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+      const resp = await fetch(`${AUTH_API_BASE}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ email: target }),
@@ -70,7 +74,7 @@ export default function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
+      const response = await fetch(`${AUTH_API_BASE}/api/auth/login`, {
   method: "POST",
   headers: {
     "Content-Type": "text/plain"

@@ -12,8 +12,8 @@ export default defineConfig(({ mode }) => {
   const apiBase =
     (env.VITE_API_BASE_URL || "").trim() || fallbackApiBase;
 
-  const crmApiBase =
-    (env.VITE_CRM_API_BASE || "").trim() || fallbackApiBase;
+  const serverlessApiBase =
+    (env.VITE_SERVERLESS_API_BASE || env.VITE_CRM_API_BASE || "").trim();
 
   return {
     plugins: [react()],
@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
     // Force these values into the bundle at build time, even if the host ignores .env files
     define: {
       "import.meta.env.VITE_API_BASE_URL": JSON.stringify(apiBase),
-      "import.meta.env.VITE_CRM_API_BASE": JSON.stringify(crmApiBase),
+      "import.meta.env.VITE_SERVERLESS_API_BASE": JSON.stringify(serverlessApiBase),
     },
   };
 });

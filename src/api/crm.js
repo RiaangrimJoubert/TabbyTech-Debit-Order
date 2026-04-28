@@ -10,17 +10,22 @@
  * - Keep request headers simple to avoid unnecessary preflight/CORS noise
  *
  * Env priority:
- * 1) VITE_API_BASE_URL (new standard for api.tabbytech.co.za)
- * 2) VITE_CRM_API_BASE (legacy)
- * 3) FALLBACK_HOST (dev catalyst host)
+ * 1) VITE_SERVERLESS_API_BASE (shared serverless host)
+ * 2) VITE_CRM_API_BASE (legacy fallback)
+ * 3) VITE_API_BASE_URL (general API host)
+ * 4) FALLBACK_HOST (dev catalyst host)
  */
 
 const FALLBACK_HOST =
   "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
 
-// Prefer your standard variable name, but also allow legacy name.
+// Prefer explicit CRM host when provided, else fall back to general API host.
 const RAW_BASE =
-  (import.meta?.env?.VITE_API_BASE_URL || import.meta?.env?.VITE_CRM_API_BASE || "")
+  (
+    import.meta?.env?.VITE_SERVERLESS_API_BASE ||
+    import.meta?.env?.VITE_API_BASE_URL ||
+    ""
+  )
     .trim();
 
 /**

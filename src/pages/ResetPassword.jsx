@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { API_BASE } from "../api";
 
-const API_BASE =
-  "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
+const AUTH_API_BASE = String(
+  import.meta.env.VITE_SERVERLESS_API_BASE ||
+    API_BASE ||
+    ""
+).trim();
 
 function useQuery() {
   const location = useLocation();
@@ -44,7 +48,7 @@ export default function ResetPassword() {
     setBusy(true);
 
     try {
-      const resp = await fetch(`${API_BASE}/api/auth/reset-password`, {
+      const resp = await fetch(`${AUTH_API_BASE}/api/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ token, newPassword: password }),
