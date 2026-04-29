@@ -1899,18 +1899,20 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
             <div style={{
               background: "rgba(239,68,68,0.12)",
               border: "1px solid rgba(239,68,68,0.25)",
-              borderRadius: "12px",
-              padding: "12px 16px",
+              borderRadius: "16px",
+              padding: "14px 20px",
               marginBottom: "16px",
               color: "#ef4444",
               display: "flex",
               alignItems: "center",
-              gap: "10px",
-              fontSize: "13px",
+              gap: "12px",
+              fontSize: "14px",
               fontWeight: "600",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              backdropFilter: "blur(10px)",
+              flexShrink: 0
             }}>
-              <span style={{ fontSize: "18px" }}>⚠️</span>
+              <span style={{ fontSize: "20px" }}>⚠️</span>
               <span>{errorText}</span>
             </div>
           )}

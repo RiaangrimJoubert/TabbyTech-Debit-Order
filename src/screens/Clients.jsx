@@ -1960,24 +1960,6 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
               </div>
 
               <div className="tt-panelHeaderActions">
-                {syncError && (
-                  <div style={{
-                    background: "rgba(239,68,68,0.1)",
-                    border: "1px solid rgba(239,68,68,0.2)",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    fontSize: "12px",
-                    color: "#ef4444",
-                    maxWidth: "400px",
-                    marginRight: "16px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}>
-                    <span style={{ fontSize: "16px" }}>⚠️</span>
-                    <span>{syncError}</span>
-                  </div>
-                )}
                 <RecordsDropdown
                   value={perPage}
                   disabled={false}
@@ -2006,6 +1988,24 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                 </button>
               </div>
             </div>
+
+            {syncError && (
+              <div style={{
+                background: "rgba(239,68,68,0.12)",
+                borderBottom: "1px solid rgba(239,68,68,0.25)",
+                padding: "12px 16px",
+                color: "#ef4444",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                fontSize: "13px",
+                fontWeight: "600",
+                flexShrink: 0
+              }}>
+                <span style={{ fontSize: "18px" }}>⚠️</span>
+                <span>{syncError}</span>
+              </div>
+            )}
 
             <div className="tt-toolbar">
               <div className="tt-toolbarSearch">
