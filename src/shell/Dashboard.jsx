@@ -2859,6 +2859,28 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {overallError && (
+        <div style={{
+          background: "rgba(239,68,68,0.12)",
+          border: "1px solid rgba(239,68,68,0.25)",
+          borderRadius: "16px",
+          padding: "14px 20px",
+          marginBottom: "18px",
+          color: "#ef4444",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          fontSize: "14px",
+          fontWeight: "600",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          backdropFilter: "blur(10px)",
+          flexShrink: 0
+        }}>
+          <span style={{ fontSize: "20px" }}>⚠️</span>
+          <span>{overallError}</span>
+        </div>
+      )}
+
       <div className="ttd-grid4">
         <MetricCard
           title="Cycle Pipeline Value"
@@ -3384,23 +3406,6 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
-
-      {overallError ? (
-        <div
-          style={{
-            marginTop: "16px",
-            padding: "14px",
-            borderRadius: "14px",
-            border: "1px solid rgba(239,68,68,0.22)",
-            background: "rgba(239,68,68,0.06)",
-            color: "#f87171",
-            fontSize: "12px",
-            fontWeight: 700,
-          }}
-        >
-          Dashboard API error: {overallError}
-        </div>
-      ) : null}
     </div>
   );
 }
