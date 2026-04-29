@@ -37,6 +37,7 @@ function normalizeTenant(raw, index) {
   const safe = raw || {};
   const connections = safe.connections || {};
   const keys = safe.keys || {};
+  const config = safe.config || {};
 
   return {
     id: safeStr(safe.id) || `tnt_${index}`,
@@ -47,6 +48,7 @@ function normalizeTenant(raw, index) {
     status: safeStr(safe.status) || "active",
     plan: safeStr(safe.plan) || "Starter",
     notes: safeStr(safe.notes),
+    password: "", // Always empty for editing unless user types a new one
     created: safeStr(safe.created),
     updated: safeStr(safe.updated),
     connections: {
@@ -70,8 +72,12 @@ function normalizeTenant(raw, index) {
       zohoBooksOrgId: safeStr(keys.zohoBooksOrgId),
       zohoBooksClientId: safeStr(keys.zohoBooksClientId),
       zohoBooksClientSecret: safeStr(keys.zohoBooksClientSecret),
+      zohoBooksRefreshToken: safeStr(keys.zohoBooksRefreshToken),
       paystackSecretKey: safeStr(keys.paystackSecretKey),
       paystackPublicKey: safeStr(keys.paystackPublicKey),
+    },
+    config: {
+      preferredAmounts: Array.isArray(config.preferredAmounts) ? config.preferredAmounts : [50, 100, 200, 500, 1000],
     },
   };
 }
@@ -94,6 +100,7 @@ function emptyTenantDraft() {
       zohoBooksOrgId: "",
       zohoBooksClientId: "",
       zohoBooksClientSecret: "",
+      zohoBooksRefreshToken: "",
       paystackSecretKey: "",
       paystackPublicKey: "",
     },
@@ -181,19 +188,8 @@ export default function Tenants() {
   function openEditModal(id) {
     const t = tenants.find((x) => x.id === id);
     if (!t) return;
-    setEditDraft({
-      id: t.id,
-      name: t.name,
-      owner: t.owner,
-      email: t.email,
-      domain: t.domain,
-      status: t.status,
-      plan: t.plan,
-      notes: t.notes,
-      password: t.password || "",
-      keys: { ...t.keys },
-      config: { ...t.config },
-    });
+    // Use normalizeTenant to ensure we have a complete, valid draft structure
+    setEditDraft(normalizeTenant(t));
   }
 
   function closeModal() {
@@ -264,7 +260,11 @@ export default function Tenants() {
     }
   }
 
+  const [testingService, setTestingService] = useState("");
+
   async function testConnection(tenantId, service) {
+    if (testingService) return;
+    setTestingService(service);
     try {
       const resp = await request(
         `/api/tenants/${encodeURIComponent(tenantId)}/test-connection`,
@@ -289,6 +289,8 @@ export default function Tenants() {
       );
     } catch (e) {
       alert(`Connection test failed: ${String(e?.message || e)}`);
+    } finally {
+      setTestingService("");
     }
   }
 
@@ -606,6 +608,8 @@ export default function Tenants() {
         }
         .tt-ws-service .status.good { background: rgba(34,197,94,0.15); color: #4ade80; }
         .tt-ws-service .status.bad { background: rgba(239,68,68,0.15); color: #f87171; }
+        .tt-ws-service .status.loading { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); animation: ttPulse 1.5s infinite; }
+        @keyframes ttPulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         .tt-ws-testbtn {
           width: 100%;
           background: rgba(255,255,255,0.05);
@@ -617,6 +621,7 @@ export default function Tenants() {
           font-size: 12px;
           font-weight: 700;
         }
+        .tt-ws-testbtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .tt-tenants-modal-overlay {
           position: fixed;
@@ -810,18 +815,21 @@ export default function Tenants() {
                     connected={selectedTenant?.connections.zohoCrm.connected} 
                     lastTested={selectedTenant?.connections.zohoCrm.lastTested}
                     onTest={() => testConnection(selectedTenant?.id, 'crm')}
+                    loading={testingService === 'crm'}
                   />
                   <ServiceBlock 
                     name="Zoho Books" 
                     connected={selectedTenant?.connections.zohoBooks.connected} 
                     lastTested={selectedTenant?.connections.zohoBooks.lastTested}
                     onTest={() => testConnection(selectedTenant?.id, 'books')}
+                    loading={testingService === 'books'}
                   />
                   <ServiceBlock 
                     name="Paystack" 
                     connected={selectedTenant?.connections.paystack.connected} 
                     lastTested={selectedTenant?.connections.paystack.lastTested}
                     onTest={() => testConnection(selectedTenant?.id, 'paystack')}
+                    loading={testingService === 'paystack'}
                   />
                 </div>
               </div>
@@ -920,12 +928,42 @@ export default function Tenants() {
               <div style={{ marginTop: 20, padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <div style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", color: "#a855f7", marginBottom: 12 }}>API Keys (3 Stacks)</div>
                 <div className="tt-tenants-formgrid">
-                  <div className="tt-tenants-field"><label>CRM Client ID</label><input type="password" value={editDraft.keys.zohoCrmClientId} onChange={(e) => updateDraftKey("zohoCrmClientId", e.target.value)} /></div>
-                  <div className="tt-tenants-field"><label>CRM Secret</label><input type="password" value={editDraft.keys.zohoCrmClientSecret} onChange={(e) => updateDraftKey("zohoCrmClientSecret", e.target.value)} /></div>
-                  <div className="tt-tenants-field"><label>CRM Refresh Token</label><input type="password" value={editDraft.keys.zohoCrmRefreshToken} onChange={(e) => updateDraftKey("zohoCrmRefreshToken", e.target.value)} /></div>
-                  <div className="tt-tenants-field"><label>Books Org ID</label><input type="password" value={editDraft.keys.zohoBooksOrgId} onChange={(e) => updateDraftKey("zohoBooksOrgId", e.target.value)} /></div>
-                  <div className="tt-tenants-field"><label>Paystack Secret</label><input type="password" value={editDraft.keys.paystackSecretKey} onChange={(e) => updateDraftKey("paystackSecretKey", e.target.value)} /></div>
-                  <div className="tt-tenants-field"><label>Paystack Public</label><input type="password" value={editDraft.keys.paystackPublicKey} onChange={(e) => updateDraftKey("paystackPublicKey", e.target.value)} /></div>
+                  <div className="tt-tenants-field">
+                    <label>CRM Client ID</label>
+                    <input type="password" placeholder={editDraft.keys.zohoCrmClientId ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmClientId} onChange={(e) => updateDraftKey("zohoCrmClientId", e.target.value)} />
+                  </div>
+                  <div className="tt-tenants-field">
+                    <label>CRM Secret</label>
+                    <input type="password" placeholder={editDraft.keys.zohoCrmClientSecret ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmClientSecret} onChange={(e) => updateDraftKey("zohoCrmClientSecret", e.target.value)} />
+                  </div>
+                  <div className="tt-tenants-field">
+                    <label>CRM Refresh Token</label>
+                    <input type="password" placeholder={editDraft.keys.zohoCrmRefreshToken ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmRefreshToken} onChange={(e) => updateDraftKey("zohoCrmRefreshToken", e.target.value)} />
+                  </div>
+                  <div className="tt-tenants-field">
+                    <label>Books Org ID</label>
+                    <input type="password" placeholder={editDraft.keys.zohoBooksOrgId ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksOrgId} onChange={(e) => updateDraftKey("zohoBooksOrgId", e.target.value)} />
+                  </div>
+                  <div className="tt-tenants-field">
+                    <label>Books Client ID</label>
+                    <input type="password" placeholder={editDraft.keys.zohoBooksClientId ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksClientId} onChange={(e) => updateDraftKey("zohoBooksClientId", e.target.value)} />
+                  </div>
+                  <div className="tt-tenants-field">
+                    <label>Books Secret</label>
+                    <input type="password" placeholder={editDraft.keys.zohoBooksClientSecret ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksClientSecret} onChange={(e) => updateDraftKey("zohoBooksClientSecret", e.target.value)} />
+                  </div>
+                  <div className="tt-tenants-field">
+                    <label>Books Refresh Token</label>
+                    <input type="password" placeholder={editDraft.keys.zohoBooksRefreshToken ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksRefreshToken} onChange={(e) => updateDraftKey("zohoBooksRefreshToken", e.target.value)} />
+                  </div>
+                  <div className="tt-tenants-field">
+                    <label>Paystack Secret</label>
+                    <input type="password" placeholder={editDraft.keys.paystackSecretKey ? "••••••••" : "Not set"} value={editDraft.keys.paystackSecretKey} onChange={(e) => updateDraftKey("paystackSecretKey", e.target.value)} />
+                  </div>
+                  <div className="tt-tenants-field">
+                    <label>Paystack Public</label>
+                    <input type="password" placeholder={editDraft.keys.paystackPublicKey ? "••••••••" : "Not set"} value={editDraft.keys.paystackPublicKey} onChange={(e) => updateDraftKey("paystackPublicKey", e.target.value)} />
+                  </div>
                 </div>
               </div>
 
@@ -963,12 +1001,16 @@ function KeyValue({ label, value }) {
   );
 }
 
-function ServiceBlock({ name, connected, lastTested, onTest }) {
+function ServiceBlock({ name, connected, lastTested, onTest, loading }) {
   return (
     <div className={`tt-ws-service ${connected ? 'connected' : ''}`}>
       <div className="name">{name}</div>
-      <div className={`status ${connected ? 'good' : 'bad'}`}>{connected ? 'CONNECTED' : 'DISCONNECTED'}</div>
-      <button className="tt-ws-testbtn" onClick={onTest}>Test Sync</button>
+      <div className={`status ${loading ? 'loading' : (connected ? 'good' : 'bad')}`}>
+        {loading ? 'TESTING...' : (connected ? 'CONNECTED' : 'DISCONNECTED')}
+      </div>
+      <button className="tt-ws-testbtn" onClick={onTest} disabled={loading}>
+        {loading ? 'Wait...' : 'Test Sync'}
+      </button>
       {lastTested && <div style={{ fontSize: '10px', marginTop: 8, opacity: 0.6 }}>Last: {formatDate(lastTested)}</div>}
     </div>
   );
