@@ -1955,12 +1955,29 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
               <div className="tt-phLeft">
                 <p className="tt-phTitle">Client list</p>
                 <p className="tt-phMeta">
-                  {filteredAll.length} total · Showing page {page} of {pageCount} · Zoho CRM: <b>{zohoCrmStatus}</b>
-                  {syncError ? <span style={{ marginLeft: 8, color: "rgba(239,68,68,0.9)" }}>({syncError})</span> : null}
+                  {filteredAll.length} total · Showing page {page} of {pageCount} · Zoho CRM: <b style={{ color: zohoCrmStatus === "Error" ? "#ef4444" : "inherit" }}>{zohoCrmStatus}</b>
                 </p>
               </div>
 
               <div className="tt-panelHeaderActions">
+                {syncError && (
+                  <div style={{
+                    background: "rgba(239,68,68,0.1)",
+                    border: "1px solid rgba(239,68,68,0.2)",
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                    fontSize: "12px",
+                    color: "#ef4444",
+                    maxWidth: "400px",
+                    marginRight: "16px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}>
+                    <span style={{ fontSize: "16px" }}>⚠️</span>
+                    <span>{syncError}</span>
+                  </div>
+                )}
                 <RecordsDropdown
                   value={perPage}
                   disabled={false}

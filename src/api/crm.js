@@ -1,107 +1,4 @@
-// src/api/crm.js
-"use strict";
-
-/**
- * TabbyTech CRM API client
- *
- * Key requirements:
- * - Always call CRM API via a proper API host (your SSL domain or Catalyst host)
- * - Parse response.items (array)
- * - Keep request headers simple to avoid unnecessary preflight/CORS noise
- *
- * Env priority:
- * 1) VITE_SERVERLESS_API_BASE (shared serverless host)
- * 2) VITE_CRM_API_BASE (legacy fallback)
- * 3) VITE_API_BASE_URL (general API host)
- * 4) FALLBACK_HOST (dev catalyst host)
- */
-
-const FALLBACK_HOST =
-  "https://tabbytechdebitorder-913617844.development.catalystserverless.com";
-
-// Prefer explicit CRM host when provided, else fall back to general API host.
-const RAW_BASE =
-  (
-    import.meta?.env?.VITE_SERVERLESS_API_BASE ||
-    import.meta?.env?.VITE_API_BASE_URL ||
-    ""
-  )
-    .trim();
-
-/**
- * Normalize to an origin host only.
- * If someone mistakenly provides a full path, we strip it.
- */
-function normalizeHost(input) {
-  const s = (input || "").trim().replace(/\/+$/, "");
-  if (!s) return FALLBACK_HOST;
-
-  try {
-    const u = new URL(s);
-    return u.origin;
-  } catch {
-    return FALLBACK_HOST;
-  }
-}
-
-const HOST = normalizeHost(RAW_BASE);
-
-function joinUrl(base, path) {
-  const b = (base || "").replace(/\/+$/, "");
-  const p = (path || "").startsWith("/") ? path : `/${path}`;
-  return `${b}${p}`;
-}
-
-function detectHtmlResponse(text, contentType) {
-  const ct = (contentType || "").toLowerCase();
-  const trimmed = (text || "").trim().toLowerCase();
-
-  if (ct.includes("text/html")) return true;
-
-  return (
-    trimmed.startsWith("<!doctype html") ||
-    trimmed.startsWith("<html") ||
-    trimmed.includes("<head") ||
-    trimmed.includes("<body")
-  );
-}
-
-async function httpGetJson(url) {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-    },
-    credentials: "omit",
-  });
-
-  const contentType = res.headers.get("content-type") || "";
-  const text = await res.text();
-
-  if (detectHtmlResponse(text, contentType)) {
-    throw new Error(`Unexpected HTML response. Wrong API path used: ${url}`);
-  }
-
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    json = { raw: text };
-  }
-
-  // Catalyst sometimes returns 200 with a failure payload
-  if (json && json.status === "failure") {
-    const msg = json?.data?.message || json?.message || "Catalyst API failure";
-    throw new Error(msg);
-  }
-
-  if (!res.ok) {
-    const msg = json?.error || json?.message || text || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-
-  return json;
-}
+import { request } from "./index";
 
 function mapApiItemToClient(item) {
   const safe = item || {};
@@ -167,16 +64,11 @@ function mapApiItemToClient(item) {
 }
 
 export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
-  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(
-    perPage
-  )}`;
+  const qs = `page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`;
 
-  // Confirmed gateway path
-  const requestUrl = joinUrl(HOST, `/crm_api/api/clients?${qs}`);
+  // Using standard AppSail request (which handles Tenant-Id headers automatically)
+  const data = await request(`/api/clients?${qs}`, { method: "GET" });
 
-  const data = await httpGetJson(requestUrl);
-
-  // Backend response structure: { ok, page, perPage, count, items: [...] }
   const items = Array.isArray(data.items) ? data.items : [];
 
   return {
@@ -185,9 +77,6 @@ export async function fetchZohoClients({ page = 1, perPage = 50 } = {}) {
     perPage: data.perPage || perPage,
     count: data.count ?? items.length,
     clients: items.map(mapApiItemToClient),
-    raw: data,
-    requestUrl,
-    hostUsed: HOST,
-    envUsed: RAW_BASE || "(fallback)",
+    raw: data
   };
 }

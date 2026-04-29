@@ -86,6 +86,7 @@ function emptyTenantDraft() {
     status: "active",
     plan: "Starter",
     notes: "",
+    password: "",
     keys: {
       zohoCrmClientId: "",
       zohoCrmClientSecret: "",
@@ -96,6 +97,9 @@ function emptyTenantDraft() {
       paystackSecretKey: "",
       paystackPublicKey: "",
     },
+    config: {
+      preferredAmounts: [50, 100, 200, 500, 1000],
+    }
   };
 }
 
@@ -176,7 +180,9 @@ export default function Tenants() {
       status: t.status,
       plan: t.plan,
       notes: t.notes,
+      password: t.password || "",
       keys: { ...t.keys },
+      config: { ...t.config },
     });
   }
 
@@ -191,6 +197,12 @@ export default function Tenants() {
   function updateDraftKey(key, value) {
     setEditDraft((prev) =>
       prev ? { ...prev, keys: { ...prev.keys, [key]: value } } : prev
+    );
+  }
+
+  function updateDraftConfig(key, value) {
+    setEditDraft((prev) =>
+      prev ? { ...prev, config: { ...prev.config, [key]: value } } : prev
     );
   }
 
@@ -799,6 +811,10 @@ export default function Tenants() {
                   <span className="value">{selectedTenant.domain || "Not set"}</span>
                 </div>
                 <div className="row">
+                  <span className="label">Password</span>
+                  <span className="value">{selectedTenant.password ? "••••••••" : "Not set"}</span>
+                </div>
+                <div className="row">
                   <span className="label">Plan</span>
                   <span className="value">{selectedTenant.plan}</span>
                 </div>
@@ -809,54 +825,67 @@ export default function Tenants() {
               </div>
 
               <div className="section">
-                <div className="sectiontitle">API Connections</div>
+                <div className="sectiontitle">Control Center</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button 
+                    type="button" 
+                    className="tt-tenants-btn secondary"
+                    style={{ flex: 1, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    onClick={() => openEditModal(selectedTenant.id)}
+                  >
+                    ⚙️ Settings
+                  </button>
+                  <button 
+                    type="button" 
+                    className="tt-tenants-btn primary"
+                    style={{ flex: 1, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    onClick={() => openEditModal(selectedTenant.id)}
+                  >
+                    💳 Configure
+                  </button>
+                </div>
+              </div>
 
+              <div className="section">
+                <div className="sectiontitle">Connections (Live Status)</div>
+                
                 <div className="tt-tenants-conncard">
                   <div className="head">
-                    <div className="title">Zoho CRM</div>
-                    <div className={`status ${selectedTenant.connections.zohoCrm.connected ? "connected" : "disconnected"}`}>
-                      {selectedTenant.connections.zohoCrm.connected ? "Connected" : "Disconnected"}
-                    </div>
+                    <span className="title">Zoho CRM</span>
+                    <span className={`status ${selectedTenant.connections.zohoCrm.connected ? 'connected' : 'disconnected'}`}>
+                      {selectedTenant.connections.zohoCrm.connected ? 'ACTIVE' : 'OFFLINE'}
+                    </span>
                   </div>
                   <div className="detail">
-                    Last tested: {selectedTenant.connections.zohoCrm.lastTested || "Never"}<br />
-                    Client ID: <code>{maskKey(selectedTenant.keys.zohoCrmClientId)}</code>
+                    {selectedTenant.connections.zohoCrm.lastTested ? `Last check: ${formatDate(selectedTenant.connections.zohoCrm.lastTested)}` : 'Never tested'}
                   </div>
-                  <button type="button" className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, "crm")}>
-                    Test Connection
-                  </button>
+                  <button className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, 'crm')}>Verify CRM Sync</button>
                 </div>
 
                 <div className="tt-tenants-conncard">
                   <div className="head">
-                    <div className="title">Zoho Books</div>
-                    <div className={`status ${selectedTenant.connections.zohoBooks.connected ? "connected" : "disconnected"}`}>
-                      {selectedTenant.connections.zohoBooks.connected ? "Connected" : "Disconnected"}
-                    </div>
+                    <span className="title">Zoho Books</span>
+                    <span className={`status ${selectedTenant.connections.zohoBooks.connected ? 'connected' : 'disconnected'}`}>
+                      {selectedTenant.connections.zohoBooks.connected ? 'ACTIVE' : 'OFFLINE'}
+                    </span>
                   </div>
                   <div className="detail">
-                    Last tested: {selectedTenant.connections.zohoBooks.lastTested || "Never"}<br />
-                    Org ID: <code>{maskKey(selectedTenant.keys.zohoBooksOrgId)}</code>
+                    {selectedTenant.connections.zohoBooks.lastTested ? `Last check: ${formatDate(selectedTenant.connections.zohoBooks.lastTested)}` : 'Never tested'}
                   </div>
-                  <button type="button" className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, "books")}>
-                    Test Connection
-                  </button>
+                  <button className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, 'books')}>Verify Books Sync</button>
                 </div>
 
                 <div className="tt-tenants-conncard">
                   <div className="head">
-                    <div className="title">Paystack</div>
-                    <div className={`status ${selectedTenant.connections.paystack.connected ? "connected" : "disconnected"}`}>
-                      {selectedTenant.connections.paystack.connected ? "Connected" : "Disconnected"}
-                    </div>
+                    <span className="title">Paystack Gateway</span>
+                    <span className={`status ${selectedTenant.connections.paystack.connected ? 'connected' : 'disconnected'}`}>
+                      {selectedTenant.connections.paystack.connected ? 'ACTIVE' : 'OFFLINE'}
+                    </span>
                   </div>
                   <div className="detail">
-                    Last tested: {selectedTenant.connections.paystack.lastTested || "Never"}<br />
-                    Secret Key: <code>{maskKey(selectedTenant.keys.paystackSecretKey)}</code>
+                    {selectedTenant.connections.paystack.lastTested ? `Last check: ${formatDate(selectedTenant.connections.paystack.lastTested)}` : 'Never tested'}
                   </div>
-                  <button type="button" className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, "paystack")}>
-                    Test Connection
-                  </button>
+                  <button className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, 'paystack')}>Verify Payment Flow</button>
                 </div>
               </div>
 
@@ -897,6 +926,10 @@ export default function Tenants() {
                 <div className="tt-tenants-field">
                   <label>Domain</label>
                   <input value={editDraft.domain} onChange={(e) => updateDraftField("domain", e.target.value)} />
+                </div>
+                <div className="tt-tenants-field">
+                  <label>Login Password</label>
+                  <input type="password" placeholder="Set password for tenant login..." value={editDraft.password} onChange={(e) => updateDraftField("password", e.target.value)} />
                 </div>
                 <div className="tt-tenants-field">
                   <label>Status</label>
@@ -952,6 +985,23 @@ export default function Tenants() {
                     <label>Paystack Public Key</label>
                     <input type="password" value={editDraft.keys.paystackPublicKey} onChange={(e) => updateDraftKey("paystackPublicKey", e.target.value)} />
                   </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 18 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "rgba(148,163,184,.9)", marginBottom: 10 }}>
+                  Debit Order Configuration
+                </div>
+                <div className="tt-tenants-field">
+                  <label>Preferred Amounts (comma separated)</label>
+                  <input 
+                    placeholder="e.g. 50, 100, 200, 500" 
+                    value={(editDraft.config?.preferredAmounts || []).join(", ")} 
+                    onChange={(e) => {
+                      const val = e.target.value.split(",").map(s => Number(s.trim())).filter(n => !isNaN(n));
+                      updateDraftConfig("preferredAmounts", val);
+                    }} 
+                  />
                 </div>
               </div>
 

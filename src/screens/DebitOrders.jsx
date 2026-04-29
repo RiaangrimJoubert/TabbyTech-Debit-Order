@@ -1895,7 +1895,25 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
       <div className="tt-do-shell">
         <div className="tt-do-glass">
-          {errorText ? <div className="tt-do-error">Error: {errorText}</div> : null}
+          {errorText && (
+            <div style={{
+              background: "rgba(239,68,68,0.12)",
+              border: "1px solid rgba(239,68,68,0.25)",
+              borderRadius: "12px",
+              padding: "12px 16px",
+              marginBottom: "16px",
+              color: "#ef4444",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              fontSize: "13px",
+              fontWeight: "600",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+            }}>
+              <span style={{ fontSize: "18px" }}>⚠️</span>
+              <span>{errorText}</span>
+            </div>
+          )}
 
           <div className="tt-do-hero">
             <div className="tt-do-leftHero">

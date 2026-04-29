@@ -1,5 +1,5 @@
-// src/shell/Dashboard.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { request, getAuthHeaders } from "../api";
 
 const LS = {
   search: "tabbytech.dashboard.search",
@@ -175,22 +175,7 @@ function getApiBase() {
 }
 
 async function fetchJson(path) {
-  const base = getApiBase();
-  const url = `${base}${path}`;
-  const resp = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-    },
-  });
-
-  const json = await resp.json().catch(() => ({}));
-  if (!resp.ok || !json?.ok) {
-    throw new Error(json?.error || `Request failed ${resp.status}`);
-  }
-  return json;
+  return request(path, { method: "GET" });
 }
 
 function getCachedObject(key) {
@@ -212,7 +197,8 @@ function setCachedObject(key, value) {
 }
 
 function makeSummaryCacheKey(startDate, endDate) {
-  return `${safeStr(startDate)}__${safeStr(endDate)}`;
+  const tenantId = getAuthHeaders()["X-Tabby-Tenant-Id"] || "admin";
+  return `${tenantId}__${safeStr(startDate)}__${safeStr(endDate)}`;
 }
 
 function getSummaryCache(startDate, endDate) {
@@ -232,15 +218,19 @@ function setSummaryCache(startDate, endDate, data) {
 }
 
 function getCronCache() {
+  const tenantId = getAuthHeaders()["X-Tabby-Tenant-Id"] || "admin";
   const cache = getCachedObject(LS.cronCache);
   if (!cache) return null;
+  if (cache.tenantId !== tenantId) return null;
   if (!cache.ts || Date.now() - cache.ts > CRON_LIVE_REFRESH_MS) return null;
   return cache.data || null;
 }
 
 function setCronCache(data) {
+  const tenantId = getAuthHeaders()["X-Tabby-Tenant-Id"] || "admin";
   setCachedObject(LS.cronCache, {
     ts: Date.now(),
+    tenantId,
     data,
   });
 }

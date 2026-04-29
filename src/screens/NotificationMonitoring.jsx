@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { request } from "../api";
 
 const NOTIFICATION_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -272,13 +273,7 @@ function exportRowsToCsv(filename, rows, columns) {
   URL.revokeObjectURL(url);
 }
 
-function buildApiUrl(path) {
-  const base = String(import.meta.env.VITE_API_BASE_URL || "https://api.tabbytech.co.za")
-    .trim()
-    .replace(/\/+$/, "");
-  const cleanPath = String(path || "").trim();
-  return `${base}${cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`}`;
-}
+
 
 function normalizeTemplateName(name) {
   const v = String(name || "").trim().toLowerCase();
@@ -633,17 +628,12 @@ export default function NotificationMonitoring() {
         setLoading(true);
         setError("");
 
-        const res = await fetch(buildApiUrl("/api/dashboard/notification-monitor"), {
+        const json = await request("/api/dashboard/notification-monitor", {
           method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
         });
 
-        const json = await res.json().catch(() => ({}));
-
-        if (!res.ok || !json?.ok) {
-          throw new Error(String(json?.error || `Request failed (${res.status})`));
+        if (!json?.ok) {
+          throw new Error(String(json?.error || "Request failed"));
         }
 
         const data = json?.data || {};
@@ -724,17 +714,12 @@ export default function NotificationMonitoring() {
     setError("");
 
     try {
-      const res = await fetch(buildApiUrl("/api/dashboard/notification-monitor"), {
+      const json = await request("/api/dashboard/notification-monitor", {
         method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
       });
 
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok || !json?.ok) {
-        throw new Error(String(json?.error || `Request failed (${res.status})`));
+      if (!json?.ok) {
+        throw new Error(String(json?.error || "Request failed"));
       }
 
       const data = json?.data || {};

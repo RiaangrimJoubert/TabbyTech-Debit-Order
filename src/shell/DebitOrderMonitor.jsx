@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { request } from "../api";
 
 const DEBIT_ORDER_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 const ATTEMPTS_PER_PAGE = 10;
@@ -686,30 +687,8 @@ function PremiumButton({ children, onClick, title, disabled = false }) {
   );
 }
 
-function getApiBase() {
-  const envBase = safeStr(import.meta.env.VITE_API_BASE_URL);
-  return envBase || "https://api.tabbytech.co.za";
-}
-
 async function fetchJson(path) {
-  const base = getApiBase().replace(/\/+$/, "");
-  const url = `${base}${path}`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-    },
-  });
-
-  const json = await res.json().catch(() => ({}));
-
-  if (!res.ok || !json?.ok) {
-    throw new Error(json?.error || `Request failed ${res.status}`);
-  }
-
-  return json;
+  return request(path, { method: "GET" });
 }
 
 async function fetchDebitOrderMonitorData({ startDate, endDate }) {

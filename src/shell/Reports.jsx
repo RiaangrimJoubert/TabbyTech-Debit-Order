@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { request } from "../api";
 
 const REPORTS_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -117,30 +118,8 @@ function estimatePaystackFeeLocal(amount) {
   return percentFee + flatFee;
 }
 
-function getApiBase() {
-  const v = safeStr(import.meta.env.VITE_API_BASE_URL);
-  return v || "";
-}
-
 async function fetchJson(path) {
-  const base = getApiBase();
-  const url = `${base}${path}`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-    },
-  });
-
-  const json = await res.json().catch(() => ({}));
-
-  if (!res.ok || !json?.ok) {
-    throw new Error(json?.error || `Request failed ${res.status}`);
-  }
-
-  return json;
+  return request(path, { method: "GET" });
 }
 
 function useOnClickOutside(ref, handler) {

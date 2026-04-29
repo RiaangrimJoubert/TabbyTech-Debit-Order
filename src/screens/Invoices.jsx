@@ -1,5 +1,6 @@
 // src/screens/Invoices.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { request, requestBlob, API_BASE } from "../api";
 import * as XLSX from "xlsx";
 import { money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
@@ -25,10 +26,7 @@ function hasFreshInvoicesCache() {
   );
 }
 
-function getApiBase() {
-  const base = String(import.meta.env.VITE_API_BASE_URL || "").trim();
-  return base.endsWith("/") ? base.slice(0, -1) : base;
-}
+
 
 function normalizeKey(s) {
   return String(s || "").toLowerCase().trim();
@@ -130,28 +128,7 @@ function normalizeInvoice(inv) {
 }
 
 async function fetchInvoicesFromApi() {
-  const apiBase = getApiBase();
-  if (!apiBase) throw new Error("Missing VITE_API_BASE_URL");
-
-  const url = `${apiBase}/api/invoices?page=1&perPage=200`;
-
-  const resp = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" }
-  });
-
-  const text = await resp.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : {};
-  } catch {
-    json = { raw: text };
-  }
-
-  if (!resp.ok) {
-    const msg = json?.error || json?.message || `Request failed (${resp.status})`;
-    throw new Error(msg);
-  }
+  const json = await request("/api/invoices?page=1&perPage=200", { method: "GET" });
 
   if (json && json.status === "failure") {
     const msg = json?.data?.message || json?.message || "API failure";
@@ -429,43 +406,25 @@ export default function Invoices() {
   }
 
   function openInvoiceHtml(inv) {
-    const apiBase = getApiBase();
-    if (!apiBase) {
-      alert("Missing VITE_API_BASE_URL");
-      return;
-    }
-
     const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
     const fallback = String(inv?.id || "").trim();
     const id = booksInvoiceId || fallback;
 
-    const url = `${apiBase}/api/invoice-html/${encodeURIComponent(id)}`;
+    const url = `${API_BASE}/api/invoice-html/${encodeURIComponent(id)}`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
   async function downloadInvoicePdf(inv) {
-    const apiBase = getApiBase();
-    if (!apiBase) {
-      alert("Missing VITE_API_BASE_URL");
-      return;
-    }
-
     const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
     if (!booksInvoiceId) {
       openInvoiceHtml(inv);
       return;
     }
 
-    const url = `${apiBase}/api/invoice-pdf/${encodeURIComponent(booksInvoiceId)}`;
+    const path = `/api/invoice-pdf/${encodeURIComponent(booksInvoiceId)}`;
 
     try {
-      const resp = await fetch(url, { method: "GET" });
-      if (!resp.ok) {
-        openInvoiceHtml(inv);
-        return;
-      }
-
-      const blob = await resp.blob();
+      const blob = await requestBlob(path, { method: "GET" });
       const objectUrl = window.URL.createObjectURL(blob);
 
       const a = document.createElement("a");
