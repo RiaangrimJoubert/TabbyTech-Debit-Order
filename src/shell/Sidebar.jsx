@@ -72,6 +72,18 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
   const visibleNav = nav.filter((item) => !(item.adminOnly && role !== "admin"));
   const showSettings = role === "admin";
 
+  const user = React.useMemo(() => {
+    try {
+      const raw = localStorage.getItem("tt_user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const brandName = user?.name || "TabbyPay";
+  const brandSub = user?.name ? "by TabbyTech" : "by TabbyTech"; // Keep subtext consistent or change if needed
+
   return (
     <aside className="tt-sidebar">
       <div className="tt-sidebar-inner">
@@ -121,13 +133,14 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
             <div
               className="tt-sidebrand-name"
               style={{
-                fontSize: "22px",
+                fontSize: brandName.length > 10 ? "18px" : "22px",
                 fontWeight: 800,
                 lineHeight: 1.05,
                 letterSpacing: "-0.02em",
+                wordBreak: "break-word",
               }}
             >
-              TabbyPay
+              {brandName}
             </div>
             <div
               className="tt-sidebrand-sub"
@@ -137,7 +150,7 @@ export default function Sidebar({ activeKey, onNavigate, onLogout }) {
                 opacity: 0.9,
               }}
             >
-              by TabbyTech
+              {brandSub}
             </div>
           </div>
         </div>

@@ -831,6 +831,19 @@ export default function AppShell({ onLogout }) {
     batchesPresetBatchId,
   ]);
 
+  const user = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("tt_user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const displayName = user?.name || user?.username || "TabbyPay";
+  const displayRole = user?.role === "admin" ? "Super Admin" : (user?.role || "Tenant");
+  const avatarChar = displayName.charAt(0).toUpperCase();
+
   return (
     <div className="tt-appshell">
       <Sidebar
@@ -862,10 +875,10 @@ export default function AppShell({ onLogout }) {
             </button>
 
             <div className="tt-shell-user" role="button" tabIndex={0} aria-label="User menu">
-              <div className="tt-shell-avatar">T</div>
+              <div className="tt-shell-avatar">{avatarChar}</div>
               <div>
-                <div className="tt-shell-username">TabbyPay</div>
-                <div className="tt-shell-userrole">PurAgent</div>
+                <div className="tt-shell-username">{displayName}</div>
+                <div className="tt-shell-userrole">{displayRole}</div>
               </div>
             </div>
           </div>
