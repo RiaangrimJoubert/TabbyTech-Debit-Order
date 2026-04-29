@@ -111,8 +111,9 @@ export default function Tenants() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedId, setSelectedId] = useState("");
-
   const [editDraft, setEditDraft] = useState(null);
+  // New view state: "list" or "workspace"
+  const [viewMode, setViewMode] = useState("list");
 
   useEffect(() => {
     let active = true;
@@ -163,6 +164,15 @@ export default function Tenants() {
     if (!selectedId) return null;
     return tenants.find((t) => t.id === selectedId) || null;
   }, [tenants, selectedId]);
+
+  function handleSelectTenant(id) {
+    setSelectedId(id);
+    setViewMode("workspace");
+  }
+
+  function handleBackToList() {
+    setViewMode("list");
+  }
 
   function openAddModal() {
     setEditDraft(emptyTenantDraft());
@@ -248,6 +258,7 @@ export default function Tenants() {
       await request(`/api/tenants/${encodeURIComponent(id)}`, { method: "DELETE" });
       setTenants((prev) => prev.filter((x) => x.id !== id));
       if (selectedId === id) setSelectedId("");
+      if (viewMode === "workspace") setViewMode("list");
     } catch (e) {
       alert(`Failed to delete tenant: ${String(e?.message || e)}`);
     }
@@ -291,6 +302,9 @@ export default function Tenants() {
         }
         .tt-tenants-head {
           margin-bottom: 18px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
         .tt-tenants-h1 {
           margin: 0 0 4px 0;
@@ -376,15 +390,6 @@ export default function Tenants() {
           cursor: pointer;
           box-shadow: 0 10px 24px rgba(124,58,237,.28);
         }
-        .tt-tenants-grid {
-          display: grid;
-          grid-template-columns: 1fr 380px;
-          gap: 20px;
-          align-items: start;
-        }
-        @media (max-width: 1200px) {
-          .tt-tenants-grid { grid-template-columns: 1fr; }
-        }
         .tt-tenants-card {
           background: rgba(15, 23, 42, .55);
           border: 1px solid rgba(255,255,255,.06);
@@ -403,11 +408,6 @@ export default function Tenants() {
           font-size: 15px;
           font-weight: 700;
         }
-        .tt-tenants-cardhead .sub {
-          margin: 2px 0 0 0;
-          font-size: 12px;
-          color: rgba(148,163,184,.85);
-        }
         .tt-tenants-list .row {
           padding: 14px 20px;
           border-bottom: 1px solid rgba(255,255,255,.05);
@@ -419,10 +419,6 @@ export default function Tenants() {
           transition: background 120ms ease;
         }
         .tt-tenants-list .row:hover { background: rgba(255,255,255,.03); }
-        .tt-tenants-list .row.is-selected {
-          background: linear-gradient(90deg, rgba(139,92,246,.10), transparent);
-          border-left: 3px solid rgba(168,85,247,.85);
-        }
         .tt-tenants-avatar {
           width: 36px;
           height: 36px;
@@ -510,82 +506,118 @@ export default function Tenants() {
           text-align: center;
           color: rgba(148,163,184,.85);
         }
-        .tt-tenants-details .section {
-          padding: 14px 20px;
-          border-bottom: 1px solid rgba(255,255,255,.06);
+
+        /* Workspace Styles */
+        .tt-workspace {
+          animation: ttFadeIn 0.3s ease-out;
         }
-        .tt-tenants-details .section:last-child { border-bottom: 0; }
-        .tt-tenants-details .sectiontitle {
-          font-size: 10px;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          color: rgba(148,163,184,.9);
-          margin-bottom: 10px;
+        @keyframes ttFadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        .tt-tenants-details .row {
+        .tt-ws-nav {
           display: flex;
-          justify-content: space-between;
-          padding: 8px 0;
-          border-bottom: 1px solid rgba(255,255,255,.05);
-          font-size: 13px;
-        }
-        .tt-tenants-details .row:last-child { border-bottom: 0; }
-        .tt-tenants-details .label { color: rgba(148,163,184,.9); }
-        .tt-tenants-details .value { font-weight: 700; }
-        .tt-tenants-conncard {
-          border: 1px solid rgba(255,255,255,.06);
-          border-radius: 12px;
-          padding: 12px;
-          margin-bottom: 10px;
-          background: rgba(15,23,42,.50);
-        }
-        .tt-tenants-conncard:last-child { margin-bottom: 0; }
-        .tt-tenants-conncard .head {
-          display: flex;
-          justify-content: space-between;
           align-items: center;
-          margin-bottom: 8px;
+          gap: 12px;
+          margin-bottom: 20px;
         }
-        .tt-tenants-conncard .title {
-          font-weight: 700;
-          font-size: 13px;
-        }
-        .tt-tenants-conncard .status {
-          font-size: 11px;
-          font-weight: 700;
-          padding: 3px 8px;
-          border-radius: 6px;
-        }
-        .tt-tenants-conncard .status.connected {
-          background: rgba(16,185,129,.12);
-          color: #34d399;
-        }
-        .tt-tenants-conncard .status.disconnected {
-          background: rgba(239,68,68,.10);
-          color: #f87171;
-        }
-        .tt-tenants-conncard .detail {
-          font-size: 11px;
-          color: rgba(148,163,184,.85);
-          line-height: 1.5;
-        }
-        .tt-tenants-testbtn {
-          margin-top: 10px;
-          width: 100%;
-          height: 32px;
-          border-radius: 8px;
-          border: 1px solid rgba(255,255,255,.08);
-          background: rgba(2,6,23,.55);
-          color: rgba(226,232,240,.9);
-          font-size: 12px;
-          font-weight: 600;
+        .tt-ws-back {
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: #fff;
+          padding: 8px 14px;
+          border-radius: 10px;
           cursor: pointer;
+          font-size: 13px;
+          font-weight: 600;
         }
-        .tt-tenants-testbtn:hover {
-          border-color: rgba(168,85,247,.55);
-          color: #ede9fe;
+        .tt-ws-grid {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 20px;
         }
+        @media (max-width: 1000px) {
+          .tt-ws-grid { grid-template-columns: 1fr; }
+        }
+        .tt-ws-section {
+          background: rgba(15, 23, 42, .40);
+          border: 1px solid rgba(255,255,255,.08);
+          border-radius: 20px;
+          padding: 24px;
+          margin-bottom: 20px;
+        }
+        .tt-ws-title {
+          font-size: 16px;
+          font-weight: 800;
+          margin-bottom: 18px;
+          color: #a855f7;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .tt-ws-kvgrid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 16px;
+        }
+        .tt-ws-kv {
+          background: rgba(255,255,255,0.03);
+          padding: 12px 16px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.05);
+        }
+        .tt-ws-kv label {
+          display: block;
+          font-size: 11px;
+          color: rgba(255,255,255,0.5);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 4px;
+        }
+        .tt-ws-kv .value {
+          font-size: 14px;
+          font-weight: 700;
+          color: #fff;
+        }
+        .tt-ws-stack {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 14px;
+        }
+        @media (max-width: 600px) {
+          .tt-ws-stack { grid-template-columns: 1fr; }
+        }
+        .tt-ws-service {
+          background: rgba(15, 23, 42, .6);
+          border: 1px solid rgba(255,255,255,.08);
+          border-radius: 16px;
+          padding: 16px;
+          text-align: center;
+        }
+        .tt-ws-service.connected { border-color: rgba(34,197,94,0.3); }
+        .tt-ws-service .name { font-weight: 800; font-size: 14px; margin-bottom: 8px; }
+        .tt-ws-service .status {
+          font-size: 11px;
+          font-weight: 800;
+          padding: 4px 10px;
+          border-radius: 20px;
+          display: inline-block;
+          margin-bottom: 12px;
+        }
+        .tt-ws-service .status.good { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .tt-ws-service .status.bad { background: rgba(239,68,68,0.15); color: #f87171; }
+        .tt-ws-testbtn {
+          width: 100%;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: #fff;
+          padding: 8px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
         .tt-tenants-modal-overlay {
           position: fixed;
           inset: 0;
@@ -615,11 +647,6 @@ export default function Tenants() {
           justify-content: space-between;
           align-items: center;
         }
-        .tt-tenants-modal .head h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 800;
-        }
         .tt-tenants-modal .body {
           padding: 18px 22px;
           overflow-y: auto;
@@ -632,9 +659,7 @@ export default function Tenants() {
           justify-content: flex-end;
           gap: 10px;
         }
-        .tt-tenants-field {
-          margin-bottom: 14px;
-        }
+        .tt-tenants-field { margin-bottom: 14px; }
         .tt-tenants-field label {
           display: block;
           font-size: 12px;
@@ -661,9 +686,6 @@ export default function Tenants() {
           grid-template-columns: 1fr 1fr;
           gap: 14px;
         }
-        @media (max-width: 640px) {
-          .tt-tenants-formgrid { grid-template-columns: 1fr; }
-        }
         .tt-tenants-btn {
           height: 38px;
           padding: 0 18px;
@@ -684,74 +706,67 @@ export default function Tenants() {
         }
       `}</style>
 
-      <div className="tt-tenants-head">
-        <h2 className="tt-tenants-h1">Tenants</h2>
-        <p className="tt-tenants-sub">Manage TabbyPay service tenants and their API connections.</p>
-      </div>
-
-      <div className="tt-tenants-actionsbar">
-        <div className="tt-tenants-search">
-          <input
-            type="text"
-            placeholder="Search by name, email, domain or tenant ID..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        <div className="tt-tenants-filters">
-          {TENANT_STATUSES.map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              className={`tt-tenants-filter ${statusFilter === s.value ? "is-active" : ""}`}
-              onClick={() => setStatusFilter(s.value)}
-            >
-              {s.label}
-              <span className="count">{counts[s.value] ?? 0}</span>
-            </button>
-          ))}
-        </div>
-
-        <button type="button" className="tt-tenants-addbtn" onClick={openAddModal}>
-          + Add Tenant
-        </button>
-      </div>
-
-      <div className="tt-tenants-grid">
-        <div className="tt-tenants-card">
-          <div className="tt-tenants-cardhead">
+      {viewMode === "list" ? (
+        <>
+          <div className="tt-tenants-head">
             <div>
-              <h3>Tenant List</h3>
-              <div className="sub">
-                {loading ? "Loading tenants..." : `${filtered.length} total`}
-              </div>
+              <h2 className="tt-tenants-h1">Tenants</h2>
+              <p className="tt-tenants-sub">Manage TabbyPay service tenants and their API connections.</p>
+            </div>
+            <button type="button" className="tt-tenants-addbtn" onClick={openAddModal}>
+              + Add Tenant
+            </button>
+          </div>
+
+          <div className="tt-tenants-actionsbar">
+            <div className="tt-tenants-search">
+              <input
+                type="text"
+                placeholder="Search by name, email, domain or tenant ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="tt-tenants-filters">
+              {TENANT_STATUSES.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  className={`tt-tenants-filter ${statusFilter === s.value ? "is-active" : ""}`}
+                  onClick={() => setStatusFilter(s.value)}
+                >
+                  {s.label}
+                  <span className="count">{counts[s.value] ?? 0}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="tt-tenants-list">
-            {error ? (
-              <div className="tt-tenants-empty">Failed to load tenants: {error}</div>
-            ) : filtered.length === 0 ? (
-              <div className="tt-tenants-empty">
-                {loading ? "Loading..." : "No tenants found. Use Add Tenant to create one."}
-              </div>
-            ) : (
-              filtered.map((t) => {
-                const isSelected = selectedId === t.id;
-                return (
+          <div className="tt-tenants-card">
+            <div className="tt-tenants-cardhead">
+              <h3>Tenant List ({loading ? "Loading..." : filtered.length})</h3>
+            </div>
+
+            <div className="tt-tenants-list">
+              {error ? (
+                <div className="tt-tenants-empty">Failed to load tenants: {error}</div>
+              ) : filtered.length === 0 ? (
+                <div className="tt-tenants-empty">
+                  {loading ? "Loading..." : "No tenants found. Use Add Tenant to create one."}
+                </div>
+              ) : (
+                filtered.map((t) => (
                   <div
                     key={t.id}
-                    className={`row ${isSelected ? "is-selected" : ""}`}
-                    onClick={() => setSelectedId(t.id)}
+                    className="row"
+                    onClick={() => handleSelectTenant(t.id)}
                   >
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       <div className="tt-tenants-avatar">{(t.name || "?")[0]}</div>
                       <div style={{ minWidth: 0 }}>
                         <div className="tt-tenants-name">{t.name}</div>
-                        <div className="tt-tenants-meta">
-                          {t.id} • {t.domain || "no domain"}
-                        </div>
+                        <div className="tt-tenants-meta">{t.id} • {t.domain || "no domain"}</div>
                       </div>
                     </div>
 
@@ -772,141 +787,102 @@ export default function Tenants() {
                       <button type="button" className="tt-tenants-iconbtn" title="Delete" onClick={() => deleteTenant(t.id)}>🗑</button>
                     </div>
                   </div>
-                );
-              })
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </>
+      ) : (
+        <div className="tt-workspace">
+          <div className="tt-ws-nav">
+            <button className="tt-ws-back" onClick={handleBackToList}>← Back to list</button>
+            <h2 className="tt-tenants-h1" style={{ margin: 0 }}>{selectedTenant?.name}</h2>
+            <span className={`tt-tenants-badge ${selectedTenant?.status}`} style={{ height: 'fit-content' }}>{selectedTenant?.status}</span>
+          </div>
 
-        <div className="tt-tenants-card tt-tenants-details">
-          <div className="tt-tenants-cardhead">
-            <div>
-              <h3>Tenant Details</h3>
-              <div className="sub">
-                {selectedTenant ? selectedTenant.name : "Select a tenant to view details"}
+          <div className="tt-ws-grid">
+            <div className="tt-ws-main">
+              <div className="tt-ws-section">
+                <div className="tt-ws-title">🛡️ Connected Services</div>
+                <div className="tt-ws-stack">
+                  <ServiceBlock 
+                    name="Zoho CRM" 
+                    connected={selectedTenant?.connections.zohoCrm.connected} 
+                    lastTested={selectedTenant?.connections.zohoCrm.lastTested}
+                    onTest={() => testConnection(selectedTenant?.id, 'crm')}
+                  />
+                  <ServiceBlock 
+                    name="Zoho Books" 
+                    connected={selectedTenant?.connections.zohoBooks.connected} 
+                    lastTested={selectedTenant?.connections.zohoBooks.lastTested}
+                    onTest={() => testConnection(selectedTenant?.id, 'books')}
+                  />
+                  <ServiceBlock 
+                    name="Paystack" 
+                    connected={selectedTenant?.connections.paystack.connected} 
+                    lastTested={selectedTenant?.connections.paystack.lastTested}
+                    onTest={() => testConnection(selectedTenant?.id, 'paystack')}
+                  />
+                </div>
+              </div>
+
+              <div className="tt-ws-section">
+                <div className="tt-ws-title">📑 Tenant Profile</div>
+                <div className="tt-ws-kvgrid">
+                  <KeyValue label="Full Name" value={selectedTenant?.name} />
+                  <KeyValue label="Owner" value={selectedTenant?.owner} />
+                  <KeyValue label="Email Address" value={selectedTenant?.email} />
+                  <KeyValue label="Domain" value={selectedTenant?.domain} />
+                  <KeyValue label="Subscription Plan" value={selectedTenant?.plan} />
+                  <KeyValue label="Account Status" value={selectedTenant?.status} />
+                  <KeyValue label="Created On" value={formatDate(selectedTenant?.created)} />
+                  <KeyValue label="Last Updated" value={formatDate(selectedTenant?.updated)} />
+                </div>
+              </div>
+
+              {selectedTenant?.notes && (
+                <div className="tt-ws-section">
+                  <div className="tt-ws-title">📝 Operational Notes</div>
+                  <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', lineHeight: 1.6 }}>{selectedTenant?.notes}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="tt-ws-sidebar">
+              <div className="tt-ws-section">
+                <div className="tt-ws-title">⚙️ Actions</div>
+                <button 
+                  className="tt-tenants-btn primary" 
+                  style={{ width: '100%', marginBottom: 10 }}
+                  onClick={() => openEditModal(selectedTenant?.id)}
+                >
+                  Edit Configuration
+                </button>
+                <button 
+                  className="tt-tenants-btn secondary" 
+                  style={{ width: '100%', color: '#f87171' }}
+                  onClick={() => deleteTenant(selectedTenant?.id)}
+                >
+                  Delete Tenant
+                </button>
+              </div>
+
+              <div className="tt-ws-section">
+                <div className="tt-ws-title">💡 Quick Settings</div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                  Use the Edit button above to update API keys, Change plans, or modify preferred debit order amounts for this tenant.
+                </div>
               </div>
             </div>
           </div>
-
-          {!selectedTenant ? (
-            <div className="tt-tenants-empty">No tenant selected.</div>
-          ) : (
-            <>
-              <div className="section">
-                <div className="sectiontitle">Profile</div>
-                <div className="row">
-                  <span className="label">Tenant</span>
-                  <span className="value">{selectedTenant.name}</span>
-                </div>
-                <div className="row">
-                  <span className="label">Owner</span>
-                  <span className="value">{selectedTenant.owner || "Not set"}</span>
-                </div>
-                <div className="row">
-                  <span className="label">Email</span>
-                  <span className="value">{selectedTenant.email || "Not set"}</span>
-                </div>
-                <div className="row">
-                  <span className="label">Domain</span>
-                  <span className="value">{selectedTenant.domain || "Not set"}</span>
-                </div>
-                <div className="row">
-                  <span className="label">Password</span>
-                  <span className="value">{selectedTenant.password ? "••••••••" : "Not set"}</span>
-                </div>
-                <div className="row">
-                  <span className="label">Plan</span>
-                  <span className="value">{selectedTenant.plan}</span>
-                </div>
-                <div className="row">
-                  <span className="label">Created</span>
-                  <span className="value">{formatDate(selectedTenant.created)}</span>
-                </div>
-              </div>
-
-              <div className="section">
-                <div className="sectiontitle">Control Center</div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button 
-                    type="button" 
-                    className="tt-tenants-btn secondary"
-                    style={{ flex: 1, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                    onClick={() => openEditModal(selectedTenant.id)}
-                  >
-                    ⚙️ Settings
-                  </button>
-                  <button 
-                    type="button" 
-                    className="tt-tenants-btn primary"
-                    style={{ flex: 1, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                    onClick={() => openEditModal(selectedTenant.id)}
-                  >
-                    💳 Configure
-                  </button>
-                </div>
-              </div>
-
-              <div className="section">
-                <div className="sectiontitle">Connections (Live Status)</div>
-                
-                <div className="tt-tenants-conncard">
-                  <div className="head">
-                    <span className="title">Zoho CRM</span>
-                    <span className={`status ${selectedTenant.connections.zohoCrm.connected ? 'connected' : 'disconnected'}`}>
-                      {selectedTenant.connections.zohoCrm.connected ? 'ACTIVE' : 'OFFLINE'}
-                    </span>
-                  </div>
-                  <div className="detail">
-                    {selectedTenant.connections.zohoCrm.lastTested ? `Last check: ${formatDate(selectedTenant.connections.zohoCrm.lastTested)}` : 'Never tested'}
-                  </div>
-                  <button className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, 'crm')}>Verify CRM Sync</button>
-                </div>
-
-                <div className="tt-tenants-conncard">
-                  <div className="head">
-                    <span className="title">Zoho Books</span>
-                    <span className={`status ${selectedTenant.connections.zohoBooks.connected ? 'connected' : 'disconnected'}`}>
-                      {selectedTenant.connections.zohoBooks.connected ? 'ACTIVE' : 'OFFLINE'}
-                    </span>
-                  </div>
-                  <div className="detail">
-                    {selectedTenant.connections.zohoBooks.lastTested ? `Last check: ${formatDate(selectedTenant.connections.zohoBooks.lastTested)}` : 'Never tested'}
-                  </div>
-                  <button className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, 'books')}>Verify Books Sync</button>
-                </div>
-
-                <div className="tt-tenants-conncard">
-                  <div className="head">
-                    <span className="title">Paystack Gateway</span>
-                    <span className={`status ${selectedTenant.connections.paystack.connected ? 'connected' : 'disconnected'}`}>
-                      {selectedTenant.connections.paystack.connected ? 'ACTIVE' : 'OFFLINE'}
-                    </span>
-                  </div>
-                  <div className="detail">
-                    {selectedTenant.connections.paystack.lastTested ? `Last check: ${formatDate(selectedTenant.connections.paystack.lastTested)}` : 'Never tested'}
-                  </div>
-                  <button className="tt-tenants-testbtn" onClick={() => testConnection(selectedTenant.id, 'paystack')}>Verify Payment Flow</button>
-                </div>
-              </div>
-
-              {selectedTenant.notes ? (
-                <div className="section">
-                  <div className="sectiontitle">Notes</div>
-                  <div style={{ fontSize: 13, lineHeight: 1.5, color: "rgba(226,232,240,.85)" }}>
-                    {selectedTenant.notes}
-                  </div>
-                </div>
-              ) : null}
-            </>
-          )}
         </div>
-      </div>
+      )}
 
       {editDraft ? (
         <div className="tt-tenants-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-          <div className="tt-tenants-modal" role="dialog" aria-modal="true">
+          <div className="tt-tenants-modal">
             <div className="head">
-              <h2>{editDraft.id ? "Edit Tenant" : "Add Tenant"}</h2>
+              <h2>{editDraft.id ? "Edit Configuration" : "Add New Tenant"}</h2>
               <button type="button" className="tt-tenants-iconbtn" onClick={closeModal}>×</button>
             </div>
             <div className="body">
@@ -929,7 +905,7 @@ export default function Tenants() {
                 </div>
                 <div className="tt-tenants-field">
                   <label>Login Password</label>
-                  <input type="password" placeholder="Set password for tenant login..." value={editDraft.password} onChange={(e) => updateDraftField("password", e.target.value)} />
+                  <input type="password" placeholder="Leave blank to keep current..." value={editDraft.password} onChange={(e) => updateDraftField("password", e.target.value)} />
                 </div>
                 <div className="tt-tenants-field">
                   <label>Status</label>
@@ -939,80 +915,37 @@ export default function Tenants() {
                     <option value="suspended">Suspended</option>
                   </select>
                 </div>
-                <div className="tt-tenants-field">
-                  <label>Plan</label>
-                  <select value={editDraft.plan} onChange={(e) => updateDraftField("plan", e.target.value)}>
-                    {PLAN_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
               </div>
 
-              <div style={{ marginTop: 18 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "rgba(148,163,184,.9)", marginBottom: 10 }}>
-                  API Connections
-                </div>
-
+              <div style={{ marginTop: 20, padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", color: "#a855f7", marginBottom: 12 }}>API Keys (3 Stacks)</div>
                 <div className="tt-tenants-formgrid">
-                  <div className="tt-tenants-field">
-                    <label>Zoho CRM Client ID</label>
-                    <input type="password" value={editDraft.keys.zohoCrmClientId} onChange={(e) => updateDraftKey("zohoCrmClientId", e.target.value)} />
-                  </div>
-                  <div className="tt-tenants-field">
-                    <label>Zoho CRM Client Secret</label>
-                    <input type="password" value={editDraft.keys.zohoCrmClientSecret} onChange={(e) => updateDraftKey("zohoCrmClientSecret", e.target.value)} />
-                  </div>
-                  <div className="tt-tenants-field">
-                    <label>Zoho CRM Refresh Token</label>
-                    <input type="password" value={editDraft.keys.zohoCrmRefreshToken} onChange={(e) => updateDraftKey("zohoCrmRefreshToken", e.target.value)} />
-                  </div>
-                  <div className="tt-tenants-field">
-                    <label>Zoho Books Org ID</label>
-                    <input type="password" value={editDraft.keys.zohoBooksOrgId} onChange={(e) => updateDraftKey("zohoBooksOrgId", e.target.value)} />
-                  </div>
-                  <div className="tt-tenants-field">
-                    <label>Zoho Books Client ID</label>
-                    <input type="password" value={editDraft.keys.zohoBooksClientId} onChange={(e) => updateDraftKey("zohoBooksClientId", e.target.value)} />
-                  </div>
-                  <div className="tt-tenants-field">
-                    <label>Zoho Books Client Secret</label>
-                    <input type="password" value={editDraft.keys.zohoBooksClientSecret} onChange={(e) => updateDraftKey("zohoBooksClientSecret", e.target.value)} />
-                  </div>
-                  <div className="tt-tenants-field">
-                    <label>Paystack Secret Key</label>
-                    <input type="password" value={editDraft.keys.paystackSecretKey} onChange={(e) => updateDraftKey("paystackSecretKey", e.target.value)} />
-                  </div>
-                  <div className="tt-tenants-field">
-                    <label>Paystack Public Key</label>
-                    <input type="password" value={editDraft.keys.paystackPublicKey} onChange={(e) => updateDraftKey("paystackPublicKey", e.target.value)} />
-                  </div>
+                  <div className="tt-tenants-field"><label>CRM Client ID</label><input type="password" value={editDraft.keys.zohoCrmClientId} onChange={(e) => updateDraftKey("zohoCrmClientId", e.target.value)} /></div>
+                  <div className="tt-tenants-field"><label>CRM Secret</label><input type="password" value={editDraft.keys.zohoCrmClientSecret} onChange={(e) => updateDraftKey("zohoCrmClientSecret", e.target.value)} /></div>
+                  <div className="tt-tenants-field"><label>CRM Refresh Token</label><input type="password" value={editDraft.keys.zohoCrmRefreshToken} onChange={(e) => updateDraftKey("zohoCrmRefreshToken", e.target.value)} /></div>
+                  <div className="tt-tenants-field"><label>Books Org ID</label><input type="password" value={editDraft.keys.zohoBooksOrgId} onChange={(e) => updateDraftKey("zohoBooksOrgId", e.target.value)} /></div>
+                  <div className="tt-tenants-field"><label>Paystack Secret</label><input type="password" value={editDraft.keys.paystackSecretKey} onChange={(e) => updateDraftKey("paystackSecretKey", e.target.value)} /></div>
+                  <div className="tt-tenants-field"><label>Paystack Public</label><input type="password" value={editDraft.keys.paystackPublicKey} onChange={(e) => updateDraftKey("paystackPublicKey", e.target.value)} /></div>
                 </div>
               </div>
 
-              <div style={{ marginTop: 18 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "rgba(148,163,184,.9)", marginBottom: 10 }}>
-                  Debit Order Configuration
-                </div>
+              <div style={{ marginTop: 20 }}>
                 <div className="tt-tenants-field">
                   <label>Preferred Amounts (comma separated)</label>
-                  <input 
-                    placeholder="e.g. 50, 100, 200, 500" 
-                    value={(editDraft.config?.preferredAmounts || []).join(", ")} 
-                    onChange={(e) => {
-                      const val = e.target.value.split(",").map(s => Number(s.trim())).filter(n => !isNaN(n));
-                      updateDraftConfig("preferredAmounts", val);
-                    }} 
-                  />
+                  <input placeholder="e.g. 50, 100, 200" value={(editDraft.config?.preferredAmounts || []).join(", ")} onChange={(e) => {
+                    const val = e.target.value.split(",").map(s => Number(s.trim())).filter(n => !isNaN(n));
+                    updateDraftConfig("preferredAmounts", val);
+                  }} />
                 </div>
-              </div>
-
-              <div className="tt-tenants-field" style={{ marginTop: 10 }}>
-                <label>Internal notes</label>
-                <textarea value={editDraft.notes} onChange={(e) => updateDraftField("notes", e.target.value)} />
+                <div className="tt-tenants-field">
+                  <label>Notes</label>
+                  <textarea value={editDraft.notes} onChange={(e) => updateDraftField("notes", e.target.value)} />
+                </div>
               </div>
             </div>
             <div className="foot">
               <button type="button" className="tt-tenants-btn secondary" onClick={closeModal}>Cancel</button>
-              <button type="button" className="tt-tenants-btn primary" onClick={saveTenantDraft}>Save tenant</button>
+              <button type="button" className="tt-tenants-btn primary" onClick={saveTenantDraft}>Save changes</button>
             </div>
           </div>
         </div>
@@ -1020,3 +953,24 @@ export default function Tenants() {
     </div>
   );
 }
+
+function KeyValue({ label, value }) {
+  return (
+    <div className="tt-ws-kv">
+      <label>{label}</label>
+      <div className="value">{value || "—"}</div>
+    </div>
+  );
+}
+
+function ServiceBlock({ name, connected, lastTested, onTest }) {
+  return (
+    <div className={`tt-ws-service ${connected ? 'connected' : ''}`}>
+      <div className="name">{name}</div>
+      <div className={`status ${connected ? 'good' : 'bad'}`}>{connected ? 'CONNECTED' : 'DISCONNECTED'}</div>
+      <button className="tt-ws-testbtn" onClick={onTest}>Test Sync</button>
+      {lastTested && <div style={{ fontSize: '10px', marginTop: 8, opacity: 0.6 }}>Last: {formatDate(lastTested)}</div>}
+    </div>
+  );
+}
+
