@@ -1,67 +1,16 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../api";
 
-const AUTH_API_BASE = String(
-  import.meta.env.VITE_SERVERLESS_API_BASE ||
-    API_BASE ||
-    ""
-).trim();
+const AUTH_API_BASE = API_BASE;
 
 export default function Login({ onLogin }) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const [forgotBusy, setForgotBusy] = useState(false);
-  const [forgotMessage, setForgotMessage] = useState("");
-
-  async function handleForgotPassword() {
-    setForgotMessage("");
-    const target = String(email || "").trim();
-    if (!target) {
-      setError("Enter your username/email above, then click Forgot password?");
-      return;
-    }
-
-    setForgotBusy(true);
-    setError("");
-
-    try {
-      const resp = await fetch(`${AUTH_API_BASE}/api/auth/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ email: target }),
-      });
-
-      let data = null;
-      try {
-        data = await resp.json();
-      } catch {
-        data = null;
-      }
-
-      if (!resp.ok || !data || data.ok !== true) {
-        setForgotMessage(
-          (data && (data.message || data.error)) ||
-            "If this email is registered, a reset link has been sent."
-        );
-        return;
-      }
-
-      setForgotMessage(
-        data.message ||
-          `A password reset link has been sent to ${target}. Please check your inbox.`
-      );
-    } catch {
-      setForgotMessage(
-        "If this email is registered, a reset link has been sent. Please check your inbox."
-      );
-    } finally {
-      setForgotBusy(false);
-    }
-  }
 
   async function handleLogin() {
     setError("");
@@ -77,7 +26,7 @@ export default function Login({ onLogin }) {
       const response = await fetch(`${AUTH_API_BASE}/api/auth/login`, {
   method: "POST",
   headers: {
-    "Content-Type": "text/plain"
+    "Content-Type": "application/json"
   },
   body: JSON.stringify({
     username: email.trim(),
@@ -177,30 +126,18 @@ export default function Login({ onLogin }) {
               {loading ? "LOGGING IN..." : "LOG IN"}
             </button>
 
-            {forgotMessage ? (
-              <div
-                style={{
-                  marginTop: 10,
-                  marginBottom: 2,
-                  fontSize: 13,
-                  color: "rgba(255,255,255,0.85)",
-                }}
-              >
-                {forgotMessage}
-              </div>
-            ) : null}
-
             <div className="tt-login-foot">
               <a
                 href="#"
                 className="tt-link"
                 onClick={(e) => {
                   e.preventDefault();
-                  if (!forgotBusy) handleForgotPassword();
+                  const nextEmail = String(email || "").trim();
+                  const search = nextEmail ? `?email=${encodeURIComponent(nextEmail)}` : "";
+                  navigate(`/forgot-password${search}`);
                 }}
-                style={{ opacity: forgotBusy ? 0.6 : 1, cursor: forgotBusy ? "not-allowed" : "pointer" }}
               >
-                {forgotBusy ? "Sending reset link..." : "Forgot password?"}
+                Forgot password?
               </a>
 
               <div className="tt-login-tag">TabbyTech Debit Orders</div>

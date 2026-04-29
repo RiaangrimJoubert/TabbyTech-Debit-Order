@@ -2,11 +2,7 @@ import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { API_BASE } from "../api";
 
-const AUTH_API_BASE = String(
-  import.meta.env.VITE_SERVERLESS_API_BASE ||
-    API_BASE ||
-    ""
-).trim();
+const AUTH_API_BASE = API_BASE;
 
 function useQuery() {
   const location = useLocation();
@@ -50,7 +46,7 @@ export default function ResetPassword() {
     try {
       const resp = await fetch(`${AUTH_API_BASE}/api/auth/reset-password`, {
         method: "POST",
-        headers: { "Content-Type": "text/plain" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, newPassword: password }),
       });
 
