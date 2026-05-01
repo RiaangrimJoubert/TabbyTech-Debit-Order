@@ -227,7 +227,7 @@ h6 {
   /* Patch: keep sidebar above any decorative overflow */
   z-index: 50;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to allow inner to handle overflow better */
 }
 
 .tt-sidebar-inner {
@@ -240,7 +240,27 @@ h6 {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 58, 237, 0.3) transparent;
+}
+
+.tt-sidebar-inner::-webkit-scrollbar {
+  width: 5px;
+}
+
+.tt-sidebar-inner::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tt-sidebar-inner::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 10px;
+}
+
+.tt-sidebar-inner::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.5);
 }
 
 .tt-sidebrand {

@@ -46,8 +46,14 @@ function formatAmount(value) {
 }
 
 function normalizeFailedDebit(item, index) {
+  const status = safeString(item?.status || item?.Status || "").toLowerCase();
+  let normalizedStatus = "failed";
+  if (status === "paid" || status === "success" || status === "successful") normalizedStatus = "success";
+  else if (status.includes("retry")) normalizedStatus = "retry";
+
   return {
-    id: safeString(item?.id) || `failed-${index}`,
+    id: safeString(item?.id) || `debit-${index}`,
+    status: normalizedStatus,
     clientName:
       safeString(item?.clientName) ||
       safeString(item?.client_name) ||
@@ -65,7 +71,8 @@ function normalizeFailedDebit(item, index) {
       safeString(item?.failureReason) ||
       safeString(item?.failure_reason) ||
       safeString(item?.statusReason) ||
-      "Failed debit order",
+      safeString(item?.status) ||
+      "Debit order record",
     timestamp:
       safeString(item?.timestamp) ||
       safeString(item?.createdTime) ||
@@ -189,7 +196,7 @@ function AlertDrawer({
                   marginBottom: 8,
                 }}
               >
-                Failed Debit Orders
+                Debit Order Alerts
               </div>
 
               <div
@@ -198,7 +205,7 @@ function AlertDrawer({
                   color: "rgba(210, 214, 235, 0.78)",
                 }}
               >
-                Clients that failed to pay in the current debit order cycle.
+                Real-time status updates for the current debit order cycle.
               </div>
             </div>
 
@@ -246,7 +253,7 @@ function AlertDrawer({
                   marginBottom: 8,
                 }}
               >
-                Failed items
+                Active items
               </div>
               <div
                 style={{
@@ -343,9 +350,15 @@ function AlertDrawer({
                           gap: 6,
                           fontSize: 12,
                           fontWeight: 700,
-                          color: "#ff9f9f",
-                          background: "rgba(255, 94, 94, 0.08)",
-                          border: "1px solid rgba(255, 94, 94, 0.14)",
+                          color: 
+                            item.status === "success" ? "#87f7bb" :
+                            item.status === "retry" ? "#ffdb70" : "#ff9f9f",
+                          background: 
+                            item.status === "success" ? "rgba(135, 247, 187, 0.08)" :
+                            item.status === "retry" ? "rgba(255, 219, 112, 0.08)" : "rgba(255, 94, 94, 0.08)",
+                          border: 
+                            item.status === "success" ? "1px solid rgba(135, 247, 187, 0.14)" :
+                            item.status === "retry" ? "1px solid rgba(255, 219, 112, 0.14)" : "1px solid rgba(255, 94, 94, 0.14)",
                           borderRadius: 999,
                           padding: "6px 10px",
                         }}
@@ -355,11 +368,13 @@ function AlertDrawer({
                             width: 7,
                             height: 7,
                             borderRadius: "50%",
-                            background: "#ff6b6b",
+                            background: 
+                              item.status === "success" ? "#87f7bb" :
+                              item.status === "retry" ? "#ffdb70" : "#ff6b6b",
                             display: "inline-block",
                           }}
                         />
-                        Failed
+                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                       </div>
                     </div>
 
@@ -413,7 +428,7 @@ function AlertDrawer({
                           marginBottom: 6,
                         }}
                       >
-                        Failure reason
+                         {item.status === "success" ? "Success info" : item.status === "retry" ? "Retry info" : "Failure reason"}
                       </div>
                       <div
                         style={{
@@ -504,7 +519,7 @@ function AlertDrawer({
                     marginBottom: 8,
                   }}
                 >
-                  No failed debit orders
+                  No active alerts
                 </div>
 
                 <div
@@ -709,30 +724,27 @@ export default function AppShell({ onLogout }) {
         if (!active) return;
         if (!json || json.ok !== true || !Array.isArray(json.data)) return;
 
-        const failedRaw = json.data.filter((row) => {
-          const status = String(row?.status || "").trim().toLowerCase();
-          const isFailedLike =
-            status === "failed" ||
-            status === "cancelled" ||
-            status === "canceled" ||
-            status === "unpaid";
+        // Filter to show meaningful items in Alert Center:
+        // 1. All Failed/Unpaid
+        // 2. All Retries
+        // 3. Paid items from TODAY
+        const today = new Date().toISOString().split("T")[0];
+        
+        const filteredRaw = json.data.filter((row) => {
+          const status = String(row?.status || row?.Status || "").trim().toLowerCase();
+          const isFailed = status === "failed" || status === "cancelled" || status === "canceled" || status === "unpaid";
+          const isRetry = status.includes("retry");
+          const isPaidToday = (status === "paid" || status === "success") && String(row?.updated_at || row?.updatedAt || "").startsWith(today);
 
-          const reason =
-            row?.failureReason ||
-            row?.failure_reason ||
-            row?.statusReason ||
-            row?.reason;
-          const hasReason = !!String(reason || "").trim();
-
-          if (!isFailedLike && !hasReason) return false;
+          if (!isFailed && !isRetry && !isPaidToday) return false;
 
           return isInCurrentCycle(row);
         });
 
-        setFailedDebits(failedRaw.map((item, index) => normalizeFailedDebit(item, index)));
+        setFailedDebits(filteredRaw.map((item, index) => normalizeFailedDebit(item, index)));
 
         try {
-          window.localStorage.setItem(FAILED_DEBITS_STORAGE_KEY, JSON.stringify(failedRaw));
+          window.localStorage.setItem(FAILED_DEBITS_STORAGE_KEY, JSON.stringify(filteredRaw));
         } catch {
           // ignore safely
         }
