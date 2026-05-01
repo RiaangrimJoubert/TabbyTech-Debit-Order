@@ -110,6 +110,44 @@ function emptyTenantDraft() {
   };
 }
 
+function CustomSelect({ value, onChange, options }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selected = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div className="tt-custom-select-wrap">
+      <div 
+        className="tt-custom-select-trigger tt-input" 
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span>{selected?.label}</span>
+        <span className="arrow">▾</span>
+      </div>
+      
+      {isOpen && (
+        <>
+          <div className="tt-custom-select-overlay" onClick={() => setIsOpen(false)} />
+          <div className="tt-custom-select-options">
+            {options.map(opt => (
+              <div 
+                key={opt.value}
+                className={`tt-custom-select-option ${opt.value === value ? 'is-selected' : ''}`}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+              >
+                {opt.label}
+                {opt.value === value && <span className="check">✓</span>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Tenants() {
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -678,12 +716,32 @@ export default function Tenants() {
           width: 100%;
           background: rgba(15,23,42,.70);
           border: 1px solid rgba(255,255,255,.10);
-          border-radius: 10px;
-          padding: 10px 12px;
+          border-radius: 12px;
+          padding: 10px 14px;
           color: #e5e7eb;
           font-size: 13px;
           font-family: inherit;
           outline: none;
+          accent-color: #7c3aed;
+        }
+        .tt-tenants-field select {
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%237c3aed'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 14px center;
+          background-size: 18px;
+          padding-right: 40px;
+          cursor: pointer;
+        }
+        .tt-tenants-field select option {
+          background-color: #0b1020;
+          color: #fff;
+        }
+        .tt-tenants-field input:focus,
+        .tt-tenants-field select:focus,
+        .tt-tenants-field textarea:focus {
+          border-color: rgba(168,85,247,0.65);
+          box-shadow: 0 0 0 3px rgba(124,58,237,.18);
         }
         .tt-tenants-field textarea { min-height: 72px; resize: vertical; }
         .tt-tenants-formgrid {
@@ -708,6 +766,66 @@ export default function Tenants() {
           border: 1px solid rgba(255,255,255,.10);
           background: transparent;
           color: rgba(226,232,240,.9);
+        }
+
+        /* Custom Select Styling */
+        .tt-custom-select-wrap {
+          position: relative;
+          width: 100%;
+        }
+        .tt-custom-select-trigger {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: pointer;
+        }
+        .tt-custom-select-trigger .arrow {
+          color: #7c3aed;
+          font-size: 14px;
+        }
+        .tt-custom-select-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 10;
+        }
+        .tt-custom-select-options {
+          position: absolute;
+          top: calc(100% + 6px);
+          left: 0;
+          right: 0;
+          background: #111827;
+          border: 1px solid rgba(168,85,247,0.4);
+          border-radius: 14px;
+          z-index: 20;
+          overflow: hidden;
+          box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+          animation: ttSlideUp 0.15s ease-out;
+        }
+        @keyframes ttSlideUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .tt-custom-select-option {
+          padding: 12px 16px;
+          font-size: 13px;
+          font-weight: 600;
+          color: rgba(255,255,255,0.8);
+          cursor: pointer;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          transition: background 100ms ease;
+        }
+        .tt-custom-select-option:hover {
+          background: rgba(124, 58, 237, 0.15);
+          color: #fff;
+        }
+        .tt-custom-select-option.is-selected {
+          background: #7c3aed;
+          color: #fff;
+        }
+        .tt-custom-select-option .check {
+          font-size: 12px;
         }
       `}</style>
 
@@ -897,31 +1015,35 @@ export default function Tenants() {
               <div className="tt-tenants-formgrid">
                 <div className="tt-tenants-field">
                   <label>Tenant name</label>
-                  <input value={editDraft.name} onChange={(e) => updateDraftField("name", e.target.value)} />
+                  <input className="tt-input" value={editDraft.name} onChange={(e) => updateDraftField("name", e.target.value)} />
                 </div>
                 <div className="tt-tenants-field">
                   <label>Owner</label>
-                  <input value={editDraft.owner} onChange={(e) => updateDraftField("owner", e.target.value)} />
+                  <input className="tt-input" value={editDraft.owner} onChange={(e) => updateDraftField("owner", e.target.value)} />
                 </div>
                 <div className="tt-tenants-field">
                   <label>Primary email</label>
-                  <input value={editDraft.email} onChange={(e) => updateDraftField("email", e.target.value)} />
+                  <input className="tt-input" value={editDraft.email} onChange={(e) => updateDraftField("email", e.target.value)} />
                 </div>
                 <div className="tt-tenants-field">
                   <label>Domain</label>
-                  <input value={editDraft.domain} onChange={(e) => updateDraftField("domain", e.target.value)} />
+                  <input className="tt-input" value={editDraft.domain} onChange={(e) => updateDraftField("domain", e.target.value)} />
                 </div>
                 <div className="tt-tenants-field">
                   <label>Login Password</label>
-                  <input type="password" placeholder="Leave blank to keep current..." value={editDraft.password} onChange={(e) => updateDraftField("password", e.target.value)} />
+                  <input className="tt-input" type="password" placeholder="Leave blank to keep current..." value={editDraft.password} onChange={(e) => updateDraftField("password", e.target.value)} />
                 </div>
                 <div className="tt-tenants-field">
                   <label>Status</label>
-                  <select value={editDraft.status} onChange={(e) => updateDraftField("status", e.target.value)}>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
+                  <CustomSelect 
+                    value={editDraft.status} 
+                    onChange={(val) => updateDraftField("status", val)} 
+                    options={[
+                      { value: "active", label: "Active" },
+                      { value: "inactive", label: "Inactive" },
+                      { value: "suspended", label: "Suspended" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -930,39 +1052,39 @@ export default function Tenants() {
                 <div className="tt-tenants-formgrid">
                   <div className="tt-tenants-field">
                     <label>CRM Client ID</label>
-                    <input type="password" placeholder={editDraft.keys.zohoCrmClientId ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmClientId} onChange={(e) => updateDraftKey("zohoCrmClientId", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.zohoCrmClientId ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmClientId} onChange={(e) => updateDraftKey("zohoCrmClientId", e.target.value)} />
                   </div>
                   <div className="tt-tenants-field">
                     <label>CRM Secret</label>
-                    <input type="password" placeholder={editDraft.keys.zohoCrmClientSecret ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmClientSecret} onChange={(e) => updateDraftKey("zohoCrmClientSecret", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.zohoCrmClientSecret ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmClientSecret} onChange={(e) => updateDraftKey("zohoCrmClientSecret", e.target.value)} />
                   </div>
                   <div className="tt-tenants-field">
                     <label>CRM Refresh Token</label>
-                    <input type="password" placeholder={editDraft.keys.zohoCrmRefreshToken ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmRefreshToken} onChange={(e) => updateDraftKey("zohoCrmRefreshToken", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.zohoCrmRefreshToken ? "••••••••" : "Not set"} value={editDraft.keys.zohoCrmRefreshToken} onChange={(e) => updateDraftKey("zohoCrmRefreshToken", e.target.value)} />
                   </div>
                   <div className="tt-tenants-field">
                     <label>Books Org ID</label>
-                    <input type="password" placeholder={editDraft.keys.zohoBooksOrgId ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksOrgId} onChange={(e) => updateDraftKey("zohoBooksOrgId", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.zohoBooksOrgId ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksOrgId} onChange={(e) => updateDraftKey("zohoBooksOrgId", e.target.value)} />
                   </div>
                   <div className="tt-tenants-field">
                     <label>Books Client ID</label>
-                    <input type="password" placeholder={editDraft.keys.zohoBooksClientId ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksClientId} onChange={(e) => updateDraftKey("zohoBooksClientId", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.zohoBooksClientId ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksClientId} onChange={(e) => updateDraftKey("zohoBooksClientId", e.target.value)} />
                   </div>
                   <div className="tt-tenants-field">
                     <label>Books Secret</label>
-                    <input type="password" placeholder={editDraft.keys.zohoBooksClientSecret ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksClientSecret} onChange={(e) => updateDraftKey("zohoBooksClientSecret", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.zohoBooksClientSecret ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksClientSecret} onChange={(e) => updateDraftKey("zohoBooksClientSecret", e.target.value)} />
                   </div>
                   <div className="tt-tenants-field">
                     <label>Books Refresh Token</label>
-                    <input type="password" placeholder={editDraft.keys.zohoBooksRefreshToken ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksRefreshToken} onChange={(e) => updateDraftKey("zohoBooksRefreshToken", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.zohoBooksRefreshToken ? "••••••••" : "Not set"} value={editDraft.keys.zohoBooksRefreshToken} onChange={(e) => updateDraftKey("zohoBooksRefreshToken", e.target.value)} />
                   </div>
                   <div className="tt-tenants-field">
                     <label>Paystack Secret</label>
-                    <input type="password" placeholder={editDraft.keys.paystackSecretKey ? "••••••••" : "Not set"} value={editDraft.keys.paystackSecretKey} onChange={(e) => updateDraftKey("paystackSecretKey", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.paystackSecretKey ? "••••••••" : "Not set"} value={editDraft.keys.paystackSecretKey} onChange={(e) => updateDraftKey("paystackSecretKey", e.target.value)} />
                   </div>
                   <div className="tt-tenants-field">
                     <label>Paystack Public</label>
-                    <input type="password" placeholder={editDraft.keys.paystackPublicKey ? "••••••••" : "Not set"} value={editDraft.keys.paystackPublicKey} onChange={(e) => updateDraftKey("paystackPublicKey", e.target.value)} />
+                    <input className="tt-input" type="password" placeholder={editDraft.keys.paystackPublicKey ? "••••••••" : "Not set"} value={editDraft.keys.paystackPublicKey} onChange={(e) => updateDraftKey("paystackPublicKey", e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -970,14 +1092,14 @@ export default function Tenants() {
               <div style={{ marginTop: 20 }}>
                 <div className="tt-tenants-field">
                   <label>Preferred Amounts (comma separated)</label>
-                  <input placeholder="e.g. 50, 100, 200" value={(editDraft.config?.preferredAmounts || []).join(", ")} onChange={(e) => {
+                  <input className="tt-input" placeholder="e.g. 50, 100, 200" value={(editDraft.config?.preferredAmounts || []).join(", ")} onChange={(e) => {
                     const val = e.target.value.split(",").map(s => Number(s.trim())).filter(n => !isNaN(n));
                     updateDraftConfig("preferredAmounts", val);
                   }} />
                 </div>
                 <div className="tt-tenants-field">
                   <label>Notes</label>
-                  <textarea value={editDraft.notes} onChange={(e) => updateDraftField("notes", e.target.value)} />
+                  <textarea className="tt-input" value={editDraft.notes} onChange={(e) => updateDraftField("notes", e.target.value)} />
                 </div>
               </div>
             </div>
