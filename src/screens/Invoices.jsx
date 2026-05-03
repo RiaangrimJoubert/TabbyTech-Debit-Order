@@ -4,6 +4,7 @@ import { request, requestBlob, API_BASE } from "../api";
 import * as XLSX from "xlsx";
 import { money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
+import { ShimmerTableRows } from "../components/ShimmerSkeleton";
 
 const INVOICES_CACHE_TTL_MS = 15 * 60 * 1000;
 
@@ -580,8 +581,23 @@ export default function Invoices() {
         </div>
 
         {loading && (
-          <div style={{ padding: 12, color: "rgba(255,255,255,0.70)" }}>
-            Loading invoices...
+          <div style={{ overflowX: "auto" }}>
+            <table className="tt-table tt-table-invoices" role="table" aria-label="Loading invoices">
+              <thead>
+                <tr>
+                  <th className="tt-th-invoice">Invoice</th>
+                  <th className="tt-th-status">Status</th>
+                  <th className="tt-th-customer">Customer</th>
+                  <th className="tt-th-issued">Issued</th>
+                  <th className="tt-th-due">Due</th>
+                  <th className="tt-th-right tt-th-total">Total</th>
+                  <th className="tt-th-right tt-th-action">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <ShimmerTableRows rows={6} cols={7} />
+              </tbody>
+            </table>
           </div>
         )}
 

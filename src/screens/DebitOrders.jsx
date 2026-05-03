@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request } from "../api";
+import { ShimmerTableRows } from "../components/ShimmerSkeleton";
 
 const DEBIT_ORDERS_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -1876,7 +1877,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
 
       <div className="tt-do-header">
         <div>
-          <h1 className="tt-do-title">Debit Orders</h1>
+          <h1 className="tt-do-title">Debit Orders ({filteredGroups.length})</h1>
           <p className="tt-do-sub">
             Premium client debit profile view with CRM record visibility, health scoring, retry behaviour and debit history.
           </p>
@@ -1939,7 +1940,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
               <div className="tt-do-selectorCard">
                 <div className="tt-do-selectorHead">
                   <div>
-                    <p className="tt-do-selectorTitle">Client selection</p>
+                    <p className="tt-do-selectorTitle">Client selection ({filteredGroups.length})</p>
                     <p className="tt-do-selectorSub">Choose the client debit profile you want to inspect.</p>
                   </div>
 
@@ -1966,6 +1967,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                       </tr>
                     </thead>
                     <tbody>
+                      {loading && <ShimmerTableRows rows={8} cols={6} />}
                       {pagedClientGroups.map((group) => {
                         const active = selectedGroup?.key === group.key;
                         const displayClientId = group.clientId || getResolvedClientId(group.latest) || "Not available";
@@ -2344,13 +2346,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                       </tr>
                     ) : null}
 
-                    {loading ? (
-                      <tr>
-                        <td className="tt-do-td" colSpan={10} style={{ padding: 24 }}>
-                          <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>Loading debit-order history...</div>
-                        </td>
-                      </tr>
-                    ) : null}
+                    {loading && <ShimmerTableRows rows={5} cols={10} />}
                   </tbody>
                 </table>
               </div>

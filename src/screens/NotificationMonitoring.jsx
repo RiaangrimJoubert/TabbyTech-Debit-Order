@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request } from "../api";
+import { ShimmerTableRows } from "../components/ShimmerSkeleton";
 
 const NOTIFICATION_MONITOR_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -1309,10 +1310,16 @@ export default function NotificationMonitoring() {
                   );
                 })}
 
-                {filteredNotificationRows.length === 0 ? (
+                {loading && filteredNotificationRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 0 }}>
+                      <ShimmerTableRows rows={5} cols={5} />
+                    </td>
+                  </tr>
+                ) : filteredNotificationRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      {loading ? "Loading notification log..." : "No notification log data yet."}
+                      No notification log data yet.
                     </td>
                   </tr>
                 ) : null}
@@ -1362,10 +1369,16 @@ export default function NotificationMonitoring() {
                   </tr>
                 ))}
 
-                {filteredFailedRows.length === 0 ? (
+                {loading && filteredFailedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 0 }}>
+                      <ShimmerTableRows rows={4} cols={5} />
+                    </td>
+                  </tr>
+                ) : filteredFailedRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: "1rem 0", color: "#6b7280", fontSize: "0.75rem" }}>
-                      {loading ? "Loading failed notifications..." : "No failed notifications yet."}
+                      No failed notifications yet.
                     </td>
                   </tr>
                 ) : null}

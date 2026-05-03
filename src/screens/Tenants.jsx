@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { request } from "../api";
+import { ShimmerBlock } from "../components/ShimmerSkeleton";
 
 const TENANT_STATUSES = [
   { value: "all", label: "All" },
@@ -874,9 +875,11 @@ export default function Tenants() {
             <div className="tt-tenants-list">
               {error ? (
                 <div className="tt-tenants-empty">Failed to load tenants: {error}</div>
+              ) : loading ? (
+                <ShimmerBlock lines={6} />
               ) : filtered.length === 0 ? (
                 <div className="tt-tenants-empty">
-                  {loading ? "Loading..." : "No tenants found. Use Add Tenant to create one."}
+                  No tenants found. Use Add Tenant to create one.
                 </div>
               ) : (
                 filtered.map((t) => (

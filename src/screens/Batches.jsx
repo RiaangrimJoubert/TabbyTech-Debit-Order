@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request } from "../api";
+import { ShimmerTableRows } from "../components/ShimmerSkeleton";
 
 const BATCHES_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -1948,6 +1949,7 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
                         </tr>
                       </thead>
                       <tbody>
+                        <ShimmerTableRows rows={6} cols={8} />
                         {pagedRows.map((row) => (
                           <tr key={`${row.id}-${row.reference}-${row.updated}`}>
                             <td className="ttb-td">{row.client}</td>
@@ -1966,11 +1968,9 @@ export default function Batches({ presetClientId = "", presetBatchId = "" }) {
                     </table>
                   </div>
 
-                  {!pagedRows.length && (
+                  {!pagedRows.length && !loading && (
                     <div className="ttb-empty">
-                      {loading
-                        ? "Loading live batch data."
-                        : "No live batch rows match your search, filter, or selected date range."}
+                      No live batch rows match your search, filter, or selected date range.
                     </div>
                   )}
                 </div>

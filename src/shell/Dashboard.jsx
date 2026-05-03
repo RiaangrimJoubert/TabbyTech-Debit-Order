@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { request, getAuthHeaders } from "../api";
+import { ShimmerTableRows, ShimmerMetricCards } from "../components/ShimmerSkeleton";
 
 const LS = {
   search: "tabbytech.dashboard.search",
@@ -2882,51 +2883,57 @@ export default function Dashboard() {
       )}
 
       <div className="ttd-grid4">
-        <MetricCard
-          title="Cycle Pipeline Value"
-          value={formatCurrencyOrText(data.top.totalDebitOrderValue, formatZAR, "Awaiting data", !!attemptsMetrics)}
-          subtext={collectionScheduleText}
-          trend={
-            overallError
-              ? "API Error"
-              : overallLoading
-              ? "Syncing"
-              : `${fmtDateShort(appliedStartDate)} to ${fmtDateShort(appliedEndDate)}`
-          }
-          trendUp={!overallError}
-          icon={IconFileInvoice}
-          color="purple"
-        />
+        {overallLoading && !attemptsMetrics ? (
+          <ShimmerMetricCards count={4} />
+        ) : (
+          <>
+            <MetricCard
+              title="Cycle Pipeline Value"
+              value={formatCurrencyOrText(data.top.totalDebitOrderValue, formatZAR, "Awaiting data", !!attemptsMetrics)}
+              subtext={collectionScheduleText}
+              trend={
+                overallError
+                  ? "API Error"
+                  : overallLoading
+                  ? "Syncing"
+                  : `${fmtDateShort(appliedStartDate)} to ${fmtDateShort(appliedEndDate)}`
+              }
+              trendUp={!overallError}
+              icon={IconFileInvoice}
+              color="purple"
+            />
 
-        <MetricCard
-          title="Latest Successful Collections"
-          value={formatCurrencyOrText(data.top.totalCollected, formatZAR, "Awaiting data", !!attemptsMetrics)}
-          subtext={`${formatCountOrText(attemptsToday.success, "No live data", !!attemptsMetrics)} successful items in current reporting period`}
-          trend={safeNum(attemptsToday.success) > 0 ? "Successful collections in selected range" : "No successful collections in selected range"}
-          trendUp={true}
-          icon={IconCheckCircle}
-          color="green"
-        />
+            <MetricCard
+              title="Latest Successful Collections"
+              value={formatCurrencyOrText(data.top.totalCollected, formatZAR, "Awaiting data", !!attemptsMetrics)}
+              subtext={`${formatCountOrText(attemptsToday.success, "No live data", !!attemptsMetrics)} successful items in current reporting period`}
+              trend={safeNum(attemptsToday.success) > 0 ? "Successful collections in selected range" : "No successful collections in selected range"}
+              trendUp={true}
+              icon={IconCheckCircle}
+              color="green"
+            />
 
-        <MetricCard
-          title="Net Collected (Actual)"
-          value={formatCurrencyOrText(data.top.estimatedMoneyToBank, formatZAR2, "Awaiting data", !!attemptsMetrics)}
-          subtext="Actual collected value less actual fees"
-          trend={safeNum(data.top.estimatedMoneyToBank) > 0 ? "Real settlement value available" : "No collected value in selected range"}
-          trendUp={true}
-          icon={IconWallet}
-          color="blue"
-        />
+            <MetricCard
+              title="Net Collected (Actual)"
+              value={formatCurrencyOrText(data.top.estimatedMoneyToBank, formatZAR2, "Awaiting data", !!attemptsMetrics)}
+              subtext="Actual collected value less actual fees"
+              trend={safeNum(data.top.estimatedMoneyToBank) > 0 ? "Real settlement value available" : "No collected value in selected range"}
+              trendUp={true}
+              icon={IconWallet}
+              color="blue"
+            />
 
-        <MetricCard
-          title="Exceptions and Fees"
-          value={formatCurrencyOrText(data.top.estimatedPaystackFees, formatZAR2, "Awaiting data", !!attemptsMetrics)}
-          subtext={`Failed ${formatCountOrText(attemptsToday.failed, "—", !!attemptsMetrics)} • Retry ${formatCountOrText(data.top.retryScheduled, "—", !!attemptsMetrics)}`}
-          trend={safeNum(attemptsToday.failed) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
-          trendUp={false}
-          icon={IconRedo}
-          color="orange"
-        />
+            <MetricCard
+              title="Exceptions and Fees"
+              value={formatCurrencyOrText(data.top.estimatedPaystackFees, formatZAR2, "Awaiting data", !!attemptsMetrics)}
+              subtext={`Failed ${formatCountOrText(attemptsToday.failed, "—", !!attemptsMetrics)} • Retry ${formatCountOrText(data.top.retryScheduled, "—", !!attemptsMetrics)}`}
+              trend={safeNum(attemptsToday.failed) > 0 || safeNum(data.top.retryScheduled) > 0 ? "Exception queue needs attention" : "Exception queue currently light"}
+              trendUp={false}
+              icon={IconRedo}
+              color="orange"
+            />
+          </>
+        )}
       </div>
 
       <div className="ttd-grid2">
@@ -3364,7 +3371,8 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {!filteredBatches.length ? (
+                  {overallLoading && <ShimmerTableRows rows={5} cols={4} />}
+                  {!filteredBatches.length && !overallLoading ? (
                     <tr>
                       <td className="ttd-td" colSpan={4} style={{ textAlign: "center", color: "rgba(255,255,255,0.62)" }}>
                         No recent runs available for the selected range

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchZohoClients } from "../api/crm";
 import { request } from "../api";
+import { ShimmerTableRows, ShimmerPanel } from "../components/ShimmerSkeleton";
 
 const CLIENTS_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -591,8 +592,30 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
 
   const [editOpen, setEditOpen] = useState(false);
   const [editDraft, setEditDraft] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   const selected = useMemo(() => clients.find((c) => c.id === selectedId) || null, [clients, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    
+    // Fetch fresh details when selection changes to get latest notes & contact data
+    const fetchLatestDetails = async () => {
+      setDetailsLoading(true);
+      try {
+        const resp = await request(`/api/clients/${encodeURIComponent(selectedId)}`);
+        if (resp.ok && resp.data) {
+          setClients(prev => prev.map(c => c.id === resp.data.id ? { ...c, ...resp.data } : c));
+        }
+      } catch (e) {
+        console.error("Failed to fetch client details on selection:", e);
+      } finally {
+        setDetailsLoading(false);
+      }
+    };
+    
+    fetchLatestDetails();
+  }, [selectedId]);
 
   const counts = useMemo(() => {
     const base = { All: clients.length, Active: 0, Paused: 0, Risk: 0, New: 0 };
@@ -861,14 +884,29 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
-  function onOpenEdit() {
+  async function onOpenEdit() {
     if (!selected) {
       showToast("Select a client first.");
       return;
     }
 
-    setEditDraft(deepClone(selected));
-    setEditOpen(true);
+    try {
+      // Fetch fresh details from API to get latest notes from Related List
+      const resp = await request(`/api/clients/${encodeURIComponent(selected.id)}`);
+      if (resp.ok && resp.data) {
+        setEditDraft(deepClone(resp.data));
+        
+        // Also update the client in the list so the main panel updates
+        setClients(prev => prev.map(c => c.id === resp.data.id ? { ...c, notes: resp.data.notes } : c));
+      } else {
+        setEditDraft(deepClone(selected));
+      }
+      setEditOpen(true);
+    } catch (e) {
+      console.error("Failed to fetch client details for edit:", e);
+      setEditDraft(deepClone(selected));
+      setEditOpen(true);
+    }
   }
 
   function onCloseEdit() {
@@ -1894,6 +1932,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
     to { opacity: 1; }
   }
 
+
   @media (max-width: 1380px) {
     .tt-toolbar {
       grid-template-columns: 1fr;
@@ -2071,16 +2110,7 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
                 </thead>
                 <tbody>
                   {initialLoading && (
-                    <tr>
-                      <td className="tt-td" colSpan={6} style={{ padding: 20, whiteSpace: "normal" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>Loading clients</div>
-                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.4 }}>
-                            Syncing from Zoho CRM API.
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+                    <ShimmerTableRows rows={8} cols={6} />
                   )}
 
                   {!initialLoading &&
@@ -2160,6 +2190,10 @@ export default function Clients({ onOpenDebitOrders, onOpenBatches }) {
               {!selected ? (
                 <div className="tt-section" style={{ color: "rgba(255,255,255,0.70)" }}>
                   Select a client to view details.
+                </div>
+              ) : detailsLoading ? (
+                <div className="tt-section">
+                  <ShimmerPanel rows={10} />
                 </div>
               ) : (
                 <>

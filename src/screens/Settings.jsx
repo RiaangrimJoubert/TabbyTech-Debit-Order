@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { request } from "../api";
+import { ShimmerMetricCards, ShimmerBlock } from "../components/ShimmerSkeleton";
 
 const SETTINGS_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -162,7 +163,6 @@ export default function Settings() {
               <div className="tti-subtitle">
                 Service status for the core tools that power TabbyPay operations, finance flow,
                 notifications, and collections.
-                {loading ? " • loading..." : ""}
                 {refreshing ? " • refreshing..." : ""}
                 {error ? " • attention needed" : ""}
               </div>
@@ -181,30 +181,36 @@ export default function Settings() {
           </div>
 
           <div className="tti-readinessGrid">
-            <ReadinessCard
-              label="System state"
-              value={readinessLabel}
-              sub={`${connectedCount}/4 services connected`}
-              accent="purple"
-            />
-            <ReadinessCard
-              label="Live services"
-              value={String(liveCount)}
-              sub="Running in live environment"
-              accent="blue"
-            />
-            <ReadinessCard
-              label="Healthy services"
-              value={String(healthyCount)}
-              sub="No current service warnings"
-              accent="green"
-            />
-            <ReadinessCard
-              label="Operational focus"
-              value="Debit order stack"
-              sub="CRM, Books, ZeptoMail, Paystack"
-              accent="orange"
-            />
+            {loading ? (
+              <ShimmerMetricCards count={4} />
+            ) : (
+              <>
+                <ReadinessCard
+                  label="System state"
+                  value={readinessLabel}
+                  sub={`${connectedCount}/4 services connected`}
+                  accent="purple"
+                />
+                <ReadinessCard
+                  label="Live services"
+                  value={String(liveCount)}
+                  sub="Running in live environment"
+                  accent="blue"
+                />
+                <ReadinessCard
+                  label="Healthy services"
+                  value={String(healthyCount)}
+                  sub="No current service warnings"
+                  accent="green"
+                />
+                <ReadinessCard
+                  label="Operational focus"
+                  value="Debit order stack"
+                  sub="CRM, Books, ZeptoMail, Paystack"
+                  accent="orange"
+                />
+              </>
+            )}
           </div>
         </section>
 
@@ -223,45 +229,51 @@ export default function Settings() {
           </div>
 
           <div className="tti-serviceGrid">
-            {orderedServices.map((service) => {
-              const isActive = selectedService === service.key;
+            {loading ? (
+              <ShimmerMetricCards count={4} />
+            ) : (
+              orderedServices.map((service) => {
+                const isActive = selectedService === service.key;
 
-              return (
-                <button
-                  key={service.key}
-                  type="button"
-                  className={isActive ? "tti-serviceCard tti-serviceCardActive" : "tti-serviceCard"}
-                  onClick={() => setSelectedService(service.key)}
-                >
-                  <div className="tti-serviceTop">
-                    <div>
-                      <div className="tti-serviceName">{service.name}</div>
-                      <div className="tti-serviceCategory">{service.category}</div>
+                return (
+                  <button
+                    key={service.key}
+                    type="button"
+                    className={isActive ? "tti-serviceCard tti-serviceCardActive" : "tti-serviceCard"}
+                    onClick={() => setSelectedService(service.key)}
+                  >
+                    <div className="tti-serviceTop">
+                      <div>
+                        <div className="tti-serviceName">{service.name}</div>
+                        <div className="tti-serviceCategory">{service.category}</div>
+                      </div>
+
+                      <StatusDot status={service.status} />
                     </div>
 
-                    <StatusDot status={service.status} />
-                  </div>
+                    <div className="tti-servicePurpose">{service.purpose}</div>
 
-                  <div className="tti-servicePurpose">{service.purpose}</div>
+                    <div className="tti-serviceMeta">
+                      <span>{service.environment}</span>
+                      <span>{service.health}</span>
+                    </div>
 
-                  <div className="tti-serviceMeta">
-                    <span>{service.environment}</span>
-                    <span>{service.health}</span>
-                  </div>
-
-                  <div className="tti-serviceFooter">
-                    <StatusBadge status={service.status} />
-                    <span className="tti-serviceLast">Checked: {service.lastChecked}</span>
-                  </div>
-                </button>
-              );
-            })}
+                    <div className="tti-serviceFooter">
+                      <StatusBadge status={service.status} />
+                      <span className="tti-serviceLast">Checked: {service.lastChecked}</span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </section>
 
         <div className="tti-detailGrid">
           <section className="tti-card">
-            {selected ? (
+            {loading ? (
+              <ShimmerBlock lines={12} />
+            ) : selected ? (
               <>
                 <div className="tti-cardHead">
                   <div>

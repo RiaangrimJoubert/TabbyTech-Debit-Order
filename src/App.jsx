@@ -1,6 +1,7 @@
 // src/App.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
+import { ShimmerCSS } from "./components/ShimmerSkeleton";
 
 import Login from "./pages/Login";
 import AppShell from "./shell/AppShell";
@@ -120,5 +121,10 @@ export default function App() {
   // Admin app (requires login)
   if (!authed) return <Login onLogin={handleLogin} />;
 
-  return <AppShell onLogout={handleLogout} />;
+  return (
+    <>
+      <ShimmerCSS />
+      <AppShell onLogout={handleLogout} />
+    </>
+  );
 }
