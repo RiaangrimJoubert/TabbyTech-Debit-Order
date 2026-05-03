@@ -48,7 +48,6 @@ body {
 }
 
 /* ===== HARD GUARD: NO BLACK HEADINGS IN DARK UI ===== */
-/* This prevents browser default heading color from showing as black anywhere */
 h1,
 h2,
 h3,
@@ -249,7 +248,8 @@ select.tt-input:focus {
   /* Patch: keep sidebar above any decorative overflow */
   z-index: 50;
   isolation: isolate;
-  overflow: visible; /* Changed from hidden to allow inner to handle overflow better */
+  overflow: visible;
+  /* Changed from hidden to allow inner to handle overflow better */
 }
 
 .tt-sidebar-inner {
@@ -361,7 +361,7 @@ select.tt-input:focus {
   border-color: rgba(255, 255, 255, 0.10);
   color: var(--text);
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.20);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.20);
 }
 
 .tt-sidenav-item.is-active {
@@ -427,7 +427,7 @@ select.tt-input:focus {
 .tt-sidepanel:hover {
   transform: translateY(-1px);
   border-color: rgba(124, 58, 237, 0.24);
-  box-shadow: 0 12px 28px rgba(0,0,0,0.28);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
 }
 
 .tt-sidepanel-title {
@@ -458,7 +458,7 @@ select.tt-input:focus {
 .tt-sidepanel-btn:hover {
   background: rgba(124, 58, 237, 0.26);
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(0,0,0,0.25);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.25);
 }
 
 .tt-sidepanel-btn:active {
@@ -492,7 +492,7 @@ select.tt-input:focus {
 .tt-shell-topbar:hover {
   transform: translateY(-1px);
   border-color: rgba(124, 58, 237, 0.20);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.30);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.30);
 }
 
 .tt-shell-kicker {
@@ -562,7 +562,7 @@ select.tt-input:focus {
 .tt-shell-iconbtn:hover {
   transform: translateY(-1px);
   border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 12px 26px rgba(0,0,0,0.25);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.25);
 }
 
 .tt-shell-iconbtn:active {
@@ -584,7 +584,7 @@ select.tt-input:focus {
 .tt-shell-user:hover {
   transform: translateY(-1px);
   border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 12px 26px rgba(0,0,0,0.25);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.25);
 }
 
 .tt-shell-avatar {
@@ -650,7 +650,7 @@ select.tt-input:focus {
   position: absolute;
   inset: -2px;
   opacity: 0;
-  background: radial-gradient(600px 220px at 20% 10%, rgba(124,58,237,0.22), transparent 55%);
+  background: radial-gradient(600px 220px at 20% 10%, rgba(124, 58, 237, 0.22), transparent 55%);
   transition: opacity 160ms ease;
   pointer-events: none;
 }
@@ -746,7 +746,7 @@ select.tt-input:focus {
 .tt-panel-btn:hover {
   background: rgba(124, 58, 237, 0.28);
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
 }
 
 .tt-panel-btn:active {
