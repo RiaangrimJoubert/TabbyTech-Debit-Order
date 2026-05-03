@@ -47,7 +47,7 @@ body {
     linear-gradient(180deg, var(--bg), var(--bg2));
 }
 
-/* ===== HARD GUARD: NO BLACK HEADINGS IN DARK UI ===== */
+/* ===== HARD GUARD: NO BLACK HEADINGS IN DARK UI ==== */
 h1,
 h2,
 h3,
