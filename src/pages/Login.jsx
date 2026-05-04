@@ -23,7 +23,7 @@ export default function Login({ onLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${AUTH_API_BASE}/tabby/auth/login`, {
+      const response = await fetch(`${AUTH_API_BASE}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
