@@ -111,6 +111,8 @@ function AlertDrawer({
   onClose,
   onOpenDebitOrders,
   onOpenNotificationMonitoring,
+  isRefreshing,
+  onRefresh,
 }) {
   return (
     <>
@@ -209,24 +211,59 @@ function AlertDrawer({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close alerts"
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.04)",
-                color: "#ffffff",
-                cursor: "pointer",
-                fontSize: 18,
-                fontWeight: 700,
-              }}
-            >
-              ×
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                aria-label="Refresh alerts"
+                title="Refresh alerts manually"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 14,
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: isRefreshing ? "rgba(161, 110, 255, 0.2)" : "rgba(255,255,255,0.04)",
+                  color: isRefreshing ? "#c1a8ff" : "#ffffff",
+                  cursor: isRefreshing ? "not-allowed" : "pointer",
+                  fontSize: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                <span style={{ 
+                  display: "inline-block", 
+                  transform: isRefreshing ? "rotate(180deg)" : "rotate(0deg)", 
+                  transition: "transform 0.5s ease" 
+                }}>
+                  ↻
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close alerts"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 14,
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: 18,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           <div
@@ -682,86 +719,67 @@ export default function AppShell({ onLogout }) {
     };
   }, []);
 
+  const loadFailedDebitsFromApi = async (isManual = false) => {
+    try {
+      if (isManual) setIsRefreshing(true);
+
+      const json = await request("/api/debit-orders", { method: "GET" });
+      if (!json || json.ok !== true || !Array.isArray(json.data)) return;
+
+      function getCurrentCycleBounds() {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        return { monthStart: new Date(y, m, 1), nextMonthStart: new Date(y, m + 1, 1) };
+      }
+
+      function isInCurrentCycle(row) {
+        const { monthStart, nextMonthStart } = getCurrentCycleBounds();
+        const candidates = [
+          row?.lastAttemptDate, row?.last_attempt_date, row?.nextChargeDate,
+          row?.next_charge_date, row?.updatedAt, row?.updated_at,
+          row?.modified_time, row?.Modified_Time,
+        ];
+        for (const raw of candidates) {
+          const s = String(raw || "").trim();
+          if (!s) continue;
+          const d = new Date(s);
+          if (!Number.isNaN(d.getTime()) && d >= monthStart && d < nextMonthStart) {
+            return true;
+          }
+        }
+        return true;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      
+      const filteredRaw = json.data.filter((row) => {
+        const status = String(row?.status || row?.Status || "").trim().toLowerCase();
+        const isFailed = status === "failed" || status === "cancelled" || status === "canceled" || status === "unpaid";
+        const isRetry = status.includes("retry");
+        const isPaidToday = (status === "paid" || status === "success") && String(row?.updated_at || row?.updatedAt || "").startsWith(today);
+
+        if (!isFailed && !isRetry && !isPaidToday) return false;
+        return isInCurrentCycle(row);
+      });
+
+      setFailedDebits(filteredRaw.map((item, index) => normalizeFailedDebit(item, index)));
+
+      try {
+        window.localStorage.setItem(FAILED_DEBITS_STORAGE_KEY, JSON.stringify(filteredRaw));
+      } catch {}
+    } catch {} finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
-    function getCurrentCycleBounds() {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = now.getMonth();
-      const monthStart = new Date(y, m, 1);
-      const nextMonthStart = new Date(y, m + 1, 1);
-      return { monthStart, nextMonthStart };
-    }
-
-    function isInCurrentCycle(row) {
-      const { monthStart, nextMonthStart } = getCurrentCycleBounds();
-      const candidates = [
-        row?.lastAttemptDate,
-        row?.last_attempt_date,
-        row?.nextChargeDate,
-        row?.next_charge_date,
-        row?.updatedAt,
-        row?.updated_at,
-        row?.modified_time,
-        row?.Modified_Time,
-      ];
-
-      for (const raw of candidates) {
-        const s = String(raw || "").trim();
-        if (!s) continue;
-        const d = new Date(s);
-        if (!Number.isNaN(d.getTime())) {
-          return d >= monthStart && d < nextMonthStart;
-        }
-      }
-
-      return true;
-    }
-
-    async function loadFailedDebitsFromApi() {
-      try {
-        setIsRefreshing(true);
-        const json = await request("/api/debit-orders", { method: "GET" });
-        if (!active) return;
-        if (!json || json.ok !== true || !Array.isArray(json.data)) return;
-
-        // Filter to show meaningful items in Alert Center:
-        // 1. All Failed/Unpaid
-        // 2. All Retries
-        // 3. Paid items from TODAY
-        const today = new Date().toISOString().split("T")[0];
-        
-        const filteredRaw = json.data.filter((row) => {
-          const status = String(row?.status || row?.Status || "").trim().toLowerCase();
-          const isFailed = status === "failed" || status === "cancelled" || status === "canceled" || status === "unpaid";
-          const isRetry = status.includes("retry");
-          const isPaidToday = (status === "paid" || status === "success") && String(row?.updated_at || row?.updatedAt || "").startsWith(today);
-
-          if (!isFailed && !isRetry && !isPaidToday) return false;
-
-          return isInCurrentCycle(row);
-        });
-
-        setFailedDebits(filteredRaw.map((item, index) => normalizeFailedDebit(item, index)));
-
-        try {
-          window.localStorage.setItem(FAILED_DEBITS_STORAGE_KEY, JSON.stringify(filteredRaw));
-        } catch {
-          // ignore safely
-        }
-      } catch {
-        // ignore safely
-      } finally {
-        if (active) setIsRefreshing(false);
-      }
-    }
-
     loadFailedDebitsFromApi();
 
-    // Polling: Refresh failed debits every 60 seconds for "real-time" alerts
     const interval = setInterval(() => {
-      loadFailedDebitsFromApi();
+      if (active) loadFailedDebitsFromApi();
     }, 60000);
 
     return () => {
@@ -955,6 +973,8 @@ export default function AppShell({ onLogout }) {
         onClose={() => setIsAlertsOpen(false)}
         onOpenDebitOrders={() => onNavigate("debitorders")}
         onOpenNotificationMonitoring={() => onNavigate("notificationmonitoring")}
+        isRefreshing={isRefreshing}
+        onRefresh={() => loadFailedDebitsFromApi(true)}
       />
     </div>
   );
