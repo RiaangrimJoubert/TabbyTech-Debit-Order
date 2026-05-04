@@ -151,30 +151,53 @@ export default function TabbyDen() {
     setBusyId(id);
 
     try {
-      const url = `${joinUrl(apiBase, `api/tabbyden/invoice-pdf/${encodeURIComponent(id)}`)}?token=${encodeURIComponent(token)}`;
+      const url = getInvoiceHtmlUrl(apiBase, token, id);
+      if (!url) throw new Error("Could not build URL");
 
-      const resp = await fetch(url, {
-        method: "GET",
-        headers: { Accept: "application/pdf" },
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error("Failed to fetch HTML");
+      const htmlText = await resp.text();
+
+      const container = document.createElement("div");
+      container.style.position = "absolute";
+      container.style.top = "-9999px";
+      container.style.left = "-9999px";
+      container.style.width = "900px";
+      container.innerHTML = htmlText;
+      document.body.appendChild(container);
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      const node = container.querySelector(".invoice-container");
+      if (!node) throw new Error("Could not find invoice container");
+
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
+
+      const canvas = await html2canvas(node, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#111827",
+        logging: false,
       });
 
-      if (!resp.ok) {
-        throw new Error(`Failed to load invoice PDF (${resp.status})`);
-      }
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: [canvas.width / 2, canvas.height / 2],
+      });
 
-      const blob = await resp.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
 
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = `invoice-${id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const invEl = node.querySelector(".invoice-number");
+      const filename = (invEl ? invEl.textContent.replace(/[^a-zA-Z0-9-]/g, "") : "invoice") + ".pdf";
 
-      window.URL.revokeObjectURL(objectUrl);
+      pdf.save(filename);
+      document.body.removeChild(container);
     } catch (e) {
-      alert(safeStr(e?.message || e) || "Failed to download PDF.");
+      console.error("PDF generation failed:", e);
+      openHtml(id);
     } finally {
       setBusyId("");
     }

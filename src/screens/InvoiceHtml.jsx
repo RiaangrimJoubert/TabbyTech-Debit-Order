@@ -1,8 +1,43 @@
-import React, { useMemo } from "react";
+import React, { useRef, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 export default function InvoiceHtml() {
   const { invoiceId } = useParams();
+  const invoiceRef = useRef(null);
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadPdf() {
+    if (downloading) return;
+    const node = invoiceRef.current;
+    if (!node) return;
+    setDownloading(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
+
+      const canvas = await html2canvas(node, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#070812",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: [canvas.width / 2, canvas.height / 2],
+      });
+
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
+      pdf.save(`${invoiceId || "invoice"}.pdf`);
+    } catch (e) {
+      console.error("PDF export failed:", e);
+      alert("PDF export failed. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   // Same mock dataset for now. Later we will fetch by ID from Zoho Books.
   const invoices = useMemo(
@@ -368,7 +403,7 @@ export default function InvoiceHtml() {
     <div className="tt-page">
       <style>{css}</style>
 
-      <div className="tt-wrap">
+      <div className="tt-wrap" ref={invoiceRef}>
         <div className="tt-card">
           <div className="tt-head">
             <div className="tt-brandRow">
@@ -399,10 +434,11 @@ export default function InvoiceHtml() {
               <button
                 type="button"
                 className="tt-btn tt-btnPrimary"
-                onClick={() => window.print()}
-                title="Use Print then choose Save as PDF"
+                onClick={downloadPdf}
+                disabled={downloading}
+                title="Download as PDF"
               >
-                Download
+                {downloading ? "Generating…" : "Download PDF"}
               </button>
             </div>
           </div>
@@ -588,4 +624,29 @@ function Dot() {
 }
 
 function getStatusClass(status) {
-  if (status === "Paid
+  if (status === "Paid") return "tt-paid";
+  if (status === "Unpaid") return "tt-unpaid";
+  if (status === "Failed") return "tt-failed";
+  if (status === "Pending") return "tt-pending";
+  if (status === "Overdue") return "tt-overdue";
+  return "tt-pending";
+}
+
+function fmtDateShort(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (isNaN(d)) return String(value);
+  return d.toLocaleDateString("en-ZA", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function fmtDateTimeLong(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (isNaN(d)) return String(value);
+  return d.toLocaleString("en-ZA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function currencyZar(value) {
+  const n = Number(value || 0);
+  return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(n);
+}

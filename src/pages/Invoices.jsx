@@ -217,33 +217,57 @@ export default function Invoices() {
     }
 
     const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
+    const fallback = String(inv?.id || "").trim();
+    const id = booksInvoiceId || fallback;
 
-    if (!booksInvoiceId) {
-      openInvoiceHtml(inv);
-      return;
-    }
-
-    const url = `${apiBase}/api/invoice-pdf/${encodeURIComponent(booksInvoiceId)}`;
+    if (!id) return;
 
     try {
-      const resp = await fetch(url, { method: "GET" });
-      if (!resp.ok) {
-        openInvoiceHtml(inv);
-        return;
-      }
+      const url = `${apiBase}/api/invoice-html/${encodeURIComponent(id)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error("Failed to fetch HTML");
+      const htmlText = await resp.text();
 
-      const blob = await resp.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
+      const container = document.createElement("div");
+      container.style.position = "absolute";
+      container.style.top = "-9999px";
+      container.style.left = "-9999px";
+      container.style.width = "900px";
+      container.innerHTML = htmlText;
+      document.body.appendChild(container);
 
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = `${safeInvoiceLabel(inv)}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      // Give images a tiny moment to load
+      await new Promise(r => setTimeout(r, 200));
 
-      window.URL.revokeObjectURL(objectUrl);
-    } catch {
+      const node = container.querySelector(".invoice-container");
+      if (!node) throw new Error("Could not find invoice container");
+
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
+
+      const canvas = await html2canvas(node, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#111827",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: [canvas.width / 2, canvas.height / 2],
+      });
+
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
+      
+      const invEl = node.querySelector(".invoice-number");
+      const filename = (invEl ? invEl.textContent.replace(/[^a-zA-Z0-9-]/g, "") : "invoice") + ".pdf";
+      
+      pdf.save(filename);
+      document.body.removeChild(container);
+    } catch (e) {
+      console.error("PDF generation failed:", e);
       openInvoiceHtml(inv);
     }
   }
