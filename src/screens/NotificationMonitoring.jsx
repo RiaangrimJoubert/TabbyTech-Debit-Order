@@ -768,6 +768,9 @@ export default function NotificationMonitoring() {
         error: "",
         lastLoadedAt: Date.now(),
       };
+
+      // Trigger a refresh of the global alert center
+      window.dispatchEvent(new CustomEvent("tabbypay:failed-debits-updated"));
     } catch (e) {
       const nextError = String(e?.message || e);
       setError(nextError);

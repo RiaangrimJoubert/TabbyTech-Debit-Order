@@ -639,6 +639,7 @@ export default function AppShell({ onLogout }) {
   const [activeKey, setActiveKey] = useState("dashboard");
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const [failedDebits, setFailedDebits] = useState(() => readFailedDebitsFromStorage());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [debitOrdersPresetSearch, setDebitOrdersPresetSearch] = useState("");
   const [debitOrdersPresetFocusClientId, setDebitOrdersPresetFocusClientId] = useState("");
@@ -720,6 +721,7 @@ export default function AppShell({ onLogout }) {
 
     async function loadFailedDebitsFromApi() {
       try {
+        setIsRefreshing(true);
         const json = await request("/api/debit-orders", { method: "GET" });
         if (!active) return;
         if (!json || json.ok !== true || !Array.isArray(json.data)) return;
@@ -750,13 +752,21 @@ export default function AppShell({ onLogout }) {
         }
       } catch {
         // ignore safely
+      } finally {
+        if (active) setIsRefreshing(false);
       }
     }
 
     loadFailedDebitsFromApi();
 
+    // Polling: Refresh failed debits every 60 seconds for "real-time" alerts
+    const interval = setInterval(() => {
+      loadFailedDebitsFromApi();
+    }, 60000);
+
     return () => {
       active = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -882,8 +892,48 @@ export default function AppShell({ onLogout }) {
                 setIsAlertsOpen((prev) => !prev);
               }}
               title="Operations alerts"
+              style={{ position: "relative" }}
             >
               🔔
+              {failedDebits.length > 0 && (
+                <span 
+                  className="tt-shell-count-badge"
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -4,
+                    background: "#ef4444",
+                    color: "white",
+                    fontSize: "10px",
+                    fontWeight: "bold",
+                    borderRadius: "50%",
+                    minWidth: "16px",
+                    height: "16px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 4px",
+                    border: "2px solid #0c1028"
+                  }}
+                >
+                  {failedDebits.length}
+                </span>
+              )}
+              {isRefreshing && (
+                <span 
+                  className="tt-shell-refresh-pulse"
+                  style={{
+                    position: "absolute",
+                    bottom: -2,
+                    right: -2,
+                    width: "8px",
+                    height: "8px",
+                    background: "#a78bfa",
+                    borderRadius: "50%",
+                    boxShadow: "0 0 8px #a78bfa"
+                  }}
+                />
+              )}
             </button>
 
             <div className="tt-shell-user" role="button" tabIndex={0} aria-label="User menu">
