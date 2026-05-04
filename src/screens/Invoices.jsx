@@ -415,12 +415,15 @@ export default function Invoices() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState("");
+
   async function downloadInvoicePdf(inv) {
     const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
     const fallback = String(inv?.id || "").trim();
     const id = booksInvoiceId || fallback;
 
     if (!id) return;
+    setDownloadingInvoiceId(id);
 
     try {
       const url = `${API_BASE}/api/invoice-html/${encodeURIComponent(id)}`;
@@ -469,6 +472,8 @@ export default function Invoices() {
     } catch (e) {
       console.error("PDF generation failed:", e);
       openInvoiceHtml(inv);
+    } finally {
+      setDownloadingInvoiceId("");
     }
   }
 
@@ -822,10 +827,24 @@ export default function Invoices() {
                               type="button"
                               className="tt-iconbtn tt-iconbtn-purple"
                               onClick={() => downloadInvoicePdf(inv)}
+                              disabled={downloadingInvoiceId === invId}
                               aria-label={`Download invoice ${invId}`}
-                              title="Download PDF (falls back to HTML if PDF is not ready)"
+                              title="Download PDF"
                             >
-                              <SvgDownload />
+                              {downloadingInvoiceId === invId ? (
+                                <div style={{
+                                  width: "16px",
+                                  height: "16px",
+                                  border: "2px solid rgba(255,255,255,0.3)",
+                                  borderTopColor: "#fff",
+                                  borderRadius: "50%",
+                                  animation: "spin 1s linear infinite"
+                                }}>
+                                  <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+                                </div>
+                              ) : (
+                                <SvgDownload />
+                              )}
                             </button>
                           </div>
                         </td>

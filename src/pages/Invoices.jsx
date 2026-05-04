@@ -209,6 +209,8 @@ export default function Invoices() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState("");
+
   async function downloadInvoicePdf(inv) {
     const apiBase = getApiBase();
     if (!apiBase) {
@@ -221,6 +223,7 @@ export default function Invoices() {
     const id = booksInvoiceId || fallback;
 
     if (!id) return;
+    setDownloadingInvoiceId(id);
 
     try {
       const url = `${apiBase}/api/invoice-html/${encodeURIComponent(id)}`;
@@ -269,6 +272,8 @@ export default function Invoices() {
     } catch (e) {
       console.error("PDF generation failed:", e);
       openInvoiceHtml(inv);
+    } finally {
+      setDownloadingInvoiceId("");
     }
   }
 
@@ -479,6 +484,7 @@ export default function Invoices() {
                               <button
                                 type="button"
                                 onClick={() => downloadInvoicePdf(inv)}
+                                disabled={downloadingInvoiceId === (inv?.booksInvoiceId || inv?.id)}
                                 aria-label={`Download invoice ${inv.invoiceNumber || invId}`}
                                 title="Download PDF"
                                 style={{
@@ -492,10 +498,23 @@ export default function Invoices() {
                                   background: "rgba(34,197,94,0.12)",
                                   color: "rgba(180,255,210,0.95)",
                                   boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
-                                  cursor: "pointer"
+                                  cursor: downloadingInvoiceId === (inv?.booksInvoiceId || inv?.id) ? "not-allowed" : "pointer"
                                 }}
                               >
-                                <SvgDownload />
+                                {downloadingInvoiceId === (inv?.booksInvoiceId || inv?.id) ? (
+                                  <div style={{
+                                    width: "16px",
+                                    height: "16px",
+                                    border: "2px solid rgba(255,255,255,0.3)",
+                                    borderTopColor: "#fff",
+                                    borderRadius: "50%",
+                                    animation: "spin 1s linear infinite"
+                                  }}>
+                                    <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+                                  </div>
+                                ) : (
+                                  <SvgDownload />
+                                )}
                               </button>
 
                               <button
