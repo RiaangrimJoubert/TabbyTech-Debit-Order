@@ -300,14 +300,14 @@ function readTemplateCount(byTemplate, label) {
 
 function mapTodayStatus(todayStatus) {
   const sent = Number(todayStatus?.SENT || 0);
-  const failed = Number(todayStatus?.FAILED || 0);
+  const delivered = Number(todayStatus?.DELIVERED || 0);
+  const opened = Number(todayStatus?.OPENED || todayStatus?.CLICKED || 0);
+  const failed = Number(todayStatus?.FAILED || todayStatus?.BOUNCED || 0);
   const queued = Number(todayStatus?.QUEUED || 0);
-  const delivered = sent;
-  const opened = 0;
 
   return {
-    sentToday: sent + queued,
-    delivered,
+    sentToday: sent + delivered + queued + opened + failed,
+    delivered: delivered + opened,
     opened,
     failed,
     queued,
@@ -715,6 +715,12 @@ export default function NotificationMonitoring() {
     setError("");
 
     try {
+      // 1. Trigger the real sync on the backend
+      await request("/api/dashboard/notification-sync", {
+        method: "POST",
+      });
+
+      // 2. Fetch the updated data
       const json = await request("/api/dashboard/notification-monitor", {
         method: "GET",
       });
