@@ -306,7 +306,8 @@ function mapTodayStatus(todayStatus) {
   const queued = Number(todayStatus?.QUEUED || 0);
 
   return {
-    sentToday: sent + delivered + queued + opened + failed,
+    // These are already disjoint counts from the backend.
+    sentToday: sent,
     delivered: delivered + opened,
     opened,
     failed,
@@ -629,7 +630,11 @@ export default function NotificationMonitoring() {
         setLoading(true);
         setError("");
 
-        const json = await request("/api/dashboard/notification-monitor", {
+        const qs = new URLSearchParams();
+        if (safeStr(startDate)) qs.set("startDate", safeStr(startDate));
+        if (safeStr(endDate)) qs.set("endDate", safeStr(endDate));
+
+        const json = await request(`/api/dashboard/notification-monitor?${qs.toString()}`, {
           method: "GET",
         });
 
@@ -700,7 +705,7 @@ export default function NotificationMonitoring() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [startDate, endDate]);
 
   async function applyRange() {
     if (safeStr(startDate) && safeStr(endDate) && startDate > endDate) {
@@ -721,7 +726,11 @@ export default function NotificationMonitoring() {
       });
 
       // 2. Fetch the updated data
-      const json = await request("/api/dashboard/notification-monitor", {
+      const qs = new URLSearchParams();
+      if (safeStr(startDate)) qs.set("startDate", safeStr(startDate));
+      if (safeStr(endDate)) qs.set("endDate", safeStr(endDate));
+
+      const json = await request(`/api/dashboard/notification-monitor?${qs.toString()}`, {
         method: "GET",
       });
 
@@ -1141,9 +1150,9 @@ export default function NotificationMonitoring() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
         <MetricCard
-          title="Sent today"
+          title="Sent (range)"
           value={String(kpis.sentToday)}
-          subtext="Emails queued or handed to ZeptoMail"
+          subtext={`Emails in selected range (${safeStr(startDate)} → ${safeStr(endDate)})`}
           trend={loading ? "Loading..." : "Live data"}
           trendUp={true}
           icon={<IconMail />}

@@ -534,6 +534,9 @@ function matchInvoiceStatsForGroup(group, lookup) {
 export default function DebitOrders({ presetSearch = "", presetFocusClientId = "" }) {
   const [rows, setRows] = useState(() => (Array.isArray(debitOrdersProfileCache.rows) ? debitOrdersProfileCache.rows : []));
   const [invoiceStats, setInvoiceStats] = useState([]);
+  const [clientInvoices, setClientInvoices] = useState([]);
+  const [clientInvoicesLoading, setClientInvoicesLoading] = useState(false);
+  const [clientInvoicesError, setClientInvoicesError] = useState("");
   const [query, setQuery] = useState(() => safeText(presetSearch || debitOrdersProfileCache.query));
   const [selectedClientKey, setSelectedClientKey] = useState(() =>
     safeText(presetFocusClientId || debitOrdersProfileCache.selectedClientKey)
@@ -795,6 +798,58 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     );
   }, [filteredGroups, selectedClientKey]);
 
+  useEffect(() => {
+    async function loadInvoicesForSelectedClient() {
+      const primary = safeText(selectedGroup?.latest?.primaryEmail || selectedGroup?.latest?.Email || selectedGroup?.latest?.email || selectedGroup?.latest?.primary_email);
+      const secondary = safeText(selectedGroup?.latest?.secondaryEmail || selectedGroup?.latest?.Secondary_Email || selectedGroup?.latest?.secondary_email);
+      const email = primary || secondary;
+      const statsCustomerId = safeText(selectedGroup?.invoiceStats?.customerId);
+      const statsCustomerEmail = safeText(selectedGroup?.invoiceStats?.customerEmail);
+
+      setClientInvoicesLoading(true);
+      setClientInvoicesError("");
+      try {
+        let json = null;
+
+        if (email) {
+          const qs = new URLSearchParams();
+          qs.set("email", email);
+          json = await request(`/api/invoices/by-email?${qs.toString()}`, { method: "GET" });
+        } else if (statsCustomerId) {
+          const qs = new URLSearchParams();
+          qs.set("customerId", statsCustomerId);
+          json = await request(`/api/invoices/by-customer-id?${qs.toString()}`, { method: "GET" });
+        } else if (statsCustomerEmail) {
+          const qs = new URLSearchParams();
+          qs.set("email", statsCustomerEmail);
+          json = await request(`/api/invoices/by-email?${qs.toString()}`, { method: "GET" });
+        }
+
+        if (!json) {
+          throw new Error("No client email or customer id available to fetch invoices.");
+        }
+
+        if (!json || json.ok !== true || !Array.isArray(json.data)) {
+          throw new Error("Unexpected response while fetching invoices");
+        }
+        setClientInvoices(json.data);
+      } catch (e) {
+        setClientInvoices([]);
+        setClientInvoicesError(safeText(e?.message || e));
+      } finally {
+        setClientInvoicesLoading(false);
+      }
+    }
+
+    if (!selectedGroup) {
+      setClientInvoices([]);
+      setClientInvoicesError("");
+      return;
+    }
+
+    loadInvoicesForSelectedClient();
+  }, [selectedGroup?.key, selectedGroup?.invoiceStats?.customerId, selectedGroup?.invoiceStats?.customerEmail]);
+
   const historyRows = useMemo(() => {
     const rowsForClient = Array.isArray(selectedGroup?.rows) ? selectedGroup.rows : [];
     if (historyFilter === "Paid") return rowsForClient.filter((row) => normalizeStatus(row?.status) === "Paid");
@@ -830,41 +885,39 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     return historyRows.slice(start, start + historyPerPage);
   }, [historyRows, historyPage, historyPerPage]);
 
-  function onExportHistory() {
+  function onExportInvoices() {
     if (!selectedGroup) return;
 
     const header = [
       "Client Name",
       "CRM Client ID",
-      "Debit Order Record ID",
+      "Invoice ID",
+      "Invoice Number",
+      "Reference",
       "Status",
-      "Amount",
-      "Billing Cycle",
-      "Next Charge Date",
-      "Retry Count",
-      "Last Transaction Reference",
-      "Failure Reason",
-      "Books Invoice ID",
-      "Updated At",
+      "Date",
+      "Due Date",
+      "Total",
+      "Balance",
+      "Currency",
     ];
 
-    const body = historyRows.map((row) => [
+    const body = (Array.isArray(clientInvoices) ? clientInvoices : []).map((inv) => [
       selectedGroup.clientName || "",
       selectedGroup.clientId || "",
-      row.id || "",
-      normalizeStatus(row.status),
-      row.amount ?? "",
-      row.billingCycle || "",
-      row.nextChargeDate || "",
-      getRetryCount(row),
-      row.lastTransactionReference || "",
-      getFailureReason(row),
-      row.booksInvoiceId || "",
-      row.updatedAt || row.Updated_Time || row.Modified_Time || "",
+      inv.id || "",
+      inv.invoiceNumber || "",
+      inv.reference || "",
+      safeText(inv.status),
+      safeText(inv.date),
+      safeText(inv.dueDate),
+      inv.total ?? "",
+      inv.balance ?? "",
+      inv.currencyCode || "",
     ]);
 
     downloadCsv(
-      `tabbytech-debit-history-${safeText(selectedGroup.clientId || selectedGroup.clientName || "client")}.csv`,
+      `tabbytech-invoices-${safeText(selectedGroup.clientId || selectedGroup.clientName || "client")}.csv`,
       [header, ...body]
     );
   }
@@ -1888,8 +1941,8 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
             {loading ? "Syncing..." : "Sync now"}
           </button>
 
-          <button type="button" className="tt-do-btn" onClick={onExportHistory} disabled={!selectedGroup}>
-            Export history
+          <button type="button" className="tt-do-btn" onClick={onExportInvoices} disabled={!selectedGroup}>
+            Export invoices
           </button>
         </div>
       </div>
@@ -2243,16 +2296,17 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
             <div className="tt-do-glass tt-do-history">
               <div className="tt-do-panelHeader">
                 <div>
-                  <p className="tt-do-panelTitle">Debit order history</p>
+                  <p className="tt-do-panelTitle">Invoice list</p>
                   <p className="tt-do-panelSub">
-                    Client-specific debit-order rows loaded from Zoho CRM.
+                    Client-specific invoices loaded from Zoho Books (matched via client email).
                   </p>
                 </div>
               </div>
 
               <div className="tt-do-historyToolbar">
                 <div className="tt-do-historyMeta">
-                  {historyRows.length} filtered row(s) for {selectedGroup?.clientName || selectedGroup?.clientId || "client"}
+                  {(Array.isArray(clientInvoices) ? clientInvoices.length : 0)} invoice(s) for{" "}
+                  {selectedGroup?.clientName || selectedGroup?.clientId || "client"}
                 </div>
 
                 <div className="tt-do-actions">
@@ -2260,119 +2314,93 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                 </div>
               </div>
 
-              <div className="tt-do-historyToolbar" style={{ borderTop: "1px solid rgba(168,85,247,0.08)" }}>
-                <div className="tt-do-pillRow">
-                  {["All", "Paid", "Scheduled", "Failed"].map((pill) => (
-                    <button
-                      key={pill}
-                      type="button"
-                      className={`tt-do-pill ${historyFilter === pill ? "tt-do-pillActive" : ""}`}
-                      onClick={() => setHistoryFilter(pill)}
-                    >
-                      <span>{pill}</span>
-                      <span>{historyCounts[pill] ?? 0}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="tt-do-tableScroll">
                 <table className="tt-do-table">
                   <thead>
                     <tr>
-                      <th className="tt-do-th">Debit order record</th>
+                      <th className="tt-do-th">Invoice</th>
                       <th className="tt-do-th">Status</th>
-                      <th className="tt-do-th">Amount</th>
-                      <th className="tt-do-th">Billing cycle</th>
-                      <th className="tt-do-th">Next charge</th>
-                      <th className="tt-do-th">Retry count</th>
-                      <th className="tt-do-th">Books invoice</th>
+                      <th className="tt-do-th">Date</th>
+                      <th className="tt-do-th">Due date</th>
+                      <th className="tt-do-th">Total</th>
+                      <th className="tt-do-th">Balance</th>
                       <th className="tt-do-th">Reference</th>
-                      <th className="tt-do-th">Failure reason</th>
-                      <th className="tt-do-th">Updated</th>
+                      <th className="tt-do-th">PDF</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pagedHistoryRows.map((row) => {
-                      const normalizedStatus = normalizeStatus(row?.status);
+                    {clientInvoicesLoading ? (
+                      <ShimmerTableRows rows={5} cols={8} />
+                    ) : null}
 
+                    {clientInvoicesError ? (
+                      <tr>
+                        <td className="tt-do-td" colSpan={8} style={{ padding: 18, whiteSpace: "normal" }}>
+                          <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>Could not load invoices</div>
+                          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.45 }}>
+                            {clientInvoicesError}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+
+                    {(Array.isArray(clientInvoices) ? clientInvoices : []).map((inv) => {
+                      const invStatus = safeText(inv?.status) || "Unknown";
                       return (
-                        <tr key={row.id} className="tt-do-tr">
+                        <tr key={inv.id || inv.invoiceNumber || Math.random()} className="tt-do-tr">
                           <td className="tt-do-td">
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                               <span style={{ fontWeight: 900, color: "rgba(255,255,255,0.94)" }}>
-                                {safeText(row?.name) || safeText(row?.id)}
+                                {safeText(inv?.invoiceNumber) || safeText(inv?.id)}
                               </span>
-                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.58)" }}>{safeText(row?.id)}</span>
+                              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.58)" }}>{safeText(inv?.id)}</span>
                             </div>
                           </td>
                           <td className="tt-do-td">
-                            <StatusBadge status={normalizedStatus} />
+                            <StatusBadge status={invStatus} />
                           </td>
-                          <td className="tt-do-td">{currencyZar(row?.amount)}</td>
-                          <td className="tt-do-td">{safeText(row?.billingCycle) || "Not set"}</td>
-                          <td className="tt-do-td">{formatDate(row?.nextChargeDate)}</td>
-                          <td className="tt-do-td">{String(getRetryCount(row))}</td>
-                          <td className="tt-do-td">{safeText(row?.booksInvoiceId) || "Not linked"}</td>
-                          <td className="tt-do-td">{safeText(row?.lastTransactionReference) || "Not available"}</td>
-                          <td className="tt-do-td" style={{ whiteSpace: "normal", minWidth: 220 }}>
-                            {safeText(getFailureReason(row)) || "No failure logged"}
-                          </td>
+                          <td className="tt-do-td">{formatDate(inv?.date)}</td>
+                          <td className="tt-do-td">{formatDate(inv?.dueDate)}</td>
+                          <td className="tt-do-td">{currencyZar(inv?.total)}</td>
+                          <td className="tt-do-td">{currencyZar(inv?.balance)}</td>
+                          <td className="tt-do-td">{safeText(inv?.reference) || "—"}</td>
                           <td className="tt-do-td">
-                            {formatDateTime(
-                              firstNonEmpty(
-                                row?.updatedAt,
-                                row?.updated_at,
-                                row?.Updated_Time,
-                                row?.Modified_Time,
-                                row?.Last_Updated
-                              )
+                            {safeText(inv?.id) ? (
+                              <a
+                                href={`/api/invoice-pdf/${encodeURIComponent(safeText(inv.id))}`}
+                                className="tt-do-btn"
+                                style={{ height: 32, padding: "0 12px", display: "inline-flex", textDecoration: "none" }}
+                              >
+                                Download
+                              </a>
+                            ) : (
+                              "—"
                             )}
                           </td>
                         </tr>
                       );
                     })}
 
-                    {!loading && pagedHistoryRows.length === 0 ? (
+                    {!clientInvoicesLoading && !clientInvoicesError && (Array.isArray(clientInvoices) ? clientInvoices.length : 0) === 0 ? (
                       <tr>
-                        <td className="tt-do-td" colSpan={10} style={{ padding: 24, whiteSpace: "normal" }}>
+                        <td className="tt-do-td" colSpan={8} style={{ padding: 24, whiteSpace: "normal" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>No debit history found</div>
+                            <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>No invoices found</div>
                             <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.45 }}>
-                              No rows matched the selected pill for this client.
+                              This client has no invoices in Zoho Books (or the client email could not be matched to a Books contact).
                             </div>
                           </div>
                         </td>
                       </tr>
                     ) : null}
-
-                    {loading && <ShimmerTableRows rows={5} cols={10} />}
                   </tbody>
                 </table>
               </div>
 
               <div className="tt-do-navRow">
                 <span className="tt-do-pagePill">
-                  Page {historyPage} of {historyPageCount}
+                  Showing {(Array.isArray(clientInvoices) ? clientInvoices.length : 0)} invoice(s)
                 </span>
-
-                <button
-                  type="button"
-                  className="tt-do-btn"
-                  onClick={() => setHistoryPage((prev) => Math.max(1, prev - 1))}
-                  disabled={historyPage <= 1}
-                >
-                  Back
-                </button>
-
-                <button
-                  type="button"
-                  className="tt-do-btn"
-                  onClick={() => setHistoryPage((prev) => Math.min(historyPageCount, prev + 1))}
-                  disabled={historyPage >= historyPageCount}
-                >
-                  Next
-                </button>
               </div>
             </div>
           </>
