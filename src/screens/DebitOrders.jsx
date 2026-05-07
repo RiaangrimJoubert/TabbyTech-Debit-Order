@@ -2325,17 +2325,16 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                       <th className="tt-do-th">Total</th>
                       <th className="tt-do-th">Balance</th>
                       <th className="tt-do-th">Reference</th>
-                      <th className="tt-do-th">PDF</th>
                     </tr>
                   </thead>
                   <tbody>
                     {clientInvoicesLoading ? (
-                      <ShimmerTableRows rows={5} cols={8} />
+                      <ShimmerTableRows rows={5} cols={7} />
                     ) : null}
 
                     {clientInvoicesError ? (
                       <tr>
-                        <td className="tt-do-td" colSpan={8} style={{ padding: 18, whiteSpace: "normal" }}>
+                        <td className="tt-do-td" colSpan={7} style={{ padding: 18, whiteSpace: "normal" }}>
                           <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>Could not load invoices</div>
                           <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.45 }}>
                             {clientInvoicesError}
@@ -2364,26 +2363,13 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
                           <td className="tt-do-td">{currencyZar(inv?.total)}</td>
                           <td className="tt-do-td">{currencyZar(inv?.balance)}</td>
                           <td className="tt-do-td">{safeText(inv?.reference) || "—"}</td>
-                          <td className="tt-do-td">
-                            {safeText(inv?.id) ? (
-                              <a
-                                href={`/api/invoice-pdf/${encodeURIComponent(safeText(inv.id))}`}
-                                className="tt-do-btn"
-                                style={{ height: 32, padding: "0 12px", display: "inline-flex", textDecoration: "none" }}
-                              >
-                                Download
-                              </a>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
                         </tr>
                       );
                     })}
 
                     {!clientInvoicesLoading && !clientInvoicesError && (Array.isArray(clientInvoices) ? clientInvoices.length : 0) === 0 ? (
                       <tr>
-                        <td className="tt-do-td" colSpan={8} style={{ padding: 24, whiteSpace: "normal" }}>
+                        <td className="tt-do-td" colSpan={7} style={{ padding: 24, whiteSpace: "normal" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.92)" }}>No invoices found</div>
                             <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, lineHeight: 1.45 }}>
