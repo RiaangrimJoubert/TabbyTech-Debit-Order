@@ -1,6 +1,6 @@
 // src/screens/Invoices.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { request, requestBlob, API_BASE } from "../api";
+import { request, API_BASE } from "../api";
 import * as XLSX from "xlsx";
 import { money, calcTotals } from "../data/invoices.js";
 import "../styles/invoice.css";
@@ -126,6 +126,12 @@ function normalizeInvoice(inv) {
     apiTotal: Number.isFinite(apiTotal) ? apiTotal : 0,
     apiBalance: Number.isFinite(apiBalance) ? apiBalance : 0
   };
+}
+
+function resolveInvoiceDownloadId(inv) {
+  const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
+  const fallback = String(inv?.id || "").trim();
+  return booksInvoiceId || fallback;
 }
 
 async function fetchInvoicesFromApi() {
@@ -418,17 +424,15 @@ export default function Invoices() {
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState("");
 
   async function downloadInvoicePdf(inv) {
-    const booksInvoiceId = String(inv?.booksInvoiceId || "").trim();
-    const fallback = String(inv?.id || "").trim();
-    const id = booksInvoiceId || fallback;
+    const id = resolveInvoiceDownloadId(inv);
 
     if (!id) return;
     setDownloadingInvoiceId(id);
 
     try {
-      const url = `${API_BASE}/api/invoice-html/${encodeURIComponent(id)}`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error("Failed to fetch HTML");
+      const htmlUrl = `${API_BASE}/api/invoice-html/${encodeURIComponent(id)}`;
+      const resp = await fetch(htmlUrl);
+      if (!resp.ok) throw new Error("Failed to fetch invoice HTML");
       const htmlText = await resp.text();
 
       const container = document.createElement("div");
@@ -439,15 +443,13 @@ export default function Invoices() {
       container.innerHTML = htmlText;
       document.body.appendChild(container);
 
-      // Give images a tiny moment to load
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
 
       const node = container.querySelector(".invoice-container");
       if (!node) throw new Error("Could not find invoice container");
 
       const html2canvas = (await import("html2canvas")).default;
       const { jsPDF } = await import("jspdf");
-
       const canvas = await html2canvas(node, {
         scale: 2,
         useCORS: true,
@@ -463,15 +465,10 @@ export default function Invoices() {
       });
 
       pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
-      
-      const invEl = node.querySelector(".invoice-number");
-      const filename = (invEl ? invEl.textContent.replace(/[^a-zA-Z0-9-]/g, "") : "invoice") + ".pdf";
-      
-      pdf.save(filename);
+      pdf.save(`invoice-${id}.pdf`);
       document.body.removeChild(container);
     } catch (e) {
-      console.error("PDF generation failed:", e);
-      openInvoiceHtml(inv);
+      console.error("PDF download failed:", e);
     } finally {
       setDownloadingInvoiceId("");
     }
@@ -793,6 +790,7 @@ export default function Invoices() {
                   {selectedClientInvoices.map((inv) => {
                     const totals = calcTotals(inv);
                     const invId = String(inv?.id || "").trim();
+                    const downloadId = resolveInvoiceDownloadId(inv);
                     const dotClass = statusDotClass(String(inv.status || "Overdue"));
 
                     return (
@@ -827,11 +825,11 @@ export default function Invoices() {
                               type="button"
                               className="tt-iconbtn tt-iconbtn-purple"
                               onClick={() => downloadInvoicePdf(inv)}
-                              disabled={downloadingInvoiceId === invId}
+                              disabled={downloadingInvoiceId === downloadId}
                               aria-label={`Download invoice ${invId}`}
                               title="Download PDF"
                             >
-                              {downloadingInvoiceId === invId ? (
+                              {downloadingInvoiceId === downloadId ? (
                                 <div style={{
                                   width: "16px",
                                   height: "16px",
