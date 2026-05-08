@@ -2946,7 +2946,13 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <LineTrendChart data={debitPerformanceData} />
+            {summaryLoading ? (
+              <div className="ttd-chartLoading">
+                <div className="ttd-shimmerBar" style={{ height: '100%', width: '100%', borderRadius: 8 }} />
+              </div>
+            ) : (
+              <LineTrendChart data={debitPerformanceData} />
+            )}
           </div>
         </Card>
 
@@ -2960,11 +2966,15 @@ export default function Dashboard() {
             </div>
 
             <div className="ttd-donutLayout">
-              <DonutChart
-                centerValue={formatCountOrText(data.top.retryScheduled)}
-                centerLabel="Retry queue"
-                segments={retrySegments}
-              />
+              {summaryLoading ? (
+                <div className="ttd-donutShimmer" />
+              ) : (
+                <DonutChart
+                  centerValue={formatCountOrText(data.top.retryScheduled)}
+                  centerLabel="Retry queue"
+                  segments={retrySegments}
+                />
+              )}
 
               <div className="ttd-legendStack">
                 {retrySegments.map((item) => (
@@ -2996,11 +3006,15 @@ export default function Dashboard() {
             </div>
 
             <div className="ttd-donutLayout">
-              <DonutChart
-                centerValue={formatCountOrText(attemptsToday.attempted)}
-                centerLabel="Cycle items"
-                segments={operationalSegments}
-              />
+              {summaryLoading ? (
+                <div className="ttd-donutShimmer" />
+              ) : (
+                <DonutChart
+                  centerValue={formatCountOrText(attemptsToday.attempted)}
+                  centerLabel="Cycle items"
+                  segments={operationalSegments}
+                />
+              )}
 
               <div className="ttd-legendStack">
                 {operationalSegments.map((segment) => (

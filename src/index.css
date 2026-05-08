@@ -788,6 +788,47 @@ select.tt-input:focus {
   font-size: 12px;
 }
 
+/* ===== LOADING SHIMMERS ===== */
+
+.ttd-chartLoading {
+  height: 240px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ttd-shimmerBar {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: ttd-shimmer 1.5s infinite linear;
+}
+
+.ttd-donutShimmer {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: ttd-shimmer 1.5s infinite linear;
+  border: 12px solid rgba(255, 255, 255, 0.04);
+}
+
+@keyframes ttd-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ===== SETTINGS PAGE: CARD TITLE ACCENT FIX ===== */
 /* Ensures all card titles on Settings use TabbyTech purple */
 
