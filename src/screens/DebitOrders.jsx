@@ -756,6 +756,9 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     return filteredGroups.slice(start, start + clientListPerPage);
   }, [filteredGroups, clientListPage, clientListPerPage]);
 
+  // NEW: Track the last key that triggered an auto-jump to prevent pagination traps
+  const lastAutoJumpKeyRef = useRef("");
+
   useEffect(() => {
     if (!filteredGroups.length) {
       setSelectedClientKey("");
@@ -774,11 +777,18 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
         setSelectedClientKey(match.key);
       }
 
-      const matchIndex = filteredGroups.findIndex((group) => group.key === match.key);
-      if (matchIndex >= 0) {
-        const targetPage = Math.floor(matchIndex / clientListPerPage) + 1;
-        if (targetPage !== clientListPage) {
-          setClientListPage(targetPage);
+      // Only auto-jump the page if the selection or search actually changed
+      // This prevents the "Pagination Trap" where clicking Next/Back jumps you back to the selected row
+      const autoJumpTrigger = `${match.key}-${query}-${presetFocusClientId}`;
+      if (lastAutoJumpKeyRef.current !== autoJumpTrigger) {
+        lastAutoJumpKeyRef.current = autoJumpTrigger;
+        
+        const matchIndex = filteredGroups.findIndex((group) => group.key === match.key);
+        if (matchIndex >= 0) {
+          const targetPage = Math.floor(matchIndex / clientListPerPage) + 1;
+          if (targetPage !== clientListPage) {
+            setClientListPage(targetPage);
+          }
         }
       }
       return;
@@ -787,7 +797,7 @@ export default function DebitOrders({ presetSearch = "", presetFocusClientId = "
     if (!filteredGroups.some((group) => group.key === selectedClientKey)) {
       setSelectedClientKey(filteredGroups[0].key);
     }
-  }, [filteredGroups, presetFocusClientId, selectedClientKey, query, clientListPerPage, clientListPage]);
+  }, [filteredGroups, presetFocusClientId, selectedClientKey, query, clientListPerPage]); // Removed clientListPage from deps
 
   const selectedGroup = useMemo(() => {
     return (
